@@ -34,11 +34,11 @@
  *---------------------------------------------------------------*/
 
 #ifndef HEADER_SSL_H
-#include <ssl.h>
+#include <openssl/ssl.h>
 #endif
 
 #ifndef HEADER_CRYPTO_H
-#include <crypto.h>
+#include <openssl/crypto.h>
 #endif
 
 #ifndef FALSE

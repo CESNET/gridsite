@@ -65,7 +65,7 @@
  * CLEARLY, THIS WILL BREAK IF THERE ARE MAJOR CHANGES TO ssl_private.h!!!
  */
 
-#include <ssl.h>
+#include <openssl/ssl.h>
 
 typedef enum {
     SSL_SHUTDOWN_TYPE_UNSET,

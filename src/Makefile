@@ -58,7 +58,7 @@ endif
 #
 
 build: libgridsite.so.$(VERSION) libgridsite.a htcp mod_gridsite.so \
-       urlencode findproxyfile real-gridsite-admin.cgi wtf
+       urlencode findproxyfile real-gridsite-admin.cgi
 
 libgridsite.so.$(VERSION): grst_x509.o grst_gacl.o grst_http.o
 	gcc -shared -Wl,-soname,libgridsite.so.$(MINOR_VERSION) \
@@ -68,21 +68,21 @@ libgridsite.a: grst_x509.o grst_gacl.o grst_http.o
 	ar src libgridsite.a grst_x509.o grst_gacl.o grst_http.o
 
 grst_x509.o: grst_x509.c ../interface/gridsite.h
-	gcc $(MYCFLAGS) -I/usr/include/openssl \
+	gcc $(MYCFLAGS) \
             -I/usr/kerberos/include -c grst_x509.c
 
 grst_gacl.o: grst_gacl.c ../interface/gridsite.h
-	gcc $(MYCFLAGS) -I/usr/include/openssl \
+	gcc $(MYCFLAGS) \
             -I/usr/kerberos/include `xml2-config --cflags` -c grst_gacl.c
 
 grst_http.o: grst_http.c ../interface/gridsite.h
-	gcc $(MYCFLAGS) -I/usr/include/openssl \
+	gcc $(MYCFLAGS)  \
                         -I/usr/kerberos/include -c grst_http.c
 
 urlencode: urlencode.c libgridsite.a
 	gcc -DVERSION=\"$(PATCH_VERSION)\" $(MYCFLAGS) \
             -o urlencode urlencode.c -L. \
-            -I/usr/include/openssl -I/usr/kerberos/include -lgridsite
+             -I/usr/kerberos/include -lgridsite
 
 htcp: htcp.c
 	gcc -DVERSION=\"$(PATCH_VERSION)\" -I. -o htcp htcp.c \
@@ -90,7 +90,7 @@ htcp: htcp.c
 
 mod_gridsite.so: mod_gridsite.c mod_ssl-private.h libgridsite.a
 	gcc $(MYCFLAGS) -shared -Wl,-soname=gridsite_module \
-           -I/usr/include/openssl -I/usr/kerberos/include \
+            -I/usr/kerberos/include \
            -I/usr/include/libxml2 \
            -DVERSION=\"$(VERSION)\" -o mod_gridsite.so \
            mod_gridsite.c $(MYLDFLAGS) -lxml2 -lm -lz -lgridsite
@@ -101,13 +101,13 @@ real-gridsite-admin.cgi: grst_admin_main.c grst_admin_gacl.c \
             grst_admin_main.c \
             grst_admin_gacl.c \
             grst_admin_file.c \
-            -I/usr/include/openssl -I/usr/kerberos/include \
+             -I/usr/kerberos/include \
             -DVERSION=\"$(VERSION)\" -lgridsite -lssl -lcrypto -lxml2 -lz -lm
 
 findproxyfile: findproxyfile.c libgridsite.a
 	gcc -DVERSION=\"$(PATCH_VERSION)\" $(MYCFLAGS) $(MYLDFLAGS) \
             -o findproxyfile findproxyfile.c -L. \
-            -I/usr/include/openssl -I/usr/kerberos/include -lgridsite \
+             -I/usr/kerberos/include -lgridsite \
             -lssl -lcrypto -lxml2 -lz -lm
 
 apidoc:
@@ -115,16 +115,18 @@ apidoc:
 
 gaclexample: gaclexample.c libgridsite.a
 	gcc -o gaclexample gaclexample.c -I. -L. \
-            -I/usr/include/openssl -I/usr/kerberos/include -lgridsite \
+             -I/usr/kerberos/include -lgridsite \
             -lssl -lcrypto -lxml2 -lz -lm 
 
 #
 # Delegation machinery, including SOAP delegation portType. To build this
 # you need to install gSOAP and set GSOAPDIR to the directory containing
-# soapcpp2 and stdsoap2.h 
+# soapcpp2 and stdsoap2.h (unless GSOAPDIR is set already)
 #
 
-GSOAPDIR=/usr/local/lib/gsoap
+ifndef GSOAPDIR
+export GSOAPDIR=/usr/local/lib/gsoap
+endif
 
 delegation.wsdl: delegation.h
 	$(GSOAPDIR)/soapcpp2 -c delegation.h
@@ -137,7 +139,7 @@ gridsite-delegation.cgi: grst-delegation.c delegation.h delegation.wsdl \
                          libstdsoap2.a soapC.c soapServer.c
 	gcc $(MYCFLAGS) $(MYLDFLAGS) -o gridsite-delegation.cgi \
             grst-delegation.c \
-            -I/usr/include/openssl -I/usr/kerberos/include -I$(GSOAPDIR) \
+             -I/usr/kerberos/include -I$(GSOAPDIR) \
             -DVERSION=\"$(VERSION)\" \
             soapC.c soapServer.c libstdsoap2.a \
             -lgridsite -lcurl -lz -lssl -lcrypto -lxml2 -lm
@@ -146,7 +148,7 @@ htproxyput: htproxyput.c delegation.h delegation.wsdl \
             soapC.c soapServer.c libstdsoap2.a
 	gcc $(MYCFLAGS) $(MYLDFLAGS) -o htproxyput \
             htproxyput.c \
-            -I/usr/include/openssl -I/usr/kerberos/include \
+             -I/usr/kerberos/include \
             -g -DVERSION=\"$(VERSION)\" \
             -I$(GSOAPDIR) -DWITH_OPENSSL \
             soapC.c soapClient.c libstdsoap2.a \
@@ -156,7 +158,7 @@ proxyput-example: proxyput-example.c delegation.h delegation.wsdl \
             soapC.c soapServer.c libstdsoap2.a
 	gcc $(MYCFLAGS) $(MYLDFLAGS) -o proxyput-example \
             proxyput-example.c \
-            -I/usr/include/openssl -I/usr/kerberos/include \
+             -I/usr/kerberos/include \
             -g -DVERSION=\"$(VERSION)\" \
             -I$(GSOAPDIR) -DWITH_OPENSSL \
             soapC.c soapClient.c libstdsoap2.a \
@@ -197,7 +199,7 @@ install: apidoc
 	cp -f ../doc/*.html ../doc/*.conf ../doc/*.1 ../doc/*.sh \
                $(prefix)/share/doc/gridsite-$(VERSION)
 	cp -f ../doc/*.1 $(prefix)/share/man/man1
-	gzip $(prefix)/share/man/man1/*.1
+	gzip -f $(prefix)/share/man/man1/*.1
 	cd ../doc ; for i in *.1 ; do ../src/roffit < $$i \
           > $(prefix)/share/doc/gridsite-$(VERSION)/$$i.html ; done
 	cp -f htcp $(prefix)/bin

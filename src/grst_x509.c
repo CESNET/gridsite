@@ -1445,10 +1445,6 @@ char *GRSTx509MakeProxyFileName(char *delegation_id,
     }
 
   EVP_DigestInit(&ctx, m);
-  EVP_DigestUpdate(&ctx, der_name, der_name_len);
-  EVP_DigestFinal(&ctx, hash_name, &hash_name_len);
-
-  EVP_DigestInit(&ctx, m);
   EVP_DigestUpdate(&ctx, delegation_id, strlen(delegation_id));
   EVP_DigestFinal(&ctx, hash_delegation_id, &delegation_id_len);
 
@@ -1460,6 +1456,10 @@ char *GRSTx509MakeProxyFileName(char *delegation_id,
    
   filename[16] = '-';
   
+  EVP_DigestInit(&ctx, m);
+  EVP_DigestUpdate(&ctx, der_name, der_name_len);
+  EVP_DigestFinal(&ctx, hash_name, &hash_name_len);
+
   for (i=0; i <=7; ++i)
    sprintf(&filename[17 + i*2], "%02x", hash_name[i]);
    

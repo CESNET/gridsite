@@ -65,6 +65,45 @@ main()
         length1 = ASN1_STRING_length(asndata);
               
         GRSTasn1ParseDump(out, p1, length1, taglist, MAXTAG, &lasttag);
+
+{
+        int n, tag, xclass;
+        unsigned char *q, buf[100];
+        const unsigned char *dn, hash[EVP_MAX_MD_SIZE];
+        ASN1_OBJECT *obj = NULL;
+        const EVP_MD *m;
+        EVP_MD_CTX ctx;
+   
+        itag = GRSTasn1SearchTaglist(taglist, &lasttag, 
+               "-1-1-1-1-2-1-1-1-1-1-1-1");
+               
+        X509_NAME *xname;
+        
+        q = &p[taglist[itag].start];
+        
+        d2i_ASN1_OBJECT(&obj, &q, taglist[itag].length + 
+                                  taglist[itag].headerlength);
+
+        n  = OBJ_obj2nid(obj);
+        dn = OBJ_nid2sn(n);
+                         
+//        dn = X509_NAME_oneline(xname,NULL,0);
+        
+        printf("n=%d dn=%s obj2txt=%s\n", n, dn, OBJ_obj2txt(NULL,0,obj,1));
+
+        GRSTasn1GetX509Name(buf, 99, "-1-1-1-1-2-1-1-1-1-%d-1-%d", p1, taglist, &lasttag);
+        printf("%s\n", buf);
+        GRSTasn1GetX509Name(buf, 99, "-1-1-1-1-3-1-1-1-%d-1-%d", p1, taglist, &lasttag);
+        printf("%s\n", buf);
+        
+/*        
+        m = EVP_md5();
+        EVP_DigestInit(&ctx, m); 
+        EVP_DigestUpdate(&ctx, delegation_id, strlen(delegation_id));
+        EVP_DigestFinal(&ctx, hash, &delegation_id_len);
+ */      
+}              
+
 /*       
         itag = GRSTasn1SearchTaglist(taglist, &lasttag,
                                      "1-1-1-1-1-7-1-2-1-2-1");

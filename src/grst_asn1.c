@@ -1,5 +1,8 @@
 
+#define _GNU_SOURCE
 #include <stdio.h>
+#include <string.h>
+
 #include <openssl/x509_vfy.h>
 #include <openssl/err.h>
 #include <openssl/pem.h>
@@ -16,19 +19,34 @@
  *   necessary)
  */
                                                                                 
-time_t GRSTasn1TimeToTimeT(char *asn1time)
+time_t GRSTasn1TimeToTimeT(char *asn1time, size_t len)
 {
    char   zone;
    struct tm time_tm;
+   
+   if (len == 0) len = strlen(asn1time);
                                                                                 
-   if ((sscanf(asn1time, "%02d%02d%02d%02d%02d%02d%c",
+   if ((len != 13) && (len != 15)) return 0; /* dont understand */
+                                                                                
+   if ((len == 13) &&
+       ((sscanf(asn1time, "%02d%02d%02d%02d%02d%02d%c",
          &(time_tm.tm_year),
          &(time_tm.tm_mon),
          &(time_tm.tm_mday),
          &(time_tm.tm_hour),
          &(time_tm.tm_min),
          &(time_tm.tm_sec),
-         &zone) != 7) || (zone != 'Z')) return 0; /* dont understand */
+         &zone) != 7) || (zone != 'Z'))) return 0; /* dont understand */
+                                                                                
+   if ((len == 15) &&
+       ((sscanf(asn1time, "20%02d%02d%02d%02d%02d%02d%c",
+         &(time_tm.tm_year),
+         &(time_tm.tm_mon),
+         &(time_tm.tm_mday),
+         &(time_tm.tm_hour),
+         &(time_tm.tm_min),
+         &(time_tm.tm_sec),
+         &zone) != 7) || (zone != 'Z'))) return 0; /* dont understand */
                                                                                 
    /* time format fixups */
                                                                                 
@@ -95,16 +113,32 @@ static void GRSTasn1AddToTaglist(struct GRSTasn1TagList taglist[],
 }
 
 int GRSTasn1SearchTaglist(struct GRSTasn1TagList taglist[], 
-                                 int *lasttag, char *treecoords)
+                                 int lasttag, char *treecoords)
 {
    int i;
    
-   for (i=0; i <= *lasttag; ++i)
+   for (i=0; i <= lasttag; ++i)
       {
         if (strcmp(treecoords, taglist[i].treecoords) == 0) return i;
       }
       
    return -1;
+}
+
+static int GRSTasn1PrintPrintable(BIO *bp, char *str, int length)
+{
+   int   ret = 0;
+   char *dup, *p;
+   
+   dup = strndup(str, length);
+
+   for (p=dup; *p != '\0'; ++p) if ((*p < ' ') || (*p > '~')) *p = '.';
+
+   if (bp != NULL) ret = BIO_write(bp, dup, strlen(dup));
+
+   free(dup);
+   
+   return ret;
 }
 
 static int GRSTasn1Parse2(BIO *bp, unsigned char **pp, long length, int offset,
@@ -149,10 +183,18 @@ static int GRSTasn1Parse2(BIO *bp, unsigned char **pp, long length, int offset,
                 GRSTasn1AddToTaglist(taglist, maxtag, lasttag, sibtreecoords,
                                (int)offset+(int)(op - *pp),
                                (int) hl, len, tag);
-
+                               
 		if (bp != NULL)
-		 BIO_printf(bp, "  %s %ld %ld %d %d\n", sibtreecoords,
+		  {
+		    BIO_printf(bp, "  %s %ld %ld %d %d ", sibtreecoords,
 		           (long)offset+(long)(op - *pp), hl, len, tag);
+
+		    GRSTasn1PrintPrintable(bp, p,
+//		                   &((*pp)[(long)offset+(long)(op - *pp)+hl]),
+		                           (len > 30) ? 30 : len);
+
+		    BIO_printf(bp, "\n");
+		 }
 
 
 		/* if j == 0x21 it is a constructed indefinite length object */
@@ -272,51 +314,26 @@ static int GRSTasn1Parse2(BIO *bp, unsigned char **pp, long length, int offset,
 				}
 			else if (tag == V_ASN1_OCTET_STRING)
 				{
-				int i,printable=1;
+				int i;
 
 				opp=op;
 				os=d2i_ASN1_OCTET_STRING(NULL,&opp,len+hl);
 				if (os != NULL)
 					{
 					opp=os->data;
-					for (i=0; i<os->length; i++)
-						{
-						if ((	(opp[i] < ' ') &&
-							(opp[i] != '\n') &&
-							(opp[i] != '\r') &&
-							(opp[i] != '\t')) ||
-							(opp[i] > '~'))
-							{
-							printable=0;
-							break;
-							}
-						}
-					if (printable && (os->length > 0))
-						{
-						if ((bp != NULL) &&
+
+					if (os->length > 0)
+					  {
+					    if ((bp != NULL) &&
 						    (BIO_write(bp,":",1) <= 0))
 							goto end;
-						if ((bp != NULL) &&
-						    (BIO_write(bp,(char *)opp,
+					    if ((bp != NULL) &&
+					        (GRSTasn1PrintPrintable(bp,
+					                opp,
 							os->length) <= 0))
 							goto end;
-						}
-					if (!printable && (os->length > 0)
-						&& dump)
-						{
-						if (!nl) 
-							{
-							if ((bp != NULL) &&
-							    (BIO_write(bp,"\n",1) <= 0))
-								goto end;
-							}
-						if ((bp != NULL) &&
-						    (BIO_dump_indent(bp,(char *)opp,
-							((dump == -1 || dump > os->length)?os->length:dump),
-							dump_indent) <= 0))
-							goto end;
-						nl=1;
-						}
+					  }
+
 					M_ASN1_OCTET_STRING_free(os);
 					os=NULL;
 					}
@@ -441,3 +458,47 @@ int GRSTasn1ParseDump(BIO *bp, unsigned char *pp, long len,
            return(GRSTasn1Parse2(bp,&pp,len,0,0,0,0,"",
                                  taglist, maxtag, lasttag));
         }                        
+
+int GRSTasn1GetX509Name(char *x509name, int maxlength, char *coords,
+                        char *asn1string,
+                        struct GRSTasn1TagList taglist[], int lasttag)                        
+{
+   int i, iobj, istr, n, len = 0;
+   ASN1_OBJECT *obj = NULL;
+   unsigned char coordstmp[81], *q;
+   const unsigned char *shortname;
+   
+   for (i=1; ; ++i)
+      {
+        sprintf(coordstmp, coords, i, 1);
+        iobj = GRSTasn1SearchTaglist(taglist, lasttag, coordstmp);
+        if (iobj < 0) break;
+        
+        sprintf(coordstmp, coords, i, 2);
+        istr = GRSTasn1SearchTaglist(taglist, lasttag, coordstmp);
+        if (istr < 0) break;
+        
+        q = &asn1string[taglist[iobj].start];
+        d2i_ASN1_OBJECT(&obj, &q, taglist[iobj].length +
+                                  taglist[iobj].headerlength);
+
+        n = OBJ_obj2nid(obj);
+// free obj now?
+        shortname = OBJ_nid2sn(n);
+        
+        if (len + 2 + strlen(shortname) + taglist[istr].length >= maxlength)
+          {
+            x509name[0] = '\0';
+            return GRST_RET_FAILED;          
+          }
+        
+        sprintf(&x509name[len], "/%s=%.*s", shortname, 
+                                taglist[istr].length, 
+               &asn1string[taglist[istr].start+taglist[istr].headerlength]);
+        len += 2 + strlen(shortname) + taglist[istr].length;
+      }
+      
+   x509name[len] = '\0';
+   
+   return GRST_RET_OK;
+}

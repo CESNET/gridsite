@@ -280,7 +280,9 @@ void  GRSThttpWriteOut(GRSThttpBody *);
 int   GRSThttpPrintHeaderFooter(GRSThttpBody *, char *, char *);
 char *GRSThttpGetCGI(char *);
 
-time_t GRSTasn1TimeToTimeT(char *);
-int    GRSTasn1SearchTaglist(struct GRSTasn1TagList taglist[], int *, char *);
+time_t GRSTasn1TimeToTimeT(char *, size_t);
+int    GRSTasn1SearchTaglist(struct GRSTasn1TagList taglist[], int, char *);
 int    GRSTasn1ParseDump(BIO *, unsigned char *, long,
                          struct GRSTasn1TagList taglist[], int, int *);
+int    GRSTasn1GetX509Name(char *, int, char *, char *,
+                           struct GRSTasn1TagList taglist[], int);

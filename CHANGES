@@ -1,3 +1,6 @@
+* Thu Feb 24 2005 Andrew McNab <Andrew.McNab@man.ac.uk>
+- Add more sanity checking (signatures, dates, issuer,)
+  holder) to VOMS attribute parser.
 * Mon Feb 21 2005 Andrew McNab <Andrew.McNab@man.ac.uk>
 - Add bugfix for Bug #6357 from Fabrizio Pacini 
   <fabrizio.pacini@cern.ch> to fix delegation proxy

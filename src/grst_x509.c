@@ -1,5 +1,5 @@
 /*
-   Copyright (c) 2002-4, Andrew McNab, University of Manchester
+   Copyright (c) 2002-5, Andrew McNab, University of Manchester
    All rights reserved.
 
    Redistribution and use in source and binary forms, with or
@@ -141,36 +141,6 @@ int GRSTx509KnownCriticalExts(X509 *cert)
 #endif
 }
 
-#if 0
-/// ASN1 time string (in a char *) to time_t
-/** 
- *  (Use ASN1_STRING_data() to convert ASN1_GENERALIZEDTIME to char * if
- *   necessary)
- */
- 
-time_t GRSTasn1TimeToTimeT(char *asn1time)
-{
-   char   zone;
-   struct tm time_tm;
-  
-   if ((sscanf(asn1time, "%02d%02d%02d%02d%02d%02d%c", 
-         &(time_tm.tm_year),
-         &(time_tm.tm_mon),
-         &(time_tm.tm_mday),
-         &(time_tm.tm_hour),
-         &(time_tm.tm_min),
-         &(time_tm.tm_sec),
-         &zone) != 7) || (zone != 'Z')) return 0; /* dont understand */
-         
-   /* time format fixups */
-  
-   if (time_tm.tm_year < 90) time_tm.tm_year += 100;
-   --(time_tm.tm_mon);
-  
-   return timegm(&time_tm);         
-}
-#endif
-
 /// Check if certificate can be used as a CA to sign standard X509 certs
 /*
  *  Return GRST_RET_OK if true; GRST_RET_FAILED if not.
@@ -255,11 +225,11 @@ int GRSTx509CheckChain(int *first_non_ca, X509_STORE_CTX *ctx)
             /* we check times and reject immediately if invalid */
           
             if (now <
-                GRSTasn1TimeToTimeT(ASN1_STRING_data(X509_get_notBefore(cert))))
+           GRSTasn1TimeToTimeT(ASN1_STRING_data(X509_get_notBefore(cert)),0))
                   return X509_V_ERR_INVALID_CA;
                 
             if (now > 
-                GRSTasn1TimeToTimeT(ASN1_STRING_data(X509_get_notAfter(cert))))
+           GRSTasn1TimeToTimeT(ASN1_STRING_data(X509_get_notAfter(cert)),0))
                   return X509_V_ERR_INVALID_CA;
 
             /* If any forebear certificate is not allowed to sign we must 
@@ -395,6 +365,113 @@ int GRSTx509VerifyCallback (int ok, X509_STORE_CTX *ctx)
 //   else    return GRST_RET_FAILED;
 }
 
+/// Check the signature of the VOMS attributes
+/*
+ *  Returns GRST_RET_OK if signature is ok, other values if not.
+ */
+
+static int GRSTx509VerifyVomsSig(time_t *time1_time, time_t *time2_time,
+                                 unsigned char *asn1string, 
+                                 struct GRSTasn1TagList taglist[], 
+                                 int lasttag,
+                                 char *vomsdir)
+{   
+#define GRST_ASN1_COORDS_VOMS_DN   "-1-1-1-1-3-1-1-1-%d-1-%d"
+#define GRST_ASN1_COORDS_VOMS_INFO "-1-1-1-1"
+#define GRST_ASN1_COORDS_VOMS_SIG  "-1-1-1-3"
+   int            ret, isig, iinfo;
+   char          *certpath, acvomsdn[200];
+   unsigned char *q;
+   DIR           *vomsDIR;
+   struct dirent *vomsdirent;
+   X509          *cert;
+   EVP_PKEY      *prvkey;
+   FILE          *fp;
+   EVP_MD_CTX     ctx;
+   time_t         voms_service_time1, voms_service_time2;
+
+   if ((vomsdir == NULL) || (vomsdir[0] == '\0')) return GRST_RET_FAILED;
+   
+   if (GRSTasn1GetX509Name(acvomsdn, sizeof(acvomsdn), 
+                           GRST_ASN1_COORDS_VOMS_DN,
+         asn1string, taglist, lasttag) != GRST_RET_OK) return GRST_RET_FAILED;
+         
+   iinfo = GRSTasn1SearchTaglist(taglist, lasttag, GRST_ASN1_COORDS_VOMS_INFO);
+   isig  = GRSTasn1SearchTaglist(taglist, lasttag, GRST_ASN1_COORDS_VOMS_SIG);
+
+   if ((iinfo < 0) || (isig < 0)) return GRST_RET_FAILED;
+
+   vomsDIR = opendir(vomsdir);
+   if (vomsDIR == NULL) return GRST_RET_FAILED;
+   
+   while ((vomsdirent = readdir(vomsDIR)) != NULL)
+        {        
+          asprintf(&certpath, "%s/%s", vomsdir, vomsdirent->d_name);
+          fp = fopen(certpath, "r");
+          free(certpath);
+          if (fp == NULL) continue;
+
+          cert = PEM_read_X509(fp, NULL, NULL, NULL);
+          fclose(fp);
+          if (cert == NULL) continue;
+
+          if (GRSTx509NameCmp(acvomsdn, 
+                   X509_NAME_oneline(X509_get_subject_name(cert),NULL,0)) != 0)
+            {
+              X509_free(cert);
+              continue;
+            }
+
+          prvkey = X509_extract_key(cert);
+          if (prvkey == NULL)
+            {
+              X509_free(cert);
+              continue;
+            }
+            
+          OpenSSL_add_all_digests();
+          EVP_MD_CTX_init(&ctx);
+          EVP_VerifyInit_ex(&ctx, EVP_md5(), NULL);
+          
+          EVP_VerifyUpdate(&ctx, 
+                           &asn1string[taglist[iinfo].start+
+                                       0*taglist[iinfo].headerlength], 
+                           taglist[iinfo].length+taglist[iinfo].headerlength);
+
+          ret = EVP_VerifyFinal(&ctx, 
+                                &asn1string[taglist[isig].start+
+                                            taglist[isig].headerlength]+1, 
+                                taglist[isig].length - 1, 
+                                prvkey);
+
+          EVP_MD_CTX_cleanup(&ctx);                      
+          EVP_PKEY_free(prvkey);
+
+          if (ret != 1) /* signature doesnt match, look for more */
+            {
+              continue;
+              X509_free(cert);
+            }
+
+          voms_service_time1 = 
+           GRSTasn1TimeToTimeT(ASN1_STRING_data(X509_get_notBefore(cert)),0);
+          if (voms_service_time1 > *time1_time) 
+                             *time1_time = voms_service_time1; 
+           
+          voms_service_time2 = 
+           GRSTasn1TimeToTimeT(ASN1_STRING_data(X509_get_notAfter(cert)),0);
+          if (voms_service_time2 < *time1_time) 
+                             *time2_time = voms_service_time2; 
+            
+          X509_free(cert);
+          closedir(vomsDIR);
+          return GRST_RET_OK ; /* verified */
+        }
+
+   closedir(vomsDIR);   
+   return GRST_RET_FAILED;
+}
+
 /// Get the VOMS attributes in the given extension
 /*
  *  Puts any VOMS credentials found into the Compact Creds string array
@@ -402,16 +479,20 @@ int GRSTx509VerifyCallback (int ok, X509_STORE_CTX *ctx)
  */
 
 int GRSTx509ParseVomsExt(int *lastcred, int maxcreds, size_t credlen, 
-                         char *creds, time_t *time1_time, time_t *time2_time,
-                         X509_EXTENSION *ex, char *ucuser, char *vomsdir)
+                         char *creds, time_t time1_time, time_t time2_time,
+                         X509_EXTENSION *ex, char *ucuserdn, char *vomsdir)
 {
 #define MAXTAG 500
-#define FQAN_COORDS "-1-1-1-1-7-1-2-1-2-%d"
+#define GRST_ASN1_COORDS_FQAN    "-1-1-1-1-7-1-2-1-2-%d"
+#define GRST_ASN1_COORDS_USER_DN "-1-1-1-1-2-1-1-1-1-%d-1-%d"
+#define GRST_ASN1_COORDS_TIME1   "-1-1-1-1-6-1"
+#define GRST_ASN1_COORDS_TIME2   "-1-1-1-1-6-2"
    ASN1_OCTET_STRING *asn1data;
-   char              *asn1string, s[81];
+   char              *asn1string, s[81], acuserdn[200], acvomsdn[200];
    long               asn1length;
    int                lasttag=-1, itag, i;
    struct GRSTasn1TagList taglist[MAXTAG+1];
+   time_t             actime1, actime2, time_now;
 
    asn1data   = X509_EXTENSION_get_data(ex);
    asn1string = ASN1_STRING_data(asn1data);
@@ -419,12 +500,34 @@ int GRSTx509ParseVomsExt(int *lastcred, int maxcreds, size_t credlen,
 
    GRSTasn1ParseDump(NULL, asn1string, asn1length, taglist, MAXTAG, &lasttag);
 
+   GRSTasn1GetX509Name(acuserdn, sizeof(acuserdn), GRST_ASN1_COORDS_USER_DN,
+                       asn1string, taglist, lasttag);
+   if (GRSTx509NameCmp(ucuserdn, acuserdn) != 0) return GRST_RET_FAILED;
+
+   if (GRSTx509VerifyVomsSig(&time1_time, &time2_time,
+                             asn1string, taglist, lasttag, vomsdir)
+                             != GRST_RET_OK) return GRST_RET_FAILED;
+
+   itag = GRSTasn1SearchTaglist(taglist, lasttag, GRST_ASN1_COORDS_TIME1);
+   actime1 = GRSTasn1TimeToTimeT(&asn1string[taglist[itag].start+
+                                             taglist[itag].headerlength],
+                                 taglist[itag].length);
+   if (actime1 > time1_time) time1_time = actime1;
+
+   itag = GRSTasn1SearchTaglist(taglist, lasttag, GRST_ASN1_COORDS_TIME2);
+   actime2 = GRSTasn1TimeToTimeT(&asn1string[taglist[itag].start+
+                                             taglist[itag].headerlength],
+                                 taglist[itag].length);
+   if (actime2 < time2_time) time2_time = actime2;
+
+   time(&time_now);
+   if ((time1_time > time_now) || (time2_time < time_now)) 
+               return GRST_RET_OK; /* expiration isnt invalidity ...? */
+
    for (i=1; ; ++i)
-      { 
-// should find signature and check it here, first
-      
-        sprintf(s, FQAN_COORDS, i);
-        itag = GRSTasn1SearchTaglist(taglist, &lasttag, s);
+      {
+        sprintf(s, GRST_ASN1_COORDS_FQAN, i);
+        itag = GRSTasn1SearchTaglist(taglist, lasttag, s);
 
         if (itag > -1)
           {
@@ -434,7 +537,7 @@ int GRSTx509ParseVomsExt(int *lastcred, int maxcreds, size_t credlen,
 
                 snprintf(&creds[*lastcred * (credlen + 1)], credlen+1,
                            "VOMS %010lu %010lu 0 %.*s", 
-                           *time1_time, *time2_time, 
+                           time1_time, time2_time, 
                            taglist[itag].length,
                            &asn1string[taglist[itag].start+
                                        taglist[itag].headerlength]);
@@ -465,9 +568,9 @@ int GRSTx509GetVomsCreds(int *lastcred, int maxcreds, size_t credlen,
    time_t          time1_time = 0, time2_time = 0, uctime1_time, uctime2_time;
 
    uctime1_time = 
-        GRSTasn1TimeToTimeT(ASN1_STRING_data(X509_get_notBefore(usercert)));
+        GRSTasn1TimeToTimeT(ASN1_STRING_data(X509_get_notBefore(usercert)),0);
    uctime2_time =       
-        GRSTasn1TimeToTimeT(ASN1_STRING_data(X509_get_notAfter(usercert)));
+        GRSTasn1TimeToTimeT(ASN1_STRING_data(X509_get_notAfter(usercert)),0);
    ucuser =
         X509_NAME_oneline(X509_get_subject_name(usercert), NULL, 0);
 
@@ -476,11 +579,11 @@ int GRSTx509GetVomsCreds(int *lastcred, int maxcreds, size_t credlen,
       cert = sk_X509_value(certstack, j);
 
       time1_time =
-          GRSTasn1TimeToTimeT(ASN1_STRING_data(X509_get_notBefore(cert)));
+          GRSTasn1TimeToTimeT(ASN1_STRING_data(X509_get_notBefore(cert)),0);
       uctime1_time = (time1_time > uctime1_time) ? time1_time:uctime1_time;
 
       time2_time =
-          GRSTasn1TimeToTimeT(ASN1_STRING_data(X509_get_notAfter(cert)));
+          GRSTasn1TimeToTimeT(ASN1_STRING_data(X509_get_notAfter(cert)),0);
       uctime2_time = (time2_time < uctime2_time) ? time2_time:uctime2_time;
 
       for (i=0; i < X509_get_ext_count(cert); ++i)
@@ -492,7 +595,7 @@ int GRSTx509GetVomsCreds(int *lastcred, int maxcreds, size_t credlen,
              {
                vomsfound=1;
                GRSTx509ParseVomsExt(lastcred, maxcreds, credlen, creds,
-                                 &uctime1_time, &uctime2_time,
+                                 uctime1_time, uctime2_time,
                                  ex, ucuser, vomsdir);
              }
          }
@@ -502,218 +605,6 @@ int GRSTx509GetVomsCreds(int *lastcred, int maxcreds, size_t credlen,
 
    return GRST_RET_OK;
 }
-#if 0
-            charstr = (char *) malloc(ASN1_STRING_length(asn1str) + 1);
-            memcpy(charstr, ASN1_STRING_data(asn1str), 
-                            ASN1_STRING_length(asn1str));
-            charstr[ASN1_STRING_length(asn1str)] = '\0';
-
-            siglen = -1;
-            
-            if ((sscanf(charstr, "SIGLEN:%u", &siglen) != 1) ||
-                (siglen == -1) ||
-                ((p = index(charstr, '\n')) == NULL))
-              {
-                free(charstr);
-                continue;
-              }
-                            
-            ++p;
-
-            if (strncmp(p, "SIGNATURE:", sizeof("SIGNATURE:") - 1) != 0)
-              {
-                free(charstr);
-                continue;
-              }
-
-            signature = &p[sizeof("SIGNATURE:") - 1];
-            
-            p = &p[siglen + sizeof("SIGNATURE:") - 1];
-            data = p;
-
-            /* nasty pointer arithmetic! */
-            dataoffset = (unsigned int) ((long) data - (long) charstr);
-            datalength = (unsigned int) 
-                            (ASN1_STRING_length(asn1str) - dataoffset);
-
-            if (datalength <= 0)
-              {
-                free(charstr);
-                continue;
-              }
-
-            while (1)
-             {
-               if (strncmp(p, "USER:", sizeof("USER:") - 1) == 0)
-                 {
-                   p = &p[sizeof("USER:") - 1];
-                   while ((*p != '\n') && (*p != '\0') && (*p <= ' ')) ++p;
-                   user = p;   
-                   p = index(p, '\n');
-                   if (p == NULL) break;
-                   *p = '\0';
-                   ++p;
-                 }
-               else if (strncmp(p, "TIME1:", sizeof("TIME1:") - 1) == 0)
-                 {
-                   p = &p[sizeof("TIME1:") - 1];
-                   while ((*p != '\n') && (*p != '\0') && (*p <= ' ')) ++p;
-                   time1 = p;                
-                   p = index(p, '\n');
-                   if (p != NULL) *p = '\0';
-                  
-                   time1_time = GRSTasn1TimeToTimeT(time1);                   
-                   if (time1_time < uctime1_time) time1_time = uctime1_time;
-                   if (p == NULL) break;
-                   ++p;
-                 }
-               else if (strncmp(p, "TIME2:", sizeof("TIME2:") - 1) == 0)
-                 {
-                   p = &p[sizeof("TIME2:") - 1];
-                   while ((*p != '\n') && (*p != '\0') && (*p <= ' ')) ++p;
-                   time2 = p;
-                   p = index(p, '\n');
-                   if (p != NULL) *p = '\0';
-
-                   time2_time = GRSTasn1TimeToTimeT(time2); 
-                   if (time2_time > uctime2_time) time2_time = uctime2_time;
-                   if (p == NULL) break;
-                   ++p;
-                 }
-               else if (strncmp(p, "VO:", sizeof("VO:") - 1) == 0)
-                 {
-                   p = &p[sizeof("VO:") - 1];
-                   while ((*p != '\n') && (*p != '\0') && (*p <= ' ')) ++p;
-                   vo = p;
-                
-                   p = index(p, '\n');
-                   if (p == NULL) break;
-                   *p = '\0';
-                   ++p;
-                 }
-               else if (strncmp(p, "SERVER:", sizeof("SERVER:") - 1) == 0)
-                 {
-                   p = &p[sizeof("SERVER:") - 1];
-                   while ((*p != '\n') && (*p != '\0') && (*p <= ' ')) ++p;
-                   server = p;
-
-                   p = index(p, '\n');
-                   if (p == NULL) break;
-                   *p = '\0';
-                   ++p;
-                 }
-               else if (strncmp(p, "DATALEN:", sizeof("DATALEN:") - 1) == 0)
-                 {
-                   p = &p[sizeof("DATALEN:") - 1];
-                   while ((*p != '\n') && (*p != '\0') && (*p <= ' ')) ++p;
-                   datalen = p;                
-                   p = index(p, '\n');
-                   if (p == NULL) break; 
-                   *p = '\0';
-                   ++p;
-                   break;
-                 }
-               else /* not something we use */
-                 {
-                   p = index(p, '\n');
-                   if (p == NULL) break;
-                   *p = '\0';
-                   ++p;
-                 }
-             }
-/*             
-            if ((now >= time1_time) &&
-                (now <= time2_time) &&
-                (signature != NULL) &&
-                (data != NULL) &&
-                (siglen > 0) &&
-                (user != NULL) &&
-                (ucuser != NULL) &&
-                (strcmp(user, ucuser) == 0) &&
-                (GRSTx509CheckVomsSig(signature, siglen, 
-                                    &((ASN1_STRING_data(asn1str))[dataoffset]),
-                                    datalength, vomsdir, vo, 
-                                    server) == GRST_RET_OK)) 
-                                    while (1)
-*/
-             {
-               if (strncmp(p, "GROUP:", sizeof("GROUP:") - 1) == 0)
-                 {
-                   p = &p[sizeof("GROUP:") - 1];
-                   while ((*p != '\n') && (*p != '\0') && (*p <= ' ')) ++p;
-                   group = p;
-                   role = "NULL";
-                   cap = "NULL";
-
-                   p = index(p, '\n');
-                   if (p == NULL) break;
-                   *p = '\0';
-                   ++p;
-                 }
-               else if (strncmp(p, "ROLE:", sizeof("ROLE:") - 1) == 0)
-                 {
-                   p = &p[sizeof("ROLE:") - 1];
-                   while ((*p != '\n') && (*p != '\0') && (*p <= ' ')) ++p;
-                   role = p;
-
-                   p = index(p, '\n');
-                   if (p == NULL) break;
-                   *p = '\0';
-                   ++p;
-                 }
-               else if (strncmp(p, "CAP:", sizeof("CAP:") - 1) == 0)
-                 {
-                   p = &p[sizeof("CAP:") - 1];
-                   while ((*p != '\n') && (*p != '\0') && (*p <= ' ')) ++p;
-                   cap = p;
-
-                   p = index(p, '\n');
-                   if (p != NULL) *p = '\0';
-
-                   if (*lastcred < maxcreds - 1)
-                     {
-                       ++(*lastcred);
-
-                       if ((strcmp(role, "NULL") == 0) &&
-                           (strcmp(cap , "NULL") == 0))                       
-                         snprintf(&creds[*lastcred * (credlen + 1)], credlen+1,
-                           "VOMS %010lu %010lu 0 /%s%s", 
-                           time1_time, time2_time, vo, group);
-                       else if ((strcmp(role, "NULL") != 0) &&
-                                (strcmp(cap , "NULL") == 0))  
-                         snprintf(&creds[*lastcred * (credlen + 1)], credlen+1,
-                           "VOMS %010lu %010lu 0 /%s%s/Role=%s", 
-                           time1_time, time2_time, vo, group, role);
-                       else if ((strcmp(role, "NULL") == 0) &&
-                                (strcmp(cap , "NULL") != 0))     
-                         snprintf(&creds[*lastcred * (credlen + 1)], credlen+1,
-                           "VOMS %010lu %010lu 0 /%s%s/Capability=%s", 
-                           time1_time, time2_time, vo, group, cap);
-                       else 
-                         snprintf(&creds[*lastcred * (credlen + 1)], credlen+1,
-                           "VOMS %010lu %010lu 0 /%s%s/Role=%s/Capability=%s", 
-                           time1_time, time2_time, vo, group, role, cap);
-                     }
-                      
-                   if (p == NULL) break;
-                   ++p;
-                 }
-               else /* not something we use */
-                 {
-                   p = index(p, '\n');
-                   if (p == NULL) break;
-                   *p = '\0';
-                   ++p;
-                 }
-             }
-             
-            free(charstr); 
-          }
-      }
-
-   return GRST_RET_OK;
-}
-#endif
 
 /// Turn a Compact Cred line into a GRSTgaclCred object
 /**
@@ -812,8 +703,8 @@ int GRSTx509CompactCreds(int *lastcred, int maxcreds, size_t credlen,
    if ((usercert == NULL) /* if no usercert ("EEC"), we're not interested */
        ||
        (snprintf(credtemp, credlen+1, "X509USER %010lu %010lu %d %s",
-          GRSTasn1TimeToTimeT(ASN1_STRING_data(X509_get_notBefore(usercert))), 
-          GRSTasn1TimeToTimeT(ASN1_STRING_data(X509_get_notAfter(usercert))),
+          GRSTasn1TimeToTimeT(ASN1_STRING_data(X509_get_notBefore(usercert)),0),
+          GRSTasn1TimeToTimeT(ASN1_STRING_data(X509_get_notAfter(usercert)),0),
           delegation,
      X509_NAME_oneline(X509_get_subject_name(usercert), NULL, 0)) >= credlen+1)
        || 
@@ -829,8 +720,8 @@ int GRSTx509CompactCreds(int *lastcred, int maxcreds, size_t credlen,
    if ((gsiproxycert != NULL) 
        &&
        (snprintf(credtemp, credlen+1, "GSIPROXY %010lu %010lu %d %s",
-     GRSTasn1TimeToTimeT(ASN1_STRING_data(X509_get_notBefore(gsiproxycert))), 
-     GRSTasn1TimeToTimeT(ASN1_STRING_data(X509_get_notAfter(gsiproxycert))),
+     GRSTasn1TimeToTimeT(ASN1_STRING_data(X509_get_notBefore(gsiproxycert)),0), 
+     GRSTasn1TimeToTimeT(ASN1_STRING_data(X509_get_notAfter(gsiproxycert)),0),
      delegation,
   X509_NAME_oneline(X509_get_subject_name(gsiproxycert), NULL, 0)) < credlen+1)
        &&

@@ -1477,9 +1477,12 @@ int GRSTx509CacheProxy(char *proxydir, char *delegation_id,
                                        char *user_dn, char *proxychain)
 {
   int   c, len = 0, i;
-  char *cert, *upcertfile, *upcertpath, *prvkeyfile, *p;
+  char *upcertfile, *upcertpath, *prvkeyfile, *p, *ptr;
   FILE *ifp, *ofp;
   STACK_OF(X509) *certstack;
+  BIO  *certmem;
+  X509 *cert;
+  long  ptrlen;
     
   prvkeyfile = GRSTx509CachedProxyKeyFind(proxydir, delegation_id, user_dn);
 
@@ -1521,17 +1524,50 @@ int GRSTx509CacheProxy(char *proxydir, char *delegation_id,
 
   fprintf(ofp, "%s\n%s\n", delegation_id, user_dn);
  
-  fputs(proxychain, ofp); /* write out certificates */
+  /* write out the most recent proxy by itself */
+ 
+  if (cert = sk_X509_value(certstack, 0))
+    {
+      certmem = BIO_new(BIO_s_mem());
+      if (PEM_write_bio_X509(certmem, cert) == 1)
+        {
+          ptrlen = BIO_get_mem_data(certmem, &ptr);
+          fwrite(ptr, 1, ptrlen, ofp);               
+        }
+             
+      BIO_free(certmem);           
+    }         
   
-  while ((c = fgetc(ifp)) != EOF) fputc(c, ofp); /* append proxy private key */
-      
+  /* insert proxy private key */
+  
+  while ((c = fgetc(ifp)) != EOF) fputc(c, ofp);
+  unlink(prvkeyfile);
+  free(prvkeyfile);
+
+  for (i=1; i <= sk_X509_num(certstack) - 1; ++i)
+        /* loop through the proxy chain starting at 2nd most recent proxy */
+     {
+       if (cert = sk_X509_value(certstack, i))
+         {
+           certmem = BIO_new(BIO_s_mem());
+           if (PEM_write_bio_X509(certmem, cert) == 1)
+             {
+               ptrlen = BIO_get_mem_data(certmem, &ptr);
+               fwrite(ptr, 1, ptrlen, ofp);
+             }
+             
+           BIO_free(certmem);           
+         }         
+     }
+
+  fputs(proxychain, ofp); /* write out certificates */
+
+
+  sk_X509_free(certstack);
+  free(upcertfile);
+  
   if (fclose(ifp) != 0) return GRST_RET_FAILED;
   if (fclose(ofp) != 0) return GRST_RET_FAILED;
-  
-  unlink(prvkeyfile);
-  
-  free(prvkeyfile);
-  free(upcertfile);
   
 /* should also check validity of proxy cert to avoid suprises? */
       

@@ -1,3 +1,8 @@
+* Mon Feb 28 2005 Andrew McNab <Andrew.McNab@man.ac.uk>
+- Fix to GRSTgaclUndenyPerm in gridsite.h (bug #7135)
+  from Marco Sottilaro <marco.sottilaro@datamat.it>
+* Mon Feb 28 2005 Andrew McNab <Andrew.McNab@man.ac.uk>
+- ==== GridSite version 1.1.7 ====
 * Thu Feb 24 2005 Andrew McNab <Andrew.McNab@man.ac.uk>
 - Add more sanity checking (signatures, dates, issuer,)
   holder) to VOMS attribute parser.

@@ -174,7 +174,7 @@ int        GRSTgaclEntryUnallowPerm(GRSTgaclEntry *, GRSTgaclPerm);
 int        GRSTgaclEntryDenyPerm(GRSTgaclEntry *, GRSTgaclPerm);
 
 /*  #define GACLundenyPerm(x,y)	GRSTgaclEntryUndenyPerm((x),(y)) */
-int        GRSTgaclUndenyPerm(GRSTgaclEntry *, GRSTgaclPerm);
+int        GRSTgaclEntryUndenyPerm(GRSTgaclEntry *, GRSTgaclPerm);
 
 /*  #define GACLpermToChar(x)	GRSTgaclPermToChar((x)) */
 char      *GRSTgaclPermToChar(GRSTgaclPerm);

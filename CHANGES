@@ -1,0 +1,114 @@
+* Thu Jul 22 2004 Andrew McNab <mcnab@hep.man.ac.uk>
+- ==== GridSite version 1.0.4 ====
+* Mon Jul 19 2004 Andrew McNab <mcnab@hep.man.ac.uk>
+- Changes in line with EGEE SCM - most importantly
+  the top level directory becomes org.gridsite.core
+* Mon Jul 19 2004 Andrew McNab <mcnab@hep.man.ac.uk>
+- ==== GridSite version 1.0.3 ====
+* Mon Jun 28 2004 Andrew McNab <mcnab@hep.man.ac.uk>
+- In GRSTx509CheckChain() and GRSTx509CompactCreds()
+  we now accept the first cert in a chain as a CA
+  even if it is X509v3 but without the CA bits set.
+  (On the basis that the first chain is from the 
+  administrator-installed CA files store.)
+* Sun Jun 27 2004 Andrew McNab <mcnab@hep.man.ac.uk>
+- ==== GridSite version 1.0.2 ====
+* Sun Jun 27 2004 Andrew McNab <mcnab@hep.man.ac.uk>
+- Fix for Bug #2860 (so can now read DN Lists over
+  HTTPS when have no user certificate if relevant
+  .gacl gives <read> permission but not <list>)
+- Include gridsite-gacl.h mods from Daniel Kouril
+  <kouril@ics.muni.cz> to fix faulty definitions
+  of GACLnewEntry() and GACLnewAcl() and to make
+  a legacy non-static GACLparseEntry() wrapper.
+* Thu Jun 17 2004 Andrew McNab <mcnab@hep.man.ac.uk>
+- Changes to mod_gridsite.h for Fedora Core 2 /
+  Apache 2.0.49+ mod_ssl changes (mod_ssl-private.h)
+* Wed Jun 9 2004 Andrew McNab <mcnab@hep.man.ac.uk>
+- Incorporate EGEE CVS layout changes in production
+  branch.
+* Wed Jun 9 2004 Andrew McNab <mcnab@hep.man.ac.uk>
+- ==== GridSite version 1.0.1 ====
+* Sun Dec 14 2003 Andrew McNab <mcnab@hep.man.ac.uk>
+- 1.0.0 is first full production release
+  (development now in 1.1.x branch)
+* Sun Dec 14 2003 Andrew McNab <mcnab@hep.man.ac.uk>
+- ==== GridSite version 1.0.0 ====
+* Sat Dec 13 2003 Andrew McNab <mcnab@hep.man.ac.uk>
+- Remove need for modified mod_ssl-gridsite: now
+  mod_gridsite intercepts callbacks with wrappers.
+- Add GRSTx509NameCmp() which compares string reps of
+  DNs across OpenSSL version changes (ie Email=)
+* Fri Dec 12 2003 Andrew McNab <mcnab@hep.man.ac.uk>
+- ==== GridSite version 0.9.11 ====
+* Thu Dec 11 2003 Andrew McNab <mcnab@hep.man.ac.uk>
+- Simplify checking of cert/proxy chain in 
+  mod_ssl-gridsite: rely on mod_ssl/OpenSSL more.
+* Wed Dec 2 2003 Andrew McNab <mcnab@hep.man.ac.uk>
+- ==== GridSite version 0.9.10 ====
+* Tue Dec 1 2003 Andrew McNab <mcnab@hep.man.ac.uk>
+- GACL ignores leading/trailing spaces in values.
+* Sat Nov 29 2003 Andrew McNab <mcnab@hep.man.ac.uk>
+- Better directory listing in htcp.
+- htcp now built as separate binary RPM.
+- gridsite-admin.cgi upload now redirects to same
+  directory after upload (Bug #1939); allows
+  optional new name for file (Request / Bug #1940);
+  and has better checking of ../dir/file attacks.
+* Sat Nov 29 2003 Andrew McNab <mcnab@hep.man.ac.uk>
+- ==== GridSite version 0.9.8 ====
+* Thu Nov 27 2003 Andrew McNab <mcnab@hep.man.ac.uk>
+- Shiv's updated GACL editor, with redirects.
+* Wed Nov 26 2003 Andrew McNab <mcnab@hep.man.ac.uk>
+- Include Daniel Stenberg's roffit script to make
+  HTML man pages for htcp and urlencode.
+- Various fixes found when installing GridPP WWW.
+* Wed Nov 26 2003 Andrew McNab <mcnab@hep.man.ac.uk>
+- ==== GridSite version 0.9.7 ====
+* Thu Nov 20 2003 Andrew McNab <mcnab@hep.man.ac.uk>
+- Major updates to htcp (htrm/htls/htll)
+- GACL now recurses subdirectories when examining
+  the DN List directories path.
+* Sat Nov 15 2003 Andrew McNab <mcnab@hep.man.ac.uk>
+- ==== GridSite version 0.9.6 ====
+* Fri Nov 14 2003 Andrew McNab <mcnab@hep.man.ac.uk>
+- Function call fixes in grst-admin.cgi
+* Thu Nov 13 2003 Andrew McNab <mcnab@hep.man.ac.uk>
+- Add htcp (curl-url-get reborn)
+* Thu Nov 13 2003 Andrew McNab <mcnab@hep.man.ac.uk>
+- ==== GridSite version 0.9.5 ====
+* Thu Nov 13 2003 Andrew McNab <mcnab@hep.man.ac.uk>
+- More grst-admin.cgi GACL updates from Shiv.
+- .gacl security improvements to grst-admin.cgi from
+  Shiv Kaushal and Peter Moore.
+* Tue Nov 11 2003 Andrew McNab <mcnab@hep.man.ac.uk>
+- One RPM instead of three, with version from VERSION
+- Textarea for HTML/Text editing now 80 columns
+* Mon Nov 10 2003 Andrew McNab <mcnab@hep.man.ac.uk>
+- Add delegation level and GridSiteGSIProxyLimit
+  support.
+- Add GridSiteAdminList handling to mod_gridsite
+  and real-gridsite-admin.cgi
+* Sun Nov 9 2003 Andrew McNab <mcnab@hep.man.ac.uk>
+- Add directory create/delete, and file/dir rename.
+- Add ZIP listing/unzipping via external unzip
+  utility from http://www.info-zip.org/pub/infozip/
+* Mon Nov 3 2003 Andrew McNab <mcnab@hep.man.ac.uk>
+- Include next version of Shiv's GACL editor.
+- Add rpm-usr target to Makefile, to make RPMs
+  out-of-the-box compatible with RH9 and its Apache2
+- Use REMOTE_DOUBLE_REV for GACL hostname creds in
+  mod_gridsite.c/mod_gridsite_perm_handler()
+* Sun Oct 26 2003 Andrew McNab <mcnab@hep.man.ac.uk>
+- Include GACL editor in real-gridsite-admin.cgi
+  from Shiv Kaushal <shiv@hep.man.ac.uk>
+* Sun Oct 26 2003 Andrew McNab <mcnab@hep.man.ac.uk>
+- Reorganise into a single build tree, including
+  Apache 2.0 .h files to remove circular dependency.
+* Sun Oct 26 2003 Andrew McNab <mcnab@hep.man.ac.uk>
+- ==== GridSite version 0.9.4 ====
+* Sun Oct 19 2003 Andrew McNab <mcnab@hep.man.ac.uk>
+- Include many pieces of GridSite code from 0.3.x (CGI)
+  fileGridSite and mod_gridsite 0.9.0
+* Sun Oct 19 2003 Andrew McNab <mcnab@hep.man.ac.uk>
+- ==== GridSite version 0.9.3 ====

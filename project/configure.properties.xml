@@ -1,0 +1,8 @@
+	<!-- ======================================================
+		 Define extra properties here ...
+		 ====================================================== -->
+
+	<project name="configure options">
+        <property name="build.make.arguments"
+               value="prefix=${stage.abs.dir}"/>
+	</project>

@@ -1,0 +1,84 @@
+<title>GridSite: Grid Access Control Language</title>
+<body>
+<h1 align=center>GridSite: Grid Access Control Language</h1>
+
+<p> 
+GACL is the authorization policy language used by 
+<a href="http://www.gridpp.ac.uk/gridsite/">GridSite</a> GACL allows
+policies to be written in terms of common Grid credentials: X.509
+identities, GSI proxies, VOMS attribute certificates and lists of X.509
+identities.
+
+<p>
+GridSite both uses GACL policies and provides a GACL manipulation API for
+C/C++ in the GridSite library.
+
+<h2>Credentials</h2>
+
+<p>
+In GridSite 1.0.x, four credential types are supported:
+
+<p>
+&lt;person&gt;
+&lt;dn&gt;/O=Grid/CN=Name&lt;/dn&gt;
+&lt;/person&gt;
+
+<p>
+&lt;voms&gt;
+&lt;fqan&gt;/vo.dom.ain/group&lt;/fqan&gt;
+&lt;/voms&gt;
+
+<p>
+&lt;dn-list&gt;
+&lt;url&gt;https://www.vo.dom.ain/dn-lists/group&lt;/url&gt;
+&lt;/dn-list&gt;
+
+<p>
+&lt;dns&gt;
+&lt;hostname&gt;host*.dom.ain&lt;/hostname&gt;
+&lt;/dns&gt;
+
+<h2>Permissions</h2>
+
+<p>
+Five permissions are supported: Admin, Write, List, Exec and Read. Admin is
+permission to modify the authorization policy itself, but applications can
+map the other permissions to local methods as appropriate to their
+environment. For filesystems and fileservers, Write, List and Read have
+their usual meanings: creating or modifying files or directories; browsing
+directories; reading files. Exec is not used by GridSite itself, and
+applications are free to give it a meaning within their own contexts.
+
+<p>
+In 1.0.x, only per-directory GACL files are supported, and the file is stored
+in the directory in question, or in one of its parent directories. (GridSite
+searches upwards until it finds one.)
+
+<p>
+In GACL files, the permissions are represented by single tags:
+&lt;admin/&gt;, &lt;write/&gt;, &lt;list/&gt;, &lt;exec/&gt;, &lt;read/&gt;.
+Permission
+tags are contained within Allow or Deny blocks. For example: 
+&lt;allow&gt;&lt;read/&gt;&lt;list/&gt;&lt;/allow&gt; or 
+&lt;deny&gt;&lt;admin/&gt;&lt;/deny&gt;.
+
+<h2>Entries</h2>
+
+<p>
+Entries associate credentials with permission statements. Entries consist of
+one or more credential blocks, and either an Allow or a Deny block, or both. 
+If multiple credentials are present in one entry, they must all be held by a
+user to receive the association permissions. (So Entries provide logical AND
+of credentials.)
+
+<h2>Access Control Lists</h2>
+
+<p>
+ACLs consist of a list of one or more Entry blocks. When a user's credentials
+are compared to the ACL, the permissions given to the user by Allow blocks
+are recorded, along with those forbidden by Deny blocks. When all entries 
+have been evaluated, any forbidden permissions are removed from those
+granted. (So Deny always wins over Allow, even between different Entries,
+but otherwise ACLs provide logical OR of credentials.)
+
+</body>

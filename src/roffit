@@ -1,0 +1,370 @@
+#!/usr/bin/env perl 
+#
+# roffit: convert man page source files to HTML
+#
+# Read an nroff file. Output a HTML file.
+#
+# This is a very simple script, but I use it on very simple man pages and I've
+# found no other script that makes beautiful web pages.
+#
+my $version = "0.3"; # (14 November 2003)
+# Author:  Daniel Stenberg <daniel@haxx.se>
+# Please email me improvements.
+#
+# You're free to do whatever you want with this script.
+#
+# Changes:
+#
+# 0.3 - Daniel Fandrich brought:
+#     o deal with .lp lines
+#     o .TH needs no section portion anymore
+#     o added generator meta tag in the header
+#
+# 0.2 - fixed the <a name> name for the SH section
+#     - added <a href> links from all words within \fIthis\fP or \fBthis\fP
+#       that has the same text as a .SH or .IP.
+#
+
+use strict;
+#use warnings;
+
+my $InFH = \*STDIN;
+my $OutFH = \*STDOUT;
+my $debugFH = \*STDERR;
+
+my %manpage;
+my @out;
+
+my $indentlevel=0; # logical levels, not columns
+my @p;
+my $within_tp;
+my $standalone=1; # by default we make stand-alone HTML pages
+my $pre;
+my %anchor; # hash with all anchors
+
+while($ARGV[0]) {
+    if($ARGV[0] eq "--bare") {
+        # don't include headers and stuff
+        $standalone=0;
+        shift @ARGV;
+    }
+    else {
+        printf $debugFH "unknown option: %s\n", $ARGV[0] if($ARGV[0] ne "-h");
+        print $debugFH "Usage: roffit [options] < infile > outfile\n",
+        "Options:\n",
+        "  --bare   Do not put in HTML, HEAD, BODY tags\n";
+        exit;
+    }
+}
+
+sub showp {
+    my @p = @_;
+    push @out, "\n<p class=\"level$indentlevel\">", @p;
+}
+
+sub defaultcss {
+    print $OutFH <<ENDOFCSS
+<STYLE type="text/css">
+P.level0 {
+ padding-left: 2em;
+}
+
+P.level1 {
+ padding-left: 4em;
+}
+
+P.level2 {
+ padding-left: 6em;
+}
+
+span.emphasis {
+ font-style: italic;
+}
+
+span.bold {
+ font-weight: bold;
+}
+
+span.manpage {
+ font-weight: bold;
+}
+
+h2.nroffsh {
+ background-color: #e0e0e0;
+}
+
+span.nroffip {
+ font-weight: bold;
+ font-size: 120%;
+ font-family: monospace;
+}
+
+p.roffit {
+ text-align: center;
+ font-size: 80%;
+}
+</STYLE>
+ENDOFCSS
+    ;
+}
+
+sub text2name {
+    my ($text) = @_;
+    $text =~ s/^ *([^ ]*).*/$1/g;
+    $text =~ s/[^a-zA-Z0-9-]//g;
+    return $text;
+}
+
+# scan through the file and check for <span> sections we should convert
+# to proper links
+sub linkfile {
+    my @new;
+    for(@out) {
+        my $line=$_;
+        my $l;
+        while($line =~ s/<span class=\"(emphasis|bold)\">([^<]*)<\/span>/[]/) {
+            my ($style, $name)=($1, $2);
+            
+            $l = text2name($name);
+
+            #printf $debugFH "$style - $name - %s - %d\n",
+            #$l, $anchor{$l};
+
+            my $link;
+            if($anchor{$l}) {
+                $link="<a class=\"$style\" href=\"#$l\">$name</a>";
+            }
+            else {
+                $link="<span Class=\"$style\">$name</span>";
+            }
+            $line =~ s/\[\]/$link/;
+        }
+        push @new, $line;
+    }
+    return @new;
+}
+
+sub parsefile {
+
+    while(<$InFH>) {
+        my $in = $_;
+        my $out;
+  #     print $debugFH "DEBUG IN: $_";
+
+        $in =~ s/[\r\n]//g if(!$pre); # tear off newlines
+
+        if($in =~ /^\.([^ \n]*)(.*)/) {
+            # this is a line starting with a dot, that means it is special
+            my ($keyword, $rest) = ($1, $2);
+            $out = "";
+            
+            # cut off initial spaces
+            $rest =~ s/^ +//g;
+            
+            if($keyword eq "\\\"") {
+                # this is a comment, skip this line
+            }
+            elsif($keyword =~ /^TH$/i) {
+                # man page header:
+                # curl 1 "22 Oct 2003" "Curl 7.10.8" "Curl Manual"
+                # NAME SECTION DATE VERSION MANUAL
+                if($rest =~ /([^ ]*) (\d+) \"([^\"]*)\" \"([^\"]*)\"(\"([^\"]*)\")?/) {
+                    # strict matching only so far
+                    $manpage{'name'} = $1;
+                    $manpage{'section'} = $2;
+                    $manpage{'date'} = $3;
+                    $manpage{'version'} = $4;
+                    $manpage{'manual'} = $6;
+                }
+            }
+            elsif($keyword =~ /^SH$/i) {
+                # Section Header
+                showp(@p);
+                @p="";
+                if($pre) {
+                    push @out, "</pre>\n";
+                    $pre = 0;
+                }
+
+                my $name = text2name($rest);
+                $anchor{$name}=1;
+
+                $rest =~ s/\"//g; # cut off quotes
+                $rest =~ s/</&lt;/g;
+                $rest =~ s/>/&gt;/g;
+                $out = "<a name=\"$name\"></a><h2 class=\"nroffsh\">$rest</h2>";
+                $indentlevel=0;
+                $within_tp=0;
+            }
+            elsif(($keyword =~ /^B$/i) || ($keyword =~ /^BI$/i)) {
+                # Make B and BI the same for simplicity
+                $rest =~ s/\"//g; # cut off quotes
+                $rest =~ s/</&lt;/g;
+                $rest =~ s/>/&gt;/g;
+                push @p, "<span class=\"bold\">$rest</span> ";
+            }
+            elsif($keyword =~ /^I$/i) {
+                $rest =~ s/\"//g; # cut off quotes
+                $rest =~ s/</&lt;/g;
+                $rest =~ s/>/&gt;/g;
+                push @p, "<span class=\"emphasis\">$rest</span> ";
+            }
+            elsif($keyword =~ /^RS$/i) {
+                # the start of another indent-level. for inlined tables
+                # within an "IP"
+                showp(@p);
+                @p="";
+                $indentlevel++;
+            }
+            elsif($keyword =~ /^RE$/i) {
+                # end of the RS section
+                showp(@p);
+                @p="";
+                $indentlevel--;
+            }
+            elsif($keyword =~ /^NF$/i) {
+                # We let nf start a <pre> section
+                showp(@p);
+                @p="";
+                push @out, "<pre>\n";
+                $pre=1
+            }
+            elsif($keyword =~ /^TP$/i) {
+                # Used within an "RS" section to make a new line. The first
+                # TP as a column indicator, but we decide to do that
+                # controlling in the CSS instead.
+                $within_tp=1;
+                showp(@p);
+                @p="";                
+            }
+            elsif($keyword =~ /^IP$/i) {
+                # start of a new paragraph coming up
+                showp(@p);
+                @p="";
+
+                my $name= text2name($rest);
+                $anchor{$name}=1;
+
+                $rest =~ s/\"//g; # cut off quotes
+                $rest =~ s/</&lt;/g;
+                $rest =~ s/>/&gt;/g;
+                
+                $indentlevel-- if ($indentlevel);
+                push @p, "<a name=\"$name\"></a><span class=\"nroffip\">$rest</span> ";
+                # make this a single-line title
+                showp(@p);
+                @p="";
+                $indentlevel++;
+                $within_tp=0;
+            }
+            elsif($keyword =~ /^ad$/i) {
+                showp(@p);
+                @p="";
+            }
+            elsif($keyword =~ /^sp$/i) {
+                showp(@p);
+                @p="";
+            }
+            elsif($keyword =~ /^lp$/i) {
+                # marks end of a paragraph
+                showp(@p);
+                @p="";
+            }
+            elsif($keyword =~ /^pp$/i) {
+                # PP ends a TP section, but some TP sections don't use it
+                $within_tp=0;
+            }
+            elsif($keyword =~ /^so$/i) {
+                # This keyword refers to a different man page, named in the
+                # $rest.
+                # We don't support this
+                push @out, "See the $rest man page.\n";
+            }
+            elsif($keyword =~ /^BR$/i) {
+                # I'm not sure what this does exactly, but this is commonly
+                # used to include pointers to other man pages. Let's assume
+                # it only does that for now.
+                # blabla (3)
+                # or "blabla (3)"
+                # or strcmp "(3), " strcasecmp "(3)"
+                # etc
+                
+                $rest =~ s/\"//g; # cut off quotes
+                my @all = split /,/, $rest;
+                for(@all) {
+                    if(/([^ ]*) *\((\d+)\)/) {
+                        # TODO: this looks like a man page, check if there's a
+                        # HTML file for it and if so make a link to it
+                    }
+
+                    push @p, "<span class=\"manpage\">$_</span> ";
+                }
+            }
+            else {
+                showp(@p);
+                print $debugFH "ALERT: unknown keyword \"$keyword\"\n";
+            }
+        }
+        else {
+            # text line, decode \-stuff
+            my $txt = $in;
+
+            $txt =~ s/</&lt;/g;
+            $txt =~ s/>/&gt;/g;
+            $txt =~ s/\\&//g; # cut off \&
+            $txt =~ s/\\fI/<span class=\"emphasis\">/g;
+            $txt =~ s/\\fB/<span class=\"bold\">/g;
+            $txt =~ s/\\fP/<\/span>/g;
+            $txt =~ s/\\//g;
+
+            if($txt =~ /^[ \t\r\n]*$/) {
+                # no contents, marks end of a paragraph
+                showp(@p);
+                @p="";
+            }
+            else {
+                $txt =~ s/^ /\&nbsp\;/g;
+                push @p, "$txt ";
+            }
+            $out ="";
+        }
+
+        if($out) {
+            push @out, $out;
+   #         print $debugFH "DEBUG OUT: $out\n";
+        }
+        else {
+   #         print $debugFH "DEBUG OUT: [withheld]\n";
+        }
+    }
+    showp(@p);
+}
+
+parsefile();
+
+my @conv = linkfile();
+
+my $title=sprintf("%s man page",
+                  $manpage{'name'}?$manpage{'name'}:"secret");
+
+if($standalone) {
+    print $OutFH <<MOO
+<html><head>
+<title>$title</title>
+<meta name="generator" content="roffit $version">
+MOO
+    ;
+    defaultcss();
+    print "</head><body>\n";
+}
+
+print $OutFH @conv;
+print $OutFH <<ROFFIT
+<p class="roffit">
+ This HTML page was made with <a href="http://daniel.haxx.se/projects/roffit/">roffit</a>.
+ROFFIT
+    ;
+
+if($standalone) {
+    print "</body></html>\n";
+}

@@ -1,0 +1,138 @@
+.TH htcp 1 "December 2003" htcp "HTCP Manual"
+.SH NAME
+.B htcp, htrm, htls, htll, htmkdir
+\- get, put, delete or list HTTP/HTTPS files or directories
+.SH SYNOPSIS
+.B htcp [options]
+.I Source-URL[s] [Destination URL]
+.SH DESCRIPTION
+.B htcp
+is a client to fetch files or directory listings from remote servers using
+HTTP or HTTPS, or to put or delete files or directories onto remote servers
+using HTTPS. htcp is similar to scp(1), but uses HTTP/HTTPS rather than ssh
+as its transfer protocol.
+
+When talking to an HTTPS server, htcp can run "anonymously", with a
+standard X.509 user certificate and key, or with a GSI Proxy. This makes
+htcp very useful in Grid environments where many users have certificates
+and where jobs and users have access to GSI proxies.
+
+.SH URLs
+htcp supports the file:, http: and https: URL schemes as sources and
+destinations. If no scheme is given, the URL scheme is assumed to be file:
+and relative to the current directory if not an absolute path.
+
+If multiple sources are given, they will be used in turn and the destination
+must be a directory (directories are indicated by a trailing /) However,
+source and destination cannot both refer to remote servers.
+
+.SH OPTIONS
+.IP "-v/--verbose"
+Turn on debugging information. Used once, this option will enable htcp's
+messages to stderr. Used twice, will also enable the underlying libcurl
+messages.
+
+.IP "--delete"
+Instead of copying files, delete all the URLs given on the command line.
+Calling the program as htrm has the same effect.
+
+.IP "--list"
+.br
+Instead of copying files, output lists of files located in the URL-directories
+given on the command line. Calling the program as htls has the same effect.
+
+.IP "--long-list"
+Instead of copying files, output long listings of files located in the
+URL-directories given on the command line. If available, the size in bytes
+and modification time of each file is given. Calling the program as 
+htll has the same effect.
+
+.IP "--mkdir"
+Instead of copying files, attempt to create a directory on a remote server
+with HTTP PUT. The server must support the convention that PUT to a URL with
+a trailing slash means create a directory. No file body is sent. Calling the
+program as htmkdir has the same effect.
+
+.IP "--anon"
+.br
+Do not attempt to use X.509 user certificates or GSI proxies to authenticate
+to the remote HTTPS server. This means you are "anonymous", but the server's
+identity may still be verified and the connection is still encrypted.
+
+.IP "--cert <X.509 cert path>  and  --key <X.509 key path>"
+Path to the PEM-encoded
+X.509 or GSI Proxy user certificate and key to use for HTTPS
+connections, intead of "anonymous mode." If only one of --key or --cert
+is given, then that will be tried for both. If neither is given, then the
+following order of precedence is used: 
+the file name held by the variable X509_USER_PROXY; the file
+/tmp/x509up_uID (with Unix UID equal to ID); the file names held by
+X509_USER_CERT / X509_USER_KEY; the files ~/.globus/usercert.pem and
+~/.globus/userkey.pem (where ~/ is the home directory of the user.)
+
+.IP "--capath <X.509 CA root certs directory or file>"
+Path to the PEM-encoded CA root certificates to use when
+verifying remote servers' host certificates in HTTPS connections. Ideally
+this should be a directory of hash.0 files as described in the OpenSSL
+verify(1) man page, but a file may be used instead. If --capath is not
+given, the value of the environment variable X509_CERT_DIR will be tried.
+If this is not valid, then /etc/grid-security/certificates will be used.
+
+.IP "--no-verify"
+Do not use CA root certificates to verify remote servers' host certificates.
+This is useful for testing sites before their certificate is set up properly,
+but leaves you vulnerable to "man in the middle" attacks by hostile servers
+masquerading as your target.
+
+.SH FILES
+.IP /tmp/x509up_uID
+Default GSI Proxy file for Unix UID equal to ID.
+
+.IP /etc/grid-security/certificates
+Default location for trusted Certification Authority root certificates to use
+when checking server certificates.
+
+.IP /tmp/.ca-roots-XXXXXX
+Prior to 7.9.8, the underlying curl library did not support the CA root
+certificates directory.
+If built with an old version of libcurl, htcp will concatenate the
+certificates in the CA roots directory into a unique temporary file and use
+that.
+
+.SH ENVIRONMENT
+
+.IP X509_CERT_DIR
+Holds directory to search for Certification Authority root certificates when
+verifying server certificates. (Tried if --capath is not given on the
+command line.)
+
+.IP X509_USER_PROXY
+Holds file name of a GSI Proxy to use as user certificate. (Tried if --cert or
+--key are not given on the command line.)
+
+.IP "X509_USER_CERT and X509_USER_KEY"
+Holds file name of X.509 user certificate and key. (Tried if X509_USER_PROXY
+is not valid.)
+
+.SH EXIT CODES
+0 is returned on complete success. Curl error codes are returned when 
+reported by the underlying curl library, and CURLE_HTTP_RETURNED_ERROR (22) 
+is returned when the HTTP(S) server returns a code outside the range 200-299.
+The manpage libcurl-errors(3) lists all the curl error codes.
+
+.SH TO DO
+Recursive copying. Server-side wildcards. Parallel streams. Error recovery.
+
+.SH BUGS
+Not enough beta testing (hint hint...)
+
+.SH AUTHOR
+Andrew McNab <mcnab@hep.man.ac.uk>
+
+htcp is part of GridSite: http://www.gridpp.ac.uk/gridsite/
+.SH "SEE ALSO"
+.BR scp(1),
+.BR curl(1),
+.BR wget(1),
+.BR verify(1),
+.BR libcurl-errors(3)

@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+	Copyright (c) 2004 on behalf of the EU EGEE Project: 
+	The European Organization for Nuclear Research (CERN), 
+	Istituto Nazionale di Fisica Nucleare (INFN), Italy
+	Datamat Spa, Italy
+	Centre National de la Recherche Scientifique (CNRS), France
+	CS Systeme d'Information (CSSI), France
+	Royal Institute of Technology, Center for Parallel Computers (KTH-PDC), Sweden
+	Universiteit van Amsterdam (UvA), Netherlands
+	University of Helsinki (UH.HIP), Finland
+	University of Bergen (UiB), Norway
+	Council for the Central Laboratory of the Research Councils (CCLRC), United Kingdom
+
+	Common build properties file for the Gridsite Core modules
+	
+	Authors: Alberto Di Meglio <alberto.di.meglio@cern.ch>		
+	Version info: $Id$
+	Release: $Name$
+
+	Revision history:
+	$Log$
+-->
+
+<project name="Gridsite Core common properties">
+
+	<!-- Include build properties to allow overwriting 
+	     of properties for subsystem                    -->
+	<property name="subsystem.build.properties.file" value="./project/build.properties" />
+	<property file="${subsystem.build.properties.file}" />	
+
+	<!-- ======================================================
+          Define subsystem properties
+		 ====================================================== -->
+	
+	<!-- Subsystem name -->
+	<property name="subsystem.name" value="${gridsite-core.subsystem.name}"/>
+	
+	<!-- Subsystem prefix -->
+	<property name="subsystem.prefix" value="${gridsite-core.subsystem.prefix}"/>
+	
+	<!-- ======================================================
+          Define general subsystem properties
+		 ====================================================== -->
+		
+	<!-- Include common subsystem properties -->
+	<import file="${subsystem.general.properties.file}" />
+	
+	<!-- ======================================================
+		 Define extra properties here ...
+		 ====================================================== -->
+					
+</project>

@@ -1,0 +1,195 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!--
+	Copyright (c) 2004 on behalf of the EU EGEE Project: 
+	The European Organization for Nuclear Research (CERN), 
+	Istituto Nazionale di Fisica Nucleare (INFN), Italy
+	Datamat Spa, Italy
+	Centre National de la Recherche Scientifique (CNRS), France
+	CS Systeme d'Information (CSSI), France
+	Royal Institute of Technology, Center for Parallel Computers (KTH-PDC), Sweden
+	Universiteit van Amsterdam (UvA), Netherlands
+	University of Helsinki (UH.HIP), Finland
+	University of Bergen (UiB), Norway
+	Council for the Central Laboratory of the Research Councils (CCLRC), United Kingdom
+
+	Build file for the Gridsite Core Subsystem
+	
+	Authors: Alberto Di Meglio <alberto.di.meglio@cern.ch>		
+	Version info: $Id$
+	Release: $Name$
+
+	Revision history:
+	$Log$
+-->
+
+<project name="gridsite-core" default="dist">
+
+	<description>
+		Ant build file to build the Gridsite Core Component
+	</description>
+	
+	<!-- =========================================
+	     Import properties (order is important) 
+	     ========================================= -->
+	
+	<!-- Import baseline & user properties -->
+	<import file="../org.glite/project/baseline.properties.xml" />
+
+	<!-- Import subsystem build properties, 
+	                      subsystem properties & 
+	                      subsystem common properties -->
+	<import file="./project/properties.xml" />
+
+	<!-- Import global build properties and global properties -->
+	<import file="${global.properties.file}" />
+				
+	<!-- =========================================
+		 Load dependencies properties files (order is important) 
+	     ========================================= -->
+	<property file="${user.dependencies.file}"/>
+	<property file="${subsystem.dependencies.file}"/>
+	<property file="${global.dependencies.file}"/>	
+	
+	<!-- =========================================
+		 Load configure options
+		========================================= -->
+        <import file="${global.configure.options.file}"/>
+		<import file="${component.configure.options.file}"/>
+		
+	<!-- =========================================
+		 Import global task definitions
+	     ========================================= -->
+	<import file="${global.taskdefs.file}" />
+	
+	<!-- =========================================
+	     Import global compiler definitions
+  	     ========================================= -->
+	<import file="${global.compilerdefs.file}" />
+		
+	<!-- =========================================
+		 Import targets 
+	     ========================================= -->
+	<import file="${global.targets-common.file}" />
+	
+	<!-- =========================================
+		 Load version file 
+	     ========================================= -->
+	<property file="${module.version.file}"/>
+	
+	<!-- ===============================================
+		  Public common targets
+	     =============================================== -->
+	
+	<target name="localinit" depends="envcheck">
+		<mkdir dir="${stage.dir}" />
+		<mkdir dir="${dist.dir}" />
+	</target>
+
+	<target name="init" depends="localinit">
+	</target>
+
+	<target name="checkstyle" depends="init">
+	</target>
+
+	<target name="compile" depends="checkstyle">
+		<if>
+			<isset property="build.make.arguments"/> 	 
+			<then>
+				<!-- Call make default compile target -->	
+				<make target="build" dir="${module.src.dir}" failonerror="${failonerror}" args="${build.make.arguments}"/>
+			</then> 	 
+			<else> 	 
+				<!-- Call make default compile target -->	
+				<make target="build" dir="${module.src.dir}" failonerror="${failonerror}"/>
+			</else> 	 
+		</if> 	 
+	</target>
+
+	<target name="compiletest" depends="compile">
+	</target>
+
+	<target name="unittest" depends="compiletest">
+	</target>
+
+	<target name="unitcoverage" depends="unittest">
+	</target>
+
+	<target name="doc" depends="unitcoverage">
+	</target>
+
+    <target name="stage" depends="doc">
+		<if>
+			<isset property="build.make.arguments"/> 	 
+			<then>
+				<!-- Call make default compile target -->	
+				<make target="install" dir="${module.src.dir}" failonerror="${failonerror}" args="${build.make.arguments}"/>
+			</then> 	 
+			<else> 	 
+				<!-- Call make default compile target -->	
+				<make target="install" dir="${module.src.dir}" failonerror="${failonerror}"/>
+			</else> 	 
+		</if> 	 
+    </target>
+
+	<target name="dist" depends="stage">
+		<make target="rpm" dir="${module.src.dir}" failonerror="${failonerror}"/>
+		<exec dir="${module.dir}/RPMTMP/BUILDROOT/usr" executable="tar">
+			<arg line="-czf ${module.dir}/gridsite-${module.version}_bin.tar.gz ." />
+		</exec>
+		<copy file="gridsite-${module.version}_bin.tar.gz" todir="${dist.dir}"/>
+		<copy file="gridsite-${module.version}.src.tar.gz" tofile="${dist.dir}/gridsite-${module.version}_src.tar.gz"/>
+		<copy todir="${dist.dir}/rhel30/1386/RPMS">
+			<fileset dir="${module.dir}/RPMTMP/RPMS/i386">
+				<include name="*.rpm"/>
+			</fileset>
+		</copy>
+		<delete>
+			<fileset dir="${module.dir}">
+				<include name="*.tar.gz"/>
+			</fileset>
+		</delete>
+		<delete dir="RPMTMP"/>
+	</target>
+
+	<target name="install" depends="localinit">
+		<make target="install" dir="${module.src.dir}" failonerror="${failonerror}"/>
+	</target>
+
+	<target name="all" depends="dist">
+	</target>
+
+	<target name="clean" depends="envcheck">
+		<property name="offline.repository" value="true" />
+		<make target="clean" dir="${module.src.dir}" failonerror="false"/>
+		<delete dir="${module.dir}/src/doxygen"/>
+		<delete>
+			<fileset dir="${module.dir}/src">
+				<include name="*.o"/>
+				<include name="*.so"/>
+				<include name="*.so.*"/>
+				<include name="*.a"/>
+			</fileset>
+		</delete>
+	</target>
+
+	<target name="cleanAll" depends="clean"/>
+
+	<!-- ===============================================
+		 Private targets
+	     =============================================== -->
+	
+	<!-- ===============================================
+		 Modules proxy targets
+	     =============================================== -->
+
+	<!-- component targets definitions tag = do not remove = -->
+
+
+	<!-- Main proxy -->
+	<target name="buildmodules" depends="">
+		<echo append="true" file="${global.project.dir}/cruisecontrol-stub.xml">
+	&lt;project name="${subsystem.name}" type="post-subsystem" packageName="gridsite-${subsystem.prefix}"/&gt;
+		</echo>
+	</target>
+
+</project>

@@ -1,0 +1,92 @@
+<title>GridSite 1.0.x Documentation</title>
+<body>
+<h1 align=center>GridSite 1.0.x Documentation</h1>
+
+<p>
+<a href="http://www.gridpp.ac.uk/gridsite/">GridSite</a>
+is a set of extensions to the Apache 2.0 webserver, which support 
+Grid security based on X.509 certificates. Since GridSite applies access
+control within Apache itself, via mod_gridsite, Grid authorization and
+the associated verified credentials are available to all technologies
+supported by Apache, including static file serving, SSI, CGI, PHP, JSP and 
+mod_perl.
+
+<h2>Guides</h2>
+
+<p>
+<dl>
+<dt><b><a href="user.html">User Guide</a></b>
+<dd>End-user documentation for people managing webpages and files on
+    GridSite servers, either through the web interface or with command
+    line clients like htcp.
+<p>
+
+<dt><b><a href="admin.html">Admin Guide</a></b>
+<dd>For people administering areas of GridSite websites or fileservers, or
+    managing GridSite's support for DN List groups.
+<p>
+
+<dt><b><a href="install.html">Building and Installation</a></b>
+<dd>Instructions for building GridSite from source, and installing from
+    binaries or RPMs.
+<p>
+
+<dt><b><a href="config.html">Config Guide</a></b>
+<dd>For webmasters setting up Apache 2.0 and GridSite, and writing the
+    Apache httpd.conf file.
+<p>
+
+<dt><b><a href="httpd-fileserver.conf">httpd-fileserver.conf</a></b> and
+    <b><a href="httpd-webserver.conf">httpd-webserver.conf</a></b>
+<dd>Example configuration files for simple HTTP(S) fileservers and
+    webservers, with explanatory comments.
+<p>
+
+</dl>
+
+<h2>Reference</h2>
+
+<p>
+<dl>
+<dt><b><a href="gacl.html">Grid Access Control Lists</a></b>
+<dd>Syntax and usage of the XML Grid Access Control Lists used by GridSite.
+<p>
+
+<dt><b><a href="htcp.1.html">htcp</a></b> and
+    <b><a href="urlencode.1.html">urlencode</a></b> man pages
+<dd>Command line tools for copying files to or from HTTP(S) servers, and
+    for URL-encoding strings. 
+<p>
+
+<!--
+<dt><b><a href="gridsite-admin.html">gridsite-admin.cgi</a></b>
+<dd>A CGI program providing site administration functions for users with
+    standard web browsers, via HTTPS. gridsite-admin.cgi includes a file
+    manager, support for file uploading, and editors for HTML, text and
+    Grid Access Control List files.
+<p>
+-->
+
+<dt><b><a href="module.html">mod_gridsite</a></b>
+<dd>An Apache 2.0 module which enforces access control via Grid Access
+    Control Lists, and X.509, GSI or VOMS credentials. mod_gridsite also
+    gives Apache built-in support for the HTTP PUT and DELETE methods, and
+    formatting of HTML pages with standard headers and footers. 
+<p>
+
+<!--
+<dt><b><a href="library.html">libgridsite</a></b>
+<dd>The GridSite library provides common functions for other components of
+    the GridSite system, and utilities for programs using CGI, X.509, GSI,
+    VOMS and HTTP. 
+<p>
+-->
+
+<dt><b><a href="gridsite_8h.html">gridsite.h API reference</a></b>
+<dd>A detailed description of the C API provided by libgridsite, generated
+    from the sources by doxygen.
+<p>
+
+</dl>
+
+</body>

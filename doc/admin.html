@@ -1,0 +1,103 @@
+<title>GridSite Admin Guide</title>
+<body>
+<h1 align=center>GridSite Admin Guide</h1>
+
+<p> 
+This Guide is intended for people administrating areas of GridSite
+websites or fileservers, or managing GridSite's DN List groups - that is,
+how to use GridSite to manage other people's access to parts of the site - 
+for example,  people's write access to areas devoted to specific subprojects.
+
+<p>
+ There is a separate 
+<a href="user.html">User Guide</a>
+ which explains how to authenticate to the server with X.509 certificates,
+and how to manage files via a standard web browser or with command-line
+HTTPS clients. You should be familiar with the User Guide to fully
+understand this Admin Guide. 
+
+<p>
+ You may also find the 
+<a href="config.html">Config Guide</a> 
+ useful to understand how the Apache webserver is configured with GridSite
+extensions. If you are also the Apache webmaster for your site, you will
+definitely need to read the Config Guide to create the httpd.conf file.
+However, if you only need to manage webpages and files, then this Admin
+Guide and the User Guide should be sufficient.
+
+<h2>Groups and DN Lists</h2>
+
+<p>
+GridSite defines groups of people using plain text DN Lists - that is, lists
+of people's certificate DNs. Each DN List has a URL which uniquely
+identifies the list (and may also allow other sites to obtain the list and
+use it themselves.) For example, the list of all GridPP members is
+https://www.gridpp.ac.uk/dn-lists/gridpp (note that it's https:// not
+http:// - this means that other sites that download the list can check the
+certificate of www.gridpp.ac.uk and know they're talking to the
+authoritative source of the lists.)
+
+<p>
+The system can also have a number of other DN Lists which are associated with
+specific groups of people and perhaps with specific areas of responsibility
+of the website. If the DN List directory URI is /dn-lists/ then
+there is a full list of the DN Lists exported by the server at that URI
+(for example, https://www.gridpp.ac.uk/dn-lists/&nbsp;)
+
+<p>
+If you have permission to modify a DN List, you can start changing it by
+going to /dn-lists/ (via HTTPS), using the &quot;Manage directory&quot;
+button and finding the URL of your DN List in the listings. You may
+need to go down into a subdirectory to find your list. For
+example, https://www.gridpp.ac.uk/dn-lists/atlas is in the atlas
+subdirectory of /dn-lists/ (You may wish to bookmark the listing of such
+a directory if you frequently work with one.)
+
+<p>
+DN List directories are managed by the ACLs described in the next section,
+and if you have write permission, you can edit the lists already there, and
+add new lists with the same prefix (this means you can readily create your
+own subgroups.)
+
+<h2>Access Control Lists</h2>
+
+<p>
+DN Lists appear in the Grid Access Control Lists (GACL) used by GridSite.
+These are stored as .gacl files in directories: if the .gacl file is
+present, it governs access to the directory; if it is absent, then the
+parent directories are searched upwards until a .gacl is found.
+
+<p>
+The GridSite <a href="gacl.html">GACL Reference</a> explains the XML format
+of these files, but they
+can be edited using the ACL editor built into the GridSite system by people
+who have the Admin permission within the ACL.
+
+<p>
+If you have this permission in a given directory, when you view directory
+listings or files in that directory you will see the option &quot;Manage
+Directory&quot; in the page footer. This allows you to get a listing of the
+directory and the .gacl file will appear at the top if it's present. If not,
+then there will be a button to create a new .gacl file with the same
+permissions as have been inherited by that directory from its parent.
+
+<p>
+GACL allows quite complex conditions to be imposed on access, but normally
+you can think of an ACL as being composed of a number of entries, each of
+which contains one condition (the required credential) and a set of allowed
+and denied permissions.
+
+<p>
+Credentials can be individual user's certificate names or whole groups of
+certificate names if a DN List is given. (You can also specifiy hostname
+patterns using Unix shell wildcards (eg *.ac.uk) or EDG VOMS attribute
+certificates - see the GACL Reference for details.)
+
+<p>
+Permissions can be Admin (edit the ACL), Write (create, modify or delete
+files), List (browse the directory) or Read (read files.) Permissions can be
+allowed or denied. If denied by any entry, the permission is not available
+to that user or DN List (depending on what credential type was associated
+with the Deny.)
+
+</body>

@@ -1,0 +1,192 @@
+<title>GridSite Config Guide</title>
+<body>
+<h1 align=center>GridSite Config Guide</h1>
+
+<p> 
+This Guide is intended for webmasters setting up 
+<a href="http://www.gridpp.ac.uk/">GridSite</a> with an Apache 2.0
+webserver. We assume you have root access to the server machine to do this.
+There is a separate <a href="admin.html">Admin Guide</a> for
+people administrating areas of GridSite
+websites or fileservers, or managing GridSite's DN List groups. That is, for
+people managing files on the server rather than the server itself.
+
+<h2>Installation</h2>
+
+<p>
+We assume you have installed Apache 2.0 and GridSite, using the
+<a href="install.html">Building and Installation Guide</a> where necessary.
+This Config Guide assumes installation has been done under /usr. For an
+alternative tree like /usr/local, the relative paths should be the same.
+
+<p>
+Installation should have given you an Apache 2.0 httpd binary at
+/usr/sbin/httpd and a set of standard Apache 2.0 modules in
+/usr/lib/httpd/modules/ including the standard mod_ssl
+and our mod_gridsite.so module.
+
+<p>
+GridSite also includes some commands and man pages in /usr/bin and
+/usr/share/man/man1: <a href="urlencode.1.html">urlencode</a> and
+<a href="htcp.1.html">htcp</a>.
+
+<h2>Certificates</h2>
+
+<p>
+You must also install the CA root certificates of the CA's 
+used by the users you wish to talk to. These should be installed in
+/etc/grid-security/certificates as files like 01621954.0, and RPMs and tar
+files for many common European and North American CAs are available from
+<a href="https://datagrid.in2p3.fr/distribution/datagrid/security/">
+https://datagrid.in2p3.fr/distribution/datagrid/security/</a>
+
+<p>
+This location also has VOMS server certificate RPMs which install into
+the /etc/grid-security/vomsdir directory. You may also manually install VOMS
+server certificates into that directory with any filename. (GridSite
+currently parses the certificate itself when looking for a match, rather
+than checking the filename.)
+
+<p>
+The server itself needs a certificate to supply to clients that use HTTPS
+connections. You should apply for this from your Certification Authority
+(for example, the <a href="http://ca.grid-support.ac.uk/">UK e-Science
+CA</a>) and your request must use the advertised hostname of your server
+(the one that appears in URLs and not, for instance, the canonical name of
+the host itself.) This advertised hostname should appear in the
+Distinguished Name of your request. (For example
+/C=UK/O=eScience/OU=Manchester/L=HEP/CN=www.gridpp.ac.uk) For compatability
+with standard browsers, the /CN= component should not include any
+Globus-style service name (so <b>not</b> /CN=host/www.gridpp.ac.uk) If
+possible, you should also include the advertised hostname as a DNS Subject
+Alternative Name. Consult your CA first if you're in any doubt about how to
+compose your certificate request.
+
+<p>
+Once you've got your certificate, 
+Apache uses the certificate and private key in PEM format. If you obtained
+your certificate and key in PKCS#12 or .p12 format (eg by exporting from a web
+browser), you can convert the .p12 file to .pem with the following commands:
+<pre>
+openssl pkcs12 -in ck.p12 -clcerts -nokeys -out hostcert.pem
+openssl pkcs12 -in ck.p12 -nodes  -nocerts -out hostkey.pem
+</pre>
+
+<p>
+Copy the PEM files to /etc/grid-security/ as hostcert.pem (which
+should be world readable) and hostkey.pem (which should only be readable by
+root):
+
+<pre>
+chown root.root hostkey.pem hostcert.pem
+chmod 400 hostkey.pem
+chmod 444 hostcert.pem
+</pre>
+
+<h2>httpd.conf</h2>
+
+<p>
+/etc/httpd/conf/httpd.conf is the key to configuring the Apache 2.0
+webserver. The directives in this file determine which files the server will
+publish, how they are handled, which areas are writeable and who can access
+them. Through mod_gridsite.so, the GridSite system itself is configured by
+directives in this file.
+
+<p>
+The easiest way to get started is to examine the example httpd.conf files we
+provide. 
+
+<!--
+virtual servers
+directory sections
+order of loadable modules
+-->
+
+<h2>httpd-fileserver.conf</h2>
+
+<p>
+<a href="httpd-fileserver.conf">httpd-fileserver.conf</a> is an example
+configuration file to use Apache/GridSite as a read/write HTTP(S)
+fileserver, including comments on how to get the server up and running.
+
+<h2>httpd-webserver.conf</h2>
+
+<p>
+<a href="httpd-webserver.conf">httpd-webserver.conf</a> is an example
+configuration file to use Apache/GridSite as a Web Server
+(that is, primarily for interactive use with a browser)
+including comments on how to get the server up and running.
+
+<h2>GridSite Directives</h2>
+
+<p>
+The <a href="module.html">mod_gridsite reference</a> lists all the GridSite
+httpd.conf directives. 
+
+<p>
+To start serving files, make a directory /var/www/htdocs owned by
+nobody.nobody, including the .gacl access control file described below,
+and add the following directive to the HTTPS &lt;Directory&gt; section:
+
+<p>
+GridSiteMethods GET PUT DELETE
+
+<p>
+If you wish to accept Globus GSI Proxies as well as full X.509 user
+certificates, set GridSiteGSIProxyLimit to the depth of proxy you
+wish to accept. (As a _rough_ guide: 0=No Proxies; 1=Proxy on user's
+machine; 2=Proxy owned by running Globus job; 3=Proxy delegated by a
+Globus job.)
+
+<h2>GACL access control</h2>
+
+<p>
+The <a href="gacl.html">GACL reference</a> explains the XML access
+control files used by GridSite. These allow flexible policies to be written,
+in terms of X.509 user certificates, GSI proxies, VOMS attribute
+certificates, DN List groups and DNS hostnames.
+
+<p>
+For example, to give all clients read and list permission:
+<p>
+<pre>
+&lt;gacl&gt;
+&lt;entry&gt;
+  &lt;any-user/&gt;
+  &lt;allow&gt;&lt;read/&gt;&lt;list/&gt;&lt;/allow&gt;
+&lt;/entry&gt;
+&lt;/gacl&gt;
+</pre>
+
+<p>
+To enable writing, add DN List, Person or VOMS entries to the file.
+For example:
+
+<p>
+<pre>
+&lt;gacl&gt;
+&lt;entry&gt;
+  &lt;any-user/&gt;
+  &lt;allow&gt;&lt;read/&gt;&lt;list/&gt;&lt;/allow&gt;
+&lt;/entry&gt;
+&lt;entry&gt;
+  &lt;person&gt;
+  &lt;dn&gt;/C=UK/O=eScience/OU=Manchester/L=HEP/CN=Andrew McNab&lt;/dn&gt;
+  &lt;/person&gt;
+  &lt;allow&gt;&lt;write/&gt;&lt;/allow&gt;
+&lt;/entry&gt;
+&lt;/gacl&gt;
+</pre>
+
+<p>
+The GACL file that governs a directory is stored as .gacl in that directory.
+If no .gacl is present, then GridSite will search the parent directories in
+ascending order until one is found.
+
+<!--
+<h2>DN Lists</h2>
+<h2>gridsite-admin.cgi</h2>
+<h2>Other CGI</h2>
+-->
+
+</body>

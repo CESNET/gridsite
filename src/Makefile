@@ -56,8 +56,6 @@ endif
 # Build
 #
 
-build: wtf
-
 build: libgridsite.so.$(VERSION) libgridsite.a htcp mod_gridsite.so \
        urlencode findproxyfile real-gridsite-admin.cgi \
        # gridsite-delegation.cgi # htproxyput 

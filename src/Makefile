@@ -130,6 +130,7 @@ export GSOAPDIR=/usr/local/lib/gsoap
 endif
 
 delegation.wsdl: delegation.h
+	ls -lR $(GSOAPDIR)
 	$(GSOAPDIR)/soapcpp2 -c delegation.h
 
 libstdsoap2.a: $(GSOAPDIR)/stdsoap2.c

@@ -309,6 +309,8 @@ rpm: dist gridsite.spec
              $(MYRPMDIR)/SRPMS $(MYRPMDIR)/RPMS/i386 $(MYRPMDIR)/BUILDROOT
 	cp -f ../gridsite-$(PATCH_VERSION).src.tar.gz $(MYRPMDIR)/SOURCES
 	cp -f gridsite.spec $(MYRPMDIR)/SPECS
+ 	export OPENSSL_FLAGS=$(OPENSSL_FLAGS) ; export OPENSSL_LIBS=$(OPENSSL_LIBS) ; export FLAVOR_EXT=$(FLAVOR_EXT) ; \
+ 	export GSOAPDIR=$(GSOAPDIR) ; \
 	export MYPREFIX=/usr ; export MYVERSION=$(PATCH_VERSION) ; \
          $(RPMCMD) --define "_topdir $(MYRPMDIR)" \
                   -ba --buildroot $(MYRPMDIR)/BUILDROOT gridsite.spec

@@ -37,11 +37,15 @@ HTTP/HTTPS rather than ssh as its transfer protocol.
 
 %build
 cd src
-make prefix=$RPM_BUILD_ROOT/%(echo ${MYPREFIX:-/usr})
+make prefix=$RPM_BUILD_ROOT/%(echo ${MYPREFIX:-/usr}) \
+GSOAPDIR=$GSOAPDIR OPENSSL_FLAGS=$OPENSSL_FLAGS \
+OPENSSL_LIBS=$OPENSSL_LIBS FLAVOR_EXT=$FLAVOR_EXT
 
 %install
 cd src
-make install prefix=$RPM_BUILD_ROOT/%(echo ${MYPREFIX:-/usr})
+make install prefix=$RPM_BUILD_ROOT/%(echo ${MYPREFIX:-/usr}) \
+GSOAPDIR=$GSOAPDIR OPENSSL_FLAGS=$OPENSSL_FLAGS \
+OPENSSL_LIBS=$OPENSSL_LIBS FLAVOR_EXT=$FLAVOR_EXT
 
 %post
 /sbin/ldconfig

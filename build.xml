@@ -20,6 +20,9 @@
 
 	Revision history:
 	$Log$
+	Revision 1.10  2004/12/17 09:11:43  dimeglio
+	Added local tag targets (because of special naming rules here)
+	
 	Revision 1.9  2004/12/17 09:02:49  dimeglio
 	Removed redefinition of global.prefix
 	
@@ -160,7 +163,7 @@
     </target>
 
 	<target name="dist" depends="stage">
-		<make target="rpm" dir="${module.src.dir}" failonerror="${failonerror}"/>
+		<make target="rpm" dir="${module.src.dir}" failonerror="${failonerror}" args="${build.make.arguments}"/>
 		<exec dir="${module.dir}/RPMTMP/BUILDROOT/usr" executable="tar">
 			<arg line="-czf ${module.dir}/gridsite-${module.version}_bin.tar.gz ." />
 		</exec>

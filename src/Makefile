@@ -49,7 +49,7 @@ export MYCFLAGS=-I. -I../interface -I/usr/include/httpd -I/usr/include/apr-0 -I/
 endif
 
 ifndef OPENSSL_FLAGS
-export OPENSSL_FLAGS=-I/usr/include/openssl
+export OPENSSL_FLAGS=-I/usr/include
 endif
 
 ifndef MYLDFLAGS
@@ -58,7 +58,7 @@ export MYLDFLAGS=-L.
 endif
 
 ifndef OPENSSL_LIBS
-export OPENSSL_LIBS=-L/usr/lib/openssl
+export OPENSSL_LIBS=-L/usr/lib
 endif
 
 #

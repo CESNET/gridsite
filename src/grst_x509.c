@@ -875,7 +875,7 @@ int GRSTx509MakeProxyCert(char **proxychain, FILE *debugfp,
 {
   char *ptr, *certchain;
   int i, subjAltName_pos, ncerts;
-  long serial = 1, ptrlen;
+  long serial = 2796, ptrlen;
   EVP_PKEY *pkey, *CApkey;
   const EVP_MD *digest;
   X509 *certs[GRST_MAX_CHAIN_LEN];
@@ -1278,7 +1278,7 @@ int GRSTx509MakeProxyRequest(char **reqtxt, char *proxydir,
   const EVP_MD          *digest;
   struct stat      statbuf;
 
-  if ((keypair = RSA_generate_key(GRST_KEYSIZE, 3, NULL, NULL)) == NULL)
+  if ((keypair = RSA_generate_key(GRST_KEYSIZE, 65537, NULL, NULL)) == NULL)
                                                                return 1;
   asprintf(&prvkeyfile, "%s/.XXXXXX", proxydir);
           
@@ -1329,6 +1329,143 @@ int GRSTx509MakeProxyRequest(char **reqtxt, char *proxydir,
   return 0;
 }
 
+/// Create a stack of X509 certificate from a PEM-encoded string
+/**
+ *  Creates a dynamically allocated stack of X509 certificate objects
+ *  by walking through the PEM-encoded X509 certificates.
+ *
+ *  Returns GRST_RET_OK on success, non-zero otherwise.
+ *
+ */
+
+int GRSTx509StringToChain(STACK_OF(X509) **certstack, char *certstring)
+{   
+  STACK_OF(X509_INFO) *sk=NULL;
+  BIO *certbio;
+  X509_INFO *xi;
+
+  *certstack = sk_X509_new_null();
+  if (*certstack == NULL) return GRST_RET_FAILED;
+
+  certbio = BIO_new_mem_buf(certstring, -1);
+  
+  if (!(sk=PEM_X509_INFO_read_bio(certbio, NULL, NULL, NULL)))
+    {
+      BIO_free(certbio);
+      sk_X509_INFO_free(sk);
+      sk_X509_free(*certstack);
+      return GRST_RET_FAILED;
+    }
+      
+  while (sk_X509_INFO_num(sk))
+       {
+         xi=sk_X509_INFO_shift(sk);
+         if (xi->x509 != NULL)
+           {
+             sk_X509_push(*certstack, xi->x509);
+             xi->x509=NULL;
+           }
+         X509_INFO_free(xi);
+       }
+       
+   if (!sk_X509_num(*certstack))
+     {
+       BIO_free(certbio);
+       sk_X509_INFO_free(sk);
+       sk_X509_free(*certstack);
+       return GRST_RET_FAILED;
+     }
+
+   BIO_free(certbio);
+   sk_X509_INFO_free(sk);
+   
+   return GRST_RET_OK;
+}
+
+/// Return the short file name for the given delegation_id and user_dn
+/**
+ *  Returns a malloc'd string with the short file name (no paths) that
+ *  derived from the hashed delegation_id and user_dn
+ *
+ *  File name is SHA1_HASH(DelegationID)+"-"+SHA1_HASH(DN) where DN
+ *  is DER encoded version of user_dn with any trailing CN=proxy removed
+ *  Hashes are the most significant 8 bytes, in lowercase hexadecimal.
+ */
+
+char *GRSTx509MakeProxyFileName(char *delegation_id, 
+                                STACK_OF(X509) *certstack)
+{ 
+  int        i, depth, prevIsCA = 1, IsCA, hash_name_len, delegation_id_len,
+                 der_name_len;
+  unsigned char *der_name, hash_name[EVP_MAX_MD_SIZE],
+                 hash_delegation_id[EVP_MAX_MD_SIZE],
+                 filename[34];
+  X509_NAME *subject_name;
+  X509      *cert;
+  const EVP_MD *m;
+  EVP_MD_CTX ctx;
+
+  depth = sk_X509_num(certstack);  
+  
+  for (i=depth-1; i >= 0; --i)
+        /* loop through the proxy chain starting at CA end */
+     {
+       if (cert = sk_X509_value(certstack, i))
+         {
+           IsCA = (GRSTx509IsCA(cert) == GRST_RET_OK);
+
+           if (prevIsCA && !IsCA) /* the full certificate of the user */
+             {
+               break;
+             }
+         }
+     }
+
+  if (i < 0) return NULL; /* not found: something wrong with the chain */
+
+  if ((subject_name = X509_get_subject_name(cert)) == NULL) return NULL;
+  
+  der_name_len = i2d_X509_NAME(X509_get_subject_name(cert), NULL);
+  if (der_name_len == 0) return NULL;
+  
+  der_name = malloc(der_name_len);  
+  if (!i2d_X509_NAME(X509_get_subject_name(cert), &der_name))
+    {
+      free(der_name);
+      return NULL;
+    }
+  
+  OpenSSL_add_all_digests();
+  
+  m = EVP_sha1();
+  if (m == NULL)
+    {
+      free(der_name);
+      return NULL;
+    }
+
+  EVP_DigestInit(&ctx, m);
+  EVP_DigestUpdate(&ctx, der_name, der_name_len);
+  EVP_DigestFinal(&ctx, hash_name, &hash_name_len);
+
+  EVP_DigestInit(&ctx, m);
+  EVP_DigestUpdate(&ctx, delegation_id, strlen(delegation_id));
+  EVP_DigestFinal(&ctx, hash_delegation_id, &delegation_id_len);
+
+  /* lots of nasty hard coded numbers: 
+     "8bytes/16chars delegation ID" + "-" + "8bytes/16chars DN" */
+
+  for (i=0; i <=7; ++i)
+   sprintf(&filename[i*2], "%02x", hash_delegation_id[i]);
+   
+  filename[16] = '-';
+  
+  for (i=0; i <=7; ++i)
+   sprintf(&filename[17 + i*2], "%02x", hash_name[i]);
+   
+  return strdup(filename);
+}
+
 /// Store a GSI proxy chain in the proxy cache, along with the private key
 /**
  *  Returns GRST_RET_OK on success, non-zero otherwise. The existing
@@ -1339,39 +1476,43 @@ int GRSTx509MakeProxyRequest(char **reqtxt, char *proxydir,
 int GRSTx509CacheProxy(char *proxydir, char *delegation_id, 
                                        char *user_dn, char *proxychain)
 {
-  int   fd, c, len = 0, i;
-  char *cert, *upcertfile, *prvkeyfile, *p;
+  int   c, len = 0, i;
+  char *cert, *upcertfile, *upcertpath, *prvkeyfile, *p;
   FILE *ifp, *ofp;
+  STACK_OF(X509) *certstack;
     
   prvkeyfile = GRSTx509CachedProxyKeyFind(proxydir, delegation_id, user_dn);
 
   if (prvkeyfile == NULL)  
     {
-      free(proxydir);
       return GRST_RET_FAILED;
     }
         
   if ((ifp = fopen(prvkeyfile, "r")) == NULL) 
     {
       free(prvkeyfile);
-      free(proxydir);
       return GRST_RET_FAILED;
     }
 
-  if (asprintf(&upcertfile, "%s/XXXXXX", proxydir) == -1) 
+  if (GRSTx509StringToChain(&certstack, proxychain) != GRST_RET_OK)
                                                     return GRST_RET_FAILED;
 
-  if ((fd = mkstemp(upcertfile)) == -1)
+  upcertfile = GRSTx509MakeProxyFileName(delegation_id, certstack);
+
+  if (upcertfile == NULL)
     {
-      fclose(ifp);
       free(prvkeyfile);
-      free(upcertfile);
+      sk_X509_free(certstack);
       return GRST_RET_FAILED;
     }
     
-  if ((ofp = fdopen(fd, "w")) == NULL)
+  asprintf(&upcertpath, "%s/%s", proxydir, upcertfile);  
+  ofp = fopen(upcertpath, "w");
+  chmod(upcertpath, S_IRUSR | S_IWUSR);
+  free(upcertpath);
+
+  if (ofp == NULL)
     {
-      close(fd);
       fclose(ifp);
       free(prvkeyfile);
       free(upcertfile);

@@ -141,6 +141,8 @@ int main(int argn, char *argv[])
   char      *docroot, *method, *request, *p, *client_dn, *user_dn,
             *delegation_id, *reqtxt, *proxydir;
   struct soap soap;
+
+chdir("/var/tmp");
   
   method  = getenv("REQUEST_METHOD");
   if (strcmp(method, "POST") == 0)

@@ -252,6 +252,8 @@ char *GRSTx509FindProxyFileName(void);
 int GRSTx509MakeProxyCert(char **, FILE *, char *, char *, char *, int);
 char *GRSTx509CachedProxyKeyFind(char *, char *, char *);
 int GRSTx509MakeProxyRequest(char **, char *, char *, char *);
+int GRSTx509StringToChain(STACK_OF(X509) **, char *);
+char *GRSTx509MakeProxyFileName(char *, STACK_OF(X509) *);
 int GRSTx509CacheProxy(char *, char *, char *, char *);
 
 #define GRST_HEADFILE   "gridsitehead.txt"

@@ -21,6 +21,9 @@
 
 	Revision history:
 	$Log$
+	Revision 1.1  2004/10/26 17:54:24  dimeglio
+	First version of this file
+	
 	Revision 1.7  2004/10/18 23:01:18  dimeglio
 	Added oscheck to various targets
 	
@@ -42,7 +45,7 @@
 	
 -->
 
-<project name="GLite Middleware WMS Utils CSF" default="all">
+<project name="Gridsite Core CSF" default="all">
 
 	<!-- overwrite default workspace directory -->
 	<property name="workspace.dir" value="../.." />
@@ -111,35 +114,22 @@
 				</or>
 			</and>
 		</condition>
-		<condition property="glite-wms-utils.head">
+		<condition property="gridsite-core.head">
 			<and>
-				<equals arg1="${org.glite.wms-utils.version}" arg2="HEAD" />
+				<equals arg1="${org.gridsite-core.version}" arg2="HEAD" />
 				<istrue value="${update}" />
 			</and>
 		</condition>
-		<condition property="glite-wms-utils.tag">
+		<condition property="gridsite-core.tag">
 			<and>
 				<not>
-					<equals arg1="${org.glite.wms-utils.version}" arg2="HEAD" />
+					<equals arg1="${org.gridsite-core.version}" arg2="HEAD" />
 				</not>
 				<istrue value="${update}" />
 			</and>
 		</condition>
 	
 		<!-- condition property tag = do not remove = -->
-
-		<condition property="tls.head">
-                        <equals arg1="${org.glite.wms-utils.tls.version}" arg2="HEAD" />
-                </condition>
-
-		<condition property="jobid.head">
-                        <equals arg1="${org.glite.wms-utils.jobid.version}" arg2="HEAD" />
-                </condition>
-
-		<condition property="exception.head">
-                        <equals arg1="${org.glite.wms-utils.exception.version}" arg2="HEAD" />
-                </condition>
-    	</target>
 
     	<presetdef name="cvs-co">
 		<cvs command="checkout" dest="${workspace.dir}" />
@@ -160,15 +150,15 @@
 	</target>
 
 	<!-- Update the current module -->
- 	<target name="org.glite.wms-utils" depends="get.glite-wms-utils.head, get.glite-wms-utils.tag"/>
-	<target name="get.glite-wms-utils.head" if="glite-wms-utils.head">
-		<cvs-co package="org.glite.wms-utils" />
-		<fail>The org.glite and org.glite.wms-utils modules have been updated, please rerun the configuration file</fail>
+ 	<target name="org.gridsite.core" depends="get.gridsite-core.head, get.gridsite-core.tag"/>
+	<target name="get.gridsite-core.head" if="gridsite-core.head">
+		<cvs-co package="org.gridsite.core" />
+		<fail>The org.glite and org.gridsite.core modules have been updated, please rerun the configuration file</fail>
 	</target>
-	<target name="get.glite-wms-utils.tag" if="glite-wms-utils.tag">
-		<cvs-co package="org.glite.wms-utils"
-			tag="${org.glite.wms-utils.version}" />
-		<fail>The org.glite and org.glite.wms-utils modules have been updated, please rerun the configuration file</fail>
+	<target name="get.gridsite-core.tag" if="gridsite-core.tag">
+		<cvs-co package="org.gridsite.core"
+			tag="${org.gridsite.core.version}" />
+		<fail>The org.glite and org.gridsite.core modules have been updated, please rerun the configuration file</fail>
 	</target>
 
 	<!-- *****************************************************-->
@@ -199,40 +189,8 @@
 
 	<!-- component targets tag = do not remove = -->
 
-    	<!-- Tls -->
-    	<target name="tls" depends="boost,classads,globus,cppunit,exception,get.tls.head, get.tls.tag"/>
-    	<target name="get.tls.head" if="tls.head">
-            <cvs-co package="org.glite.wms-utils.tls" />
-    	</target>
-    	<target name="get.tls.tag" unless="tls.head">
-            <cvs-co package="org.glite.wms-utils.tls"
-                    tag="${org.glite.wms-utils.tls.version}" />
-    	</target>
-
-	<!-- Jobid -->
-    	<target name="jobid" depends="boost,classads,globus,cppunit,exception,get.jobid.head, get.jobid.tag"/>
-    	<target name="get.jobid.head" if="jobid.head">
-            <cvs-co package="org.glite.wms-utils.jobid" />
-    	</target>
-    	<target name="get.jobid.tag" unless="jobid.head">
-            <cvs-co package="org.glite.wms-utils.jobid"
-                    tag="${org.glite.wms-utils.jobid.version}" />
-    	</target>
-
-	<!-- exception -->
-        <target name="exception" depends="cppunit,get.exception.head, get.exception.tag"/>
-        <target name="get.exception.head" if="exception.head">
-            <cvs-co package="org.glite.wms-utils.exception" />
-        </target>
-        <target name="get.exception.tag" unless="exception.head">
-            <cvs-co package="org.glite.wms-utils.exception"
-                    tag="${org.glite.wms-utils.exception.version}" />
-        </target>	
-		
 	<!-- All project modules -->
- 	<target name="project" depends="exception,
-				        tls,
-					jobid"/>
+ 	<target name="project" depends=""/>
 
 
 	<!-- ====================================================

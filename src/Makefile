@@ -162,6 +162,8 @@ proxyput-example: proxyput-example.c delegation.h delegation.wsdl \
             soapC.c soapClient.c libstdsoap2.a \
             -lgridsite -lcurl -lz -lssl -lcrypto -lxml2 -lm
 
+clean:
+
 #
 # Install
 #

@@ -4,6 +4,6 @@
 
 	<project name="configure options">
         <property name="build.make.arguments"
-               value="prefix=${stage.abs.dir} GSOAPDIR=${with.gsoap.prefix} OPENSSL_FLAGS=-I${with.globus.prefix}/include/gcc32/openssl OPENSSL_LIBS=-L${with.globus.prefix}/lib/"/>
+               value="prefix=${stage.abs.dir} GSOAPDIR=${with.gsoap.prefix} OPENSSL_FLAGS=-I${with.globus.prefix}/include/gcc32 OPENSSL_LIBS=-L${with.globus.prefix}/lib/"/>
 	</project>
 

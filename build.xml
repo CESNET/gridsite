@@ -20,6 +20,9 @@
 
 	Revision history:
 	$Log$
+	Revision 1.3  2004/10/27 11:19:17  dimeglio
+	Fixed i386 instead of 1386
+	
 	Revision 1.2  2004/10/27 11:18:38  dimeglio
 	Use os.platform instead of hard-coded rhel30
 	
@@ -193,10 +196,6 @@
 
 
 	<!-- Main proxy -->
-	<target name="buildmodules" depends="">
-		<echo append="true" file="${global.project.dir}/cruisecontrol-stub.xml">
-	&lt;project name="${subsystem.name}" type="post-subsystem" packageName="gridsite-${subsystem.prefix}"/&gt;
-		</echo>
-	</target>
+	<target name="buildmodules" depends="envcheck"/>
 
 </project>

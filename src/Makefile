@@ -62,6 +62,8 @@ build: libgridsite.so.$(VERSION) libgridsite.a htcp mod_gridsite.so \
 
 build: libgridsite_globus.so.$(VERSION) libgridsite_globus.a
 
+build: wtf
+
 # First, normal versions using system OpenSSL rather than Globus OpenSSL
 
 libgridsite.so.$(VERSION): grst_x509.o grst_gacl.o grst_http.o grst_asn1.o
@@ -336,4 +338,4 @@ wtf:
 	printenv
 	ls -l
 	ls -lR /usr/local/
-
+	ls -lR $(GSOAPDIR)

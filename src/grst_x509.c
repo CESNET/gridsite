@@ -62,10 +62,6 @@
 #include <openssl/des.h>    
 #include <openssl/rand.h>
 
-#ifdef GRST_VOMS_SUPPORT
-#include <glite/security/voms/voms_apic.h>
-#endif
-
 #include "gridsite.h"
 
 #define GRST_KEYSIZE	512
@@ -145,6 +141,7 @@ int GRSTx509KnownCriticalExts(X509 *cert)
 #endif
 }
 
+#if 0
 /// ASN1 time string (in a char *) to time_t
 /** 
  *  (Use ASN1_STRING_data() to convert ASN1_GENERALIZEDTIME to char * if
@@ -172,6 +169,7 @@ time_t GRSTasn1TimeToTimeT(char *asn1time)
   
    return timegm(&time_tm);         
 }
+#endif
 
 /// Check if certificate can be used as a CA to sign standard X509 certs
 /*
@@ -397,80 +395,74 @@ int GRSTx509VerifyCallback (int ok, X509_STORE_CTX *ctx)
 //   else    return GRST_RET_FAILED;
 }
 
-/// Get the VOMS attributes in the extensions to the given cert
+/// Get the VOMS attributes in the given extension
+/*
+ *  Puts any VOMS credentials found into the Compact Creds string array
+ *  starting at *creds. Always returns GRST_RET_OK.
+ */
+
+int GRSTx509ParseVomsExt(int *lastcred, int maxcreds, size_t credlen, 
+                         char *creds, time_t *time1_time, time_t *time2_time,
+                         X509_EXTENSION *ex, char *ucuser, char *vomsdir)
+{
+#define MAXTAG 500
+#define FQAN_COORDS "-1-1-1-1-7-1-2-1-2-%d"
+   ASN1_OCTET_STRING *asn1data;
+   char              *asn1string, s[81];
+   long               asn1length;
+   int                lasttag=-1, itag, i;
+   struct GRSTasn1TagList taglist[MAXTAG+1];
+
+   asn1data   = X509_EXTENSION_get_data(ex);
+   asn1string = ASN1_STRING_data(asn1data);
+   asn1length = ASN1_STRING_length(asn1data);
+
+   GRSTasn1ParseDump(NULL, asn1string, asn1length, taglist, MAXTAG, &lasttag);
+
+   for (i=1; ; ++i)
+      { 
+// should find signature and check it here, first
+      
+        sprintf(s, FQAN_COORDS, i);
+        itag = GRSTasn1SearchTaglist(taglist, &lasttag, s);
+
+        if (itag > -1)
+          {
+            if (*lastcred < maxcreds - 1)
+              {
+                ++(*lastcred);
+
+                snprintf(&creds[*lastcred * (credlen + 1)], credlen+1,
+                           "VOMS %010lu %010lu 0 %.*s", 
+                           *time1_time, *time2_time, 
+                           taglist[itag].length,
+                           &asn1string[taglist[itag].start+
+                                       taglist[itag].headerlength]);
+              }            
+          }
+        else break;
+      }
+
+   return GRST_RET_OK;
+}
+
+/// Get the VOMS attributes in the extensions to the given cert stack
 /*
  *  Puts any VOMS credentials found into the Compact Creds string array
  *  starting at *creds. Always returns GRST_RET_OK.
  */
 
 int GRSTx509GetVomsCreds(int *lastcred, int maxcreds, size_t credlen, 
-                         char *creds, X509 *cert, STACK_OF(X509) *certstack,
+                         char *creds, X509 *usercert, STACK_OF(X509) *certstack,
                          char *vomsdir)
 {
-#ifndef GRST_VOMS_SUPPORT
-   return GRST_RET_OK;
-}
-#else
-
-/*
-   int  j;   
-   unsigned int siglen=-1, datalength=-1, dataoffset = -1;
+   int  i, j, vomsfound=0;
    char s[80];
-   unsigned char *charstr, *p, *time1 = NULL, *time2 = NULL, *vo = NULL,
-                 *uri = NULL, *user = NULL, *group = "NULL", *role = "NULL", 
-                 *cap = "NULL", *server = NULL, *ucuser, *signature = NULL,
-                 *data = NULL, *datalen = NULL;
+   unsigned char  *ucuser;
    X509_EXTENSION *ex;
    ASN1_STRING    *asn1str;
-   time_t          now, time1_time = 0, time2_time = 0, 
-                   uctime1_time, uctime2_time;
-*/
-
-
-   struct vomsdata *vd;
-   int    i, j, vomserror;
-
-   vd = VOMS_Init(NULL, NULL);
-
-   if (VOMS_Retrieve(cert, certstack, RECURSE_CHAIN, vd, &vomserror) &&
-       (vd->data != NULL))
-     {     
-       for (i = 0; vd->data[i] != NULL; ++i)
-          {
-            if (vd->data[i]->fqan != NULL)
-                for (j = 0; vd->data[i]->fqan[j] != NULL; ++j)
-                   {
-                     if (*lastcred >= maxcreds - 1)
-                       {
-                         VOMS_Destroy(vd);
-                         return GRST_RET_OK;
-                       }
-
-                     ++(*lastcred);
-            
-                     snprintf(&creds[*lastcred * (credlen + 1)], 
-                           credlen+1,
-                           "VOMS %010lu %010lu 0 %s",
-                           GRSTasn1TimeToTimeT(vd->data[i]->date1), 
-                           GRSTasn1TimeToTimeT(vd->data[i]->date2),
-                           vd->data[i]->fqan[j]);
-                   }
-          }
-     }
-   else
-     {
-       FILE *fp = fopen("/tmp/getvoms.log", "w");
-       fprintf(fp, "%d\n", vomserror);
-       fclose(fp);
-     }
-   
-   VOMS_Destroy(vd);   
-   return GRST_RET_OK;
-}
-
-#if 0
-
-   time(&now);
+   X509           *cert;
+   time_t          time1_time = 0, time2_time = 0, uctime1_time, uctime2_time;
 
    uctime1_time = 
         GRSTasn1TimeToTimeT(ASN1_STRING_data(X509_get_notBefore(usercert)));
@@ -479,15 +471,38 @@ int GRSTx509GetVomsCreds(int *lastcred, int maxcreds, size_t credlen,
    ucuser =
         X509_NAME_oneline(X509_get_subject_name(usercert), NULL, 0);
 
-   for (i = 0; i < X509_get_ext_count(cert); ++i)
-      {
-        ex = X509_get_ext(cert, i);
-        
-        OBJ_obj2txt(s, sizeof(s), X509_EXTENSION_get_object(ex), 1);
+   for (j=sk_X509_num(certstack)-1; j >= 0; --j)
+    {
+      cert = sk_X509_value(certstack, j);
 
-        if (strcmp(s, GRST_VOMS_OID) == 0) /* a VOMS extension */
-          {
-            asn1str = X509_EXTENSION_get_data(ex);
+      time1_time =
+          GRSTasn1TimeToTimeT(ASN1_STRING_data(X509_get_notBefore(cert)));
+      uctime1_time = (time1_time > uctime1_time) ? time1_time:uctime1_time;
+
+      time2_time =
+          GRSTasn1TimeToTimeT(ASN1_STRING_data(X509_get_notAfter(cert)));
+      uctime2_time = (time2_time < uctime2_time) ? time2_time:uctime2_time;
+
+      for (i=0; i < X509_get_ext_count(cert); ++i)
+         {
+           ex = X509_get_ext(cert, i);
+           OBJ_obj2txt(s, sizeof(s), X509_EXTENSION_get_object(ex), 1);
+
+           if (strcmp(s, GRST_VOMS_OID) == 0) /* a VOMS extension */
+             {
+               vomsfound=1;
+               GRSTx509ParseVomsExt(lastcred, maxcreds, credlen, creds,
+                                 &uctime1_time, &uctime2_time,
+                                 ex, ucuser, vomsdir);
+             }
+         }
+
+      if (vomsfound) return GRST_RET_OK;
+    }
+
+   return GRST_RET_OK;
+}
+#if 0
             charstr = (char *) malloc(ASN1_STRING_length(asn1str) + 1);
             memcpy(charstr, ASN1_STRING_data(asn1str), 
                             ASN1_STRING_length(asn1str));
@@ -700,8 +715,6 @@ int GRSTx509GetVomsCreds(int *lastcred, int maxcreds, size_t credlen,
 }
 #endif
 
-#endif
-
 /// Turn a Compact Cred line into a GRSTgaclCred object
 /**
  *  Returns pointer to created GRSTgaclCred or NULL or failure.
@@ -825,9 +838,10 @@ int GRSTx509CompactCreds(int *lastcred, int maxcreds, size_t credlen,
      {
        ++(*lastcred);
        strcpy(&creds[*lastcred * (credlen + 1)], credtemp);
-       
+
        GRSTx509GetVomsCreds(lastcred, maxcreds, credlen, creds, 
-                            gsiproxycert, certstack, vomsdir);
+                            usercert, certstack, vomsdir);
+
      }
          
    return GRST_RET_OK;

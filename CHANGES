@@ -1,3 +1,8 @@
+* Sun Feb 20 2005 Andrew McNab <Andrew.McNab@man.ac.uk>
+- Add basic VOMS support (signature checking not yet
+  in) for X.509 Attribute Certificates.
+* Tue Feb 8 2005 Andrew McNab <Andrew.McNab@man.ac.uk>
+- ==== GridSite version 1.1.6 ====
 * Tue Feb 8 2005 Andrew McNab <Andrew.McNab@man.ac.uk>
 - Include GRSTx509MakeProxyFileName() and 
   GRSTx509StringToChain() (code to used hashes in cached

@@ -63,12 +63,6 @@
 /// No such file or directory
 #define GRST_RET_NO_SUCH_FILE	1003
 
-#define GRST_PROXYCERTINFO_OID	"1.3.6.1.4.1.3536.1.222"
-#define GRST_VOMS_OID		"1.3.6.1.4.1.8005.100.100.1"
-#define GRST_VOMS_DIR		"/etc/grid-security/vomsdir"
-
-
-
 typedef struct { char                      *name;
                  char                      *value;
                  void                      *next;  } GRSTgaclNamevalue;
@@ -116,6 +110,19 @@ typedef struct { GRSTgaclCred *firstcred;
 #define GRST_ACL_FILE     ".gacl"
 #define GRST_DN_LISTS     "/etc/grid-security/dn-lists"
 #define GRST_RECURS_LIMIT 9
+
+#define GRST_PROXYCERTINFO_OID	"1.3.6.1.4.1.3536.1.222"
+#define GRST_VOMS_OID		"1.3.6.1.4.1.8005.100.100.5"
+#define GRST_VOMS_DIR		"/etc/grid-security/vomsdir"
+
+#define GRST_ASN1_MAXCOORDLEN	50
+#define GRST_ASN1_MAXTAGS	500
+
+struct GRSTasn1TagList { char treecoords[GRST_ASN1_MAXCOORDLEN+1];
+                         int  start;
+                         int  headerlength;
+                         int  length;
+                         int  tag; } ;
 
 int GRSTgaclInit(void);
 
@@ -239,7 +246,6 @@ int GRSTx509NameCmp(char *, char *);
 
 int GRSTx509KnownCriticalExts(X509 *);
 
-time_t GRSTasn1TimeToTimeT(char *);
 int GRSTx509IsCA(X509 *);
 int GRSTx509CheckChain(int *, X509_STORE_CTX *);
 int GRSTx509VerifyCallback(int, X509_STORE_CTX *);
@@ -273,3 +279,8 @@ int   GRSThttpCopy(GRSThttpBody *, char *);
 void  GRSThttpWriteOut(GRSThttpBody *);
 int   GRSThttpPrintHeaderFooter(GRSThttpBody *, char *, char *);
 char *GRSThttpGetCGI(char *);
+
+time_t GRSTasn1TimeToTimeT(char *);
+int    GRSTasn1SearchTaglist(struct GRSTasn1TagList taglist[], int *, char *);
+int    GRSTasn1ParseDump(BIO *, unsigned char *, long,
+                         struct GRSTasn1TagList taglist[], int, int *);

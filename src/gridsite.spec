@@ -58,6 +58,7 @@ rm -f %(echo ${MYPREFIX:-/usr})/share/doc/gridsite
 %attr(-, root, root) %(echo ${MYPREFIX:-/usr})/bin/findproxyfile
 %attr(-, root, root) %(echo ${MYPREFIX:-/usr})/share/doc/gridsite-%{version}
 %attr(-, root, root) %(echo ${MYPREFIX:-/usr})/share/man/man1/urlencode.1.gz
+%attr(-, root, root) %(echo ${MYPREFIX:-/usr})/share/man/man1/findproxyfile.1.gz
 %attr(-, root, root) %(echo ${MYPREFIX:-/usr})/include/gridsite.h
 %attr(-, root, root) %(echo ${MYPREFIX:-/usr})/include/gridsite-gacl.h
 %attr(-, root, root) %(echo ${MYPREFIX:-/usr})/lib/libgridsite.a
@@ -75,4 +76,3 @@ rm -f %(echo ${MYPREFIX:-/usr})/share/doc/gridsite
 %attr(-, root, root) %(echo ${MYPREFIX:-/usr})/share/man/man1/htls.1.gz
 %attr(-, root, root) %(echo ${MYPREFIX:-/usr})/share/man/man1/htll.1.gz
 %attr(-, root, root) %(echo ${MYPREFIX:-/usr})/share/man/man1/htmkdir.1.gz
-%attr(-, root, root) %(echo ${MYPREFIX:-/usr})/share/man/man1/findproxyfile.1.gz

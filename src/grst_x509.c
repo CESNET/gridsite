@@ -1406,12 +1406,12 @@ int GRSTx509StringToChain(STACK_OF(X509) **certstack, char *certstring)
  *  Hashes are the most significant 8 bytes, in lowercase hexadecimal.
  */
 
-char *GRSTx509MakeProxyFileName(char *delegation_id, 
+char *GRSTx509MakeProxyFileName(char *delegation_id,
                                 STACK_OF(X509) *certstack)
 { 
   int        i, depth, prevIsCA = 1, IsCA, hash_name_len, delegation_id_len,
                  der_name_len;
-  unsigned char *der_name, hash_name[EVP_MAX_MD_SIZE],
+  unsigned char *der_name, *buf, hash_name[EVP_MAX_MD_SIZE],
                  hash_delegation_id[EVP_MAX_MD_SIZE],
                  filename[34];
   X509_NAME *subject_name;
@@ -1442,21 +1442,25 @@ char *GRSTx509MakeProxyFileName(char *delegation_id,
   der_name_len = i2d_X509_NAME(X509_get_subject_name(cert), NULL);
   if (der_name_len == 0) return NULL;
   
-  der_name = malloc(der_name_len);  
+  buf = OPENSSL_malloc(der_name_len);
+  der_name = buf;
+
+
   if (!i2d_X509_NAME(X509_get_subject_name(cert), &der_name))
     {
-      free(der_name);
+      OPENSSL_free(der_name);
       return NULL;
     }
-  
+
   OpenSSL_add_all_digests();
-  
+
   m = EVP_sha1();
   if (m == NULL)
     {
-      free(der_name);
+      OPENSSL_free(der_name);
       return NULL;
     }
+
 
   EVP_DigestInit(&ctx, m);
   EVP_DigestUpdate(&ctx, delegation_id, strlen(delegation_id));
@@ -1467,16 +1471,18 @@ char *GRSTx509MakeProxyFileName(char *delegation_id,
 
   for (i=0; i <=7; ++i)
    sprintf(&filename[i*2], "%02x", hash_delegation_id[i]);
-   
+
   filename[16] = '-';
-  
+
+
+
   EVP_DigestInit(&ctx, m);
-  EVP_DigestUpdate(&ctx, der_name, der_name_len);
+  EVP_DigestUpdate(&ctx, buf, der_name_len);
   EVP_DigestFinal(&ctx, hash_name, &hash_name_len);
 
   for (i=0; i <=7; ++i)
    sprintf(&filename[17 + i*2], "%02x", hash_name[i]);
-   
+
   return strdup(filename);
 }
 
@@ -1511,6 +1517,7 @@ int GRSTx509CacheProxy(char *proxydir, char *delegation_id,
       return GRST_RET_FAILED;
     }
 
+  fprintf(stderr, "\n\n\n\n PROXYCHAIN = \n %s", proxychain);
   if (GRSTx509StringToChain(&certstack, proxychain) != GRST_RET_OK)
                                                     return GRST_RET_FAILED;
 

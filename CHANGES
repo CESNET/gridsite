@@ -1,3 +1,7 @@
+* Mon Feb 21 2005 Andrew McNab <Andrew.McNab@man.ac.uk>
+- Add bugfix for Bug #6357 from Fabrizio Pacini 
+  <fabrizio.pacini@cern.ch> to fix delegation proxy
+  cache names in OpenSSL 0.9.7.
 * Sun Feb 20 2005 Andrew McNab <Andrew.McNab@man.ac.uk>
 - Add basic VOMS support (signature checking not yet
   in) for X.509 Attribute Certificates.

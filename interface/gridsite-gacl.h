@@ -29,9 +29,9 @@
    POSSIBILITY OF SUCH DAMAGE.
 */
 
-/*------------------------------------------------------------------------*
- * For more about GridSite: http://www.gridpp.ac.uk/gridsite/             *
- *------------------------------------------------------------------------*/
+/*---------------------------------------------------------------*
+ * For more about GridSite: http://www.gridsite.org/             *
+ *---------------------------------------------------------------*/
 
 #ifndef HEADER_GACL_H
 #define HEADER_GACL_H
@@ -76,113 +76,113 @@ extern GACLperm   gacl_perm_vals[];
 #define GACLinit() GRSTgaclInit()
 
 #define GACLnewCred(x)		GRSTgaclCredNew((x))
-//GACLcred  *GACLnewCred(char *);
+/* GACLcred  *GACLnewCred(char *); */
 
 #define GACLaddToCred(x,y,z)	GRSTgaclCredAddValue((x),(y),(z))
-//int        GACLaddToCred(GACLcred *, char *, char *);
+/* int        GACLaddToCred(GACLcred *, char *, char *); */
 
 #define GACLfreeCred(x)		GRSTgaclCredFree((x))
-//int        GACLfreeCred(GACLcred *);
+/* int        GACLfreeCred(GACLcred *); */
 
 #define GACLaddCred(x,y)	GRSTgaclEntryAddCred((x),(y))
-//int        GACLaddCred(GACLentry *, GACLcred *);
+/* int        GACLaddCred(GACLentry *, GACLcred *); */
 
 #define GACLdelCred(x,y)	GRSTgaclEntryDelCred((x),(y))
-//int        GACLdelCred(GACLentry *, GACLcred *);
+/* int        GACLdelCred(GACLentry *, GACLcred *); */
 
 #define GACLprintCred(x,y)	GRSTgaclCredPrint((x),(y))
-// int        GACLprintCred(GACLcred *, FILE *);
+/*  int        GACLprintCred(GACLcred *, FILE *); */
 
 
 #define GACLnewEntry()		GRSTgaclEntryNew()
-// GACLentry *GACLnewEntry(void);
+/*  GACLentry *GACLnewEntry(void); */
 
 #define GACLfreeEntry(x)	GRSTgaclEntryFree((x))
-// int        GACLfreeEntry(GACLentry *);
+/*  int        GACLfreeEntry(GACLentry *); */
 
 #define GACLaddEntry(x,y)	GRSTgaclAclAddEntry((x),(y))
-// int        GACLaddEntry(GACLacl *, GACLentry *);
+/*  int        GACLaddEntry(GACLacl *, GACLentry *); */
 
 #define GACLprintEntry(x,y)	GRSTgaclEntryPrint((x),(y))
-// int        GACLprintEntry(GACLentry *, FILE *);
+/*  int        GACLprintEntry(GACLentry *, FILE *); */
 
 
 #define GACLprintPerm(x,y)	GRSTgaclPermPrint((x),(y))
-//int        GACLprintPerm(GACLperm, FILE *);
+/* int        GACLprintPerm(GACLperm, FILE *); */
 
 #define GACLallowPerm(x,y)	GRSTgaclEntryAllowPerm((x),(y))
-// int        GACLallowPerm(GACLentry *, GACLperm);
+/*  int        GACLallowPerm(GACLentry *, GACLperm); */
 
 #define GACLunallowPerm(x,y)	GRSTgaclEntryUnallowPerm((x),(y))
-//int        GACLunallowPerm(GACLentry *, GACLperm);
+/* int        GACLunallowPerm(GACLentry *, GACLperm); */
 
 #define GACLdenyPerm(x,y)	GRSTgaclEntryDenyPerm((x),(y))
-// int        GACLdenyPerm(GACLentry *, GACLperm);
+/*  int        GACLdenyPerm(GACLentry *, GACLperm); */
 
 #define GACLundenyPerm(x,y)	GRSTgaclEntryUndenyPerm((x),(y))
-// int        GACLundenyPerm(GACLentry *, GACLperm);
+/*  int        GACLundenyPerm(GACLentry *, GACLperm); */
 
 #define GACLpermToChar(x)	GRSTgaclPermToChar((x))
-// char      *GACLpermToChar(GACLperm);
+/*  char      *GACLpermToChar(GACLperm); */
 
 #define GACLcharToPerm(x)	GRSTgaclPermFromChar((x))
-// GACLperm   GACLcharToPerm(char *);
+/*  GACLperm   GACLcharToPerm(char *); */
 
 #define GACLnewAcl()		GRSTgaclAclNew()
-// GACLacl   *GACLnewAcl(void);
+/*  GACLacl   *GACLnewAcl(void); */
 
 #define GACLfreeAcl(x)		GRSTgaclAclFree((x))
-// int        GACLfreeAcl(GACLacl *);
+/*  int        GACLfreeAcl(GACLacl *); */
 
 #define GACLprintAcl(x,y)	GRSTgaclAclPrint((x),(y))
-// int        GACLprintAcl(GACLacl *, FILE *);
+/*  int        GACLprintAcl(GACLacl *, FILE *); */
 
 #define GACLsaveAcl(x,y)	GRSTgaclAclSave((y),(x))
-// int        GACLsaveAcl(char *, GACLacl *);
+/*  int        GACLsaveAcl(char *, GACLacl *); */
 
 #define GACLloadAcl(x)		GRSTgaclAclLoadFile((x))
-// GACLacl   *GACLloadAcl(char *);
+/*  GACLacl   *GACLloadAcl(char *); */
 
 #define GACLfindAclForFile(x)	GRSTgaclFileFindAclname((x))
-// char      *GACLfindAclForFile(char *);
+/*  char      *GACLfindAclForFile(char *); */
 
 #define GACLloadAclForFile(x)	GRSTgaclAclLoadforFile((x))
-// GACLacl   *GACLloadAclForFile(char *);
+/*  GACLacl   *GACLloadAclForFile(char *); */
 
 #define GACLisAclFile(x)	GRSTgaclFileIsAcl((x))
-// int        GACLisAclFile(char *);
+/*  int        GACLisAclFile(char *); */
 
 
 #define GACLnewUser(x)		GRSTgaclUserNew((x))
-// GACLuser *GACLnewUser(GACLcred *);
+/*  GACLuser *GACLnewUser(GACLcred *); */
 
 #define GACLfreeUser(x)		GRSTgaclUserFree((x))
-// int       GACLfreeUser(GACLuser *);
+/*  int       GACLfreeUser(GACLuser *); */
 
 #define GACLuserAddCred(x,y)	GRSTgaclUserAddCred((x),(y))
-// int       GACLuserAddCred(GACLuser *, GACLcred *);
+/*  int       GACLuserAddCred(GACLuser *, GACLcred *); */
 
 #define GACLuserHasCred(x,y)	GRSTgaclUserHasCred((x),(y))
-// int       GACLuserHasCred(GACLuser *, GACLcred *);
+/*  int       GACLuserHasCred(GACLuser *, GACLcred *); */
 
 #define GACLuserFindCredType(x,y) GRSTgaclUserFindCredtype((x),(y))
-// GACLcred *GACLuserFindCredType(GACLuser *, char *);
+/*  GACLcred *GACLuserFindCredType(GACLuser *, char *); */
 
 #define GACLtestDnList(x,y)	GRSTgaclDNlistHasUser((x),(y))
-// int        GACLtestDnList(char *, GACLuser *);
+/*  int        GACLtestDnList(char *, GACLuser *); */
 
 #define GACLtestUserAcl(x,y)	GRSTgaclAclTestUser((x),(y))
-// GACLperm   GACLtestUserAcl(GACLacl *, GACLuser *);
+/*  GACLperm   GACLtestUserAcl(GACLacl *, GACLuser *); */
 
 #define GACLtestExclAcl(x,y)	GRSTgaclAclTestexclUser((x),(y))
-// GACLperm   GACLtestExclAcl(GACLacl *, GACLuser *);
+/*  GACLperm   GACLtestExclAcl(GACLacl *, GACLuser *); */
 
 
 #define GACLurlEncode(x)	GRSThttpUrlEncode((x))
-// char      *GACLurlEncode(char *);
+/*  char      *GACLurlEncode(char *); */
 
 #define GACLmildUrlEncode(x)	GRSThttpUrlMildencode((x))
-// char      *GACLmildUrlEncode(char *);
+/*  char      *GACLmildUrlEncode(char *); */
 
-GACLparseEntry *GRSTgaclEntryParse(xmlNodePtr cur);
-// special function for legacy EDG LB service
+GACLentry *GRSTgaclEntryParse(xmlNodePtr cur);
+/*  special function for legacy EDG LB service */

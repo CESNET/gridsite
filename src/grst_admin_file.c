@@ -29,9 +29,9 @@
    POSSIBILITY OF SUCH DAMAGE.
 */
 
-/*---------------------------------------------------------------------------*
- * This program is part of GridSite: http://www.gridpp.ac.uk/gridsite/       *
- *---------------------------------------------------------------------------*/
+/*------------------------------------------------------------------*
+ * This program is part of GridSite: http://www.gridsite.org/       *
+ *------------------------------------------------------------------*/
 
 #ifndef VERSION
 #define VERSION "x.x.x"

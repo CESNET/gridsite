@@ -1,5 +1,5 @@
 /*
-   Copyright (c) 2002-3, Andrew McNab, University of Manchester
+   Copyright (c) 2002-4, Andrew McNab, University of Manchester
    All rights reserved.
 
    Redistribution and use in source and binary forms, with or
@@ -29,9 +29,9 @@
    POSSIBILITY OF SUCH DAMAGE.
 */
 
-/*------------------------------------------------------------------------*
- * For more about GridSite: http://www.gridpp.ac.uk/gridsite/             *
- *------------------------------------------------------------------------*/
+/*---------------------------------------------------------------*
+ * For more about GridSite: http://www.gridsite.org/             *
+ *---------------------------------------------------------------*/
 
 #ifndef VERSION
 #define VERSION "0.0.0"
@@ -85,6 +85,7 @@ struct grst_stream_data { char *source;
                           char *errorbuf;
                           int   noverify;
                           int   anonymous;
+                          long long downgrade;
                           int   verbose;	} ;
                           
 struct grst_index_blob { char   *text;
@@ -97,19 +98,21 @@ struct grst_dir_list { char   *filename;
                        time_t  modified;
                        int     modified_set; } ; 
 
-struct grst_header_data { int    retcode;
+struct grst_header_data { int    retcode;                         
                           char  *location;
+                          char  *gridauthonetime;
                           size_t length;
                           int    length_set;
                           time_t modified;                           
-                          int    modified_set; } ;
+                          int    modified_set;
+                          struct grst_stream_data *common_data; } ;
 
 size_t headers_callback(void *ptr, size_t size, size_t nmemb, void *p)
 /* Find the values of the return code, Content-Length, Last-Modified
    and Location headers */
 {
   float f;
-  char  *s;
+  char  *s, *q;
   size_t realsize;
   struct tm modified_tm;
   struct grst_header_data *header_data;
@@ -124,7 +127,22 @@ size_t headers_callback(void *ptr, size_t size, size_t nmemb, void *p)
             header_data->length_set = 1;
   else if (sscanf(s, "HTTP/%f %d ", &f, &(header_data->retcode)) == 2) ;
   else if (strncmp(s, "Location: ", 10) == 0) 
-                                 header_data->location = strdup(&s[10]);
+      {
+        header_data->location = strdup(&s[10]);
+         
+        if (header_data->common_data->verbose > 0)
+             fprintf(stderr, "Received Location: %s\n", header_data->location);
+      }
+  else if (strncmp(s, "Set-Cookie: GRID_AUTH_ONETIME=", 30) == 0) 
+      {
+        header_data->gridauthonetime = strdup(&s[12]);
+        q = index(header_data->gridauthonetime, ';');
+        if (q != NULL) *q = '\0';       
+
+        if (header_data->common_data->verbose > 0)
+             fprintf(stderr, "Received Grid Auth Cookie: %s\n", 
+                             header_data->gridauthonetime);
+      }
   else if (strncmp(s, "Last-Modified: ", 15) == 0)
       {
         /* follow RFC 2616: first try RFC 822 (kosher), then RFC 850 and 
@@ -196,8 +214,19 @@ int do_copies(char *sources[], char *destination,
   CURL        *easyhandle;
   struct stat  statbuf;
   struct       grst_header_data header_data;
+  struct curl_slist *dgheader_slist = NULL, *nodgheader_slist = NULL;
   
   easyhandle = curl_easy_init();
+  
+  if (common_data->downgrade >= (long long) 0)
+    {               
+      asprintf(&p, "HTTP-Downgrade-Size: %lld", common_data->downgrade);      
+      dgheader_slist = curl_slist_append(dgheader_slist, p);
+      free(p);
+      
+      nodgheader_slist = curl_slist_append(nodgheader_slist,
+                                           "HTTP-Downgrade-Size:");
+    }
   
   curl_easy_setopt(easyhandle, CURLOPT_USERAGENT, common_data->useragent);
   if (common_data->verbose > 1)
@@ -245,6 +274,18 @@ int do_copies(char *sources[], char *destination,
 
            curl_easy_setopt(easyhandle, CURLOPT_WRITEDATA, common_data->fp);
            curl_easy_setopt(easyhandle, CURLOPT_URL,       sources[isrc]);
+           
+           if ((common_data->downgrade >= (long long) 0) &&
+               (strncmp(sources[isrc], "https://", 8) == 0))
+             {
+               if (common_data->verbose > 0)
+                 fprintf(stderr, "Add  HTTP-Downgrade-Size: %lld  header\n",
+                         common_data->downgrade);
+                 
+               curl_easy_setopt(easyhandle,CURLOPT_HTTPHEADER,dgheader_slist);
+             }
+           else 
+             curl_easy_setopt(easyhandle,CURLOPT_HTTPHEADER,nodgheader_slist);
          }
        else if (common_data->method == HTCP_PUT)
          {
@@ -270,25 +311,82 @@ int do_copies(char *sources[], char *destination,
            curl_easy_setopt(easyhandle, CURLOPT_URL,        thisdestination);
            curl_easy_setopt(easyhandle, CURLOPT_INFILESIZE, statbuf.st_size);
            curl_easy_setopt(easyhandle, CURLOPT_UPLOAD,   1);
+
+           if (((long long) statbuf.st_size >= common_data->downgrade) &&
+               (strncmp(thisdestination, "https://", 8) == 0))
+               curl_easy_setopt(easyhandle,CURLOPT_HTTPHEADER,dgheader_slist);
+           else 
+             curl_easy_setopt(easyhandle,CURLOPT_HTTPHEADER,nodgheader_slist);
          }
 
-       header_data.retcode = 0;
+       header_data.retcode  = 0;
+       header_data.location = NULL;
+       header_data.gridauthonetime = NULL;
+       header_data.common_data = common_data;
        thiserror = curl_easy_perform(easyhandle);
        
+       fclose(common_data->fp);
+
+       if ((common_data->downgrade >= (long long) 0) &&
+           (thiserror == 0) &&
+           (header_data.retcode == 302) &&
+           (header_data.location != NULL) &&
+           (strncmp(header_data.location, "http://", 7) == 0) &&
+           (header_data.gridauthonetime != NULL))
+         {
+           if (common_data->verbose > 0)
+             fprintf(stderr, "... Found (%d)\nHTTP-Downgrade to %s\n", 
+                     header_data.retcode, header_data.location);
+
+           /* try again with new URL and all the previous CURL options */
+
+           if (common_data->method == HTCP_GET)
+             {
+               common_data->fp = fopen(thisdestination, "w");
+               if (common_data->fp == NULL)
+                 {
+                   fprintf(stderr, "... failed to open destination source "
+                                   "file %s\n", thisdestination);
+                   anyerror = 99;
+                   if (isdirdest) free(thisdestination);
+                   continue;
+                 }
+             }
+           else if (common_data->method == HTCP_PUT)
+             {
+               common_data->fp = fopen(sources[isrc], "r");
+               if (common_data->fp == NULL)
+                 {
+                   fprintf(stderr, "... failed to open source file %s\n",
+                               sources[isrc]);
+                   anyerror = 99;
+                   if (isdirdest) free(thisdestination);
+                   continue;
+                 }
+             }
+
+           header_data.retcode  = 0;           
+           curl_easy_setopt(easyhandle, CURLOPT_URL, header_data.location);
+           curl_easy_setopt(easyhandle, CURLOPT_HTTPHEADER, nodgheader_slist);
+           curl_easy_setopt(easyhandle, CURLOPT_COOKIE, 
+                                                  header_data.gridauthonetime);
+           thiserror = curl_easy_perform(easyhandle);
+
+           fclose(common_data->fp);
+         }
+
        if ((thiserror != 0) ||
            (header_data.retcode <  200) ||
            (header_data.retcode >= 300))
          {
            fprintf(stderr, "... curl error: %s (%d), HTTP error: %d\n",
                    common_data->errorbuf, thiserror, header_data.retcode);
-           
+                   
            if (thiserror != 0) anyerror = thiserror;
            else                anyerror = header_data.retcode;
          }
        else if (common_data->verbose > 0) 
                   fprintf(stderr, "... OK (%d)\n", header_data.retcode);
-
-       fclose(common_data->fp);
         
        if (isdirdest) free(thisdestination);
      }
@@ -304,6 +402,8 @@ int do_deletes(char *sources[], struct grst_stream_data *common_data)
   CURL  *easyhandle;
   struct grst_header_data header_data;
   
+  header_data.common_data = common_data;
+
   easyhandle = curl_easy_init();
   
   curl_easy_setopt(easyhandle, CURLOPT_USERAGENT, common_data->useragent);
@@ -354,6 +454,8 @@ int do_mkdirs(char *sources[], struct grst_stream_data *common_data)
   CURL  *easyhandle;
   struct grst_header_data header_data;
   
+  header_data.common_data = common_data;
+
   easyhandle = curl_easy_init();
   
   curl_easy_setopt(easyhandle, CURLOPT_USERAGENT, common_data->useragent);
@@ -520,7 +622,8 @@ struct grst_dir_list *index_to_dir_list(char *text, char *source)
                  {
                    allocated += 256;
                    list = (struct grst_dir_list *)
-                             malloc(allocated * sizeof(struct grst_dir_list));
+                           realloc((void *) list,
+                                   allocated * sizeof(struct grst_dir_list));
                  }
                  
                list[used].filename     = NULL;
@@ -631,6 +734,8 @@ int do_listings(char *sources[], struct grst_stream_data *common_data,
 
   time(&now);
 
+  header_data.common_data = common_data;
+
   easyhandle = curl_easy_init();
   
   curl_easy_setopt(easyhandle, CURLOPT_USERAGENT, common_data->useragent);
@@ -671,6 +776,7 @@ int do_listings(char *sources[], struct grst_stream_data *common_data,
            curl_easy_setopt(easyhandle, CURLOPT_NOBODY, 1);
          }
 
+       header_data.gridauthonetime = NULL;
        header_data.length_set   = 0;
        header_data.modified_set = 0;
        header_data.retcode      = 0;
@@ -719,6 +825,7 @@ int do_listings(char *sources[], struct grst_stream_data *common_data,
                         asprintf(&s, "%s%s", sources[isrc], list[i].filename);                        
                         curl_easy_setopt(easyhandle, CURLOPT_URL, s);
 
+                        header_data.gridauthonetime = NULL;
                         header_data.length_set   = 0;
                         header_data.modified_set = 0;
                         header_data.retcode = 0;
@@ -859,7 +966,7 @@ void printsyntax(char *argv0)
 "from remote servers using HTTP or HTTPS, or to put or delete files or\n"
 "directories onto remote servers using HTTPS. htcp is similar to scp(1)\n"
 "but uses HTTP/HTTPS rather than ssh as its transfer protocol.\n"
-"See the htcp(1) or http://www.gridpp.ac.uk/gridsite/ for details.\n"
+"See the htcp(1) or http://www.gridsite.org/ for details.\n"
 "(Version: %s)\n", p, p, VERSION);
 }
 
@@ -870,19 +977,20 @@ int main(int argc, char *argv[])
   struct stat statbuf;
   struct grst_stream_data common_data;
   struct passwd *userpasswd;
-  struct option long_options[] = {	{"verbose",	0, 0, 'v'},
-                			{"cert",	1, 0, 0},
-			                {"key",		1, 0, 0},
-             				{"capath",	1, 0, 0},
-                			{"delete",	0, 0, 0},
-					{"list",	0, 0, 0},
-                			{"long-list",	0, 0, 0},
-                			{"mkdir",	0, 0, 0},
-                			{"no-verify",	0, 0, 0},
-                			{"anon",	0, 0, 0},
-//					{"streams",	1, 0, 0},
-//              			{"blocksize",	1, 0, 0},
-//                			{"recursive",	0, 0, 0},
+  struct option long_options[] = {	{"verbose",		0, 0, 'v'},
+                			{"cert",		1, 0, 0},
+			                {"key",			1, 0, 0},
+             				{"capath",		1, 0, 0},
+                			{"delete",		0, 0, 0},
+					{"list",		0, 0, 0},
+                			{"long-list",		0, 0, 0},
+                			{"mkdir",		0, 0, 0},
+                			{"no-verify",		0, 0, 0},
+                			{"anon",		0, 0, 0},
+                			{"downgrade-size",	1, 0, 0},
+//					{"streams",		1, 0, 0},
+//              			{"blocksize",		1, 0, 0},
+//                			{"recursive",		0, 0, 0},
                 			{0, 0, 0, 0}  };
 
 #if (LIBCURL_VERSION_NUM < 0x070908)
@@ -901,10 +1009,11 @@ int main(int argc, char *argv[])
   common_data.method    = 0;
   common_data.errorbuf  = malloc(CURL_ERROR_SIZE);
   asprintf(&(common_data.useragent),
-           "htcp/%s (http://www.gridpp.ac.uk/gridsite/)", VERSION);
+                          "htcp/%s (http://www.gridsite.org/)", VERSION);
   common_data.verbose   = 0;
   common_data.noverify  = 0;
   common_data.anonymous = 0;
+  common_data.downgrade = (long long) -1;
   
   while (1)
        {
@@ -924,6 +1033,7 @@ int main(int argc, char *argv[])
              else if (option_index == 7) common_data.method    = HTCP_MKDIR;
              else if (option_index == 8) common_data.noverify  = 1;
              else if (option_index == 9) common_data.anonymous = 1;
+             else if (option_index ==10) common_data.downgrade = atoll(optarg);
            }
          else if (c == 'v') ++(common_data.verbose);
        }

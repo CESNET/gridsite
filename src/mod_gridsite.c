@@ -29,9 +29,9 @@
    POSSIBILITY OF SUCH DAMAGE.
 */
 
-/*---------------------------------------------------------------------------*
- * This program is part of GridSite: http://www.gridpp.ac.uk/gridsite/       *
- *---------------------------------------------------------------------------*/
+/*------------------------------------------------------------------*
+ * This program is part of GridSite: http://www.gridsite.org/       *
+ *------------------------------------------------------------------*/
 
 #ifndef VERSION
 #define VERSION "x.x.x"
@@ -56,10 +56,15 @@
 #include <sys/stat.h>
 #include <fcntl.h>              
 #include <malloc.h>
+#include <stdlib.h>
 #include <string.h>
 #include <dirent.h>
-
+#include <ctype.h>
 #include <time.h>
+
+#include <libxml/parser.h>
+#include <libxml/tree.h>
+
 
 #include "mod_ssl-private.h"
 
@@ -91,7 +96,256 @@ typedef struct
    char *editable;
    char *headfile;
    char *footfile;
+   int   downgrade;
+   char *authcookiesdir;
+   int   soap2cgi;
 }  mod_gridsite_cfg; /* per-directory config choices */
+
+
+typedef struct
+{
+  xmlDocPtr doc;
+//  char *outbuffer;
+} soap2cgi_ctx; /* store per-request context for Soap2cgi in/out filters */
+
+static const char Soap2cgiFilterName[]="Soap2cgiFilter";
+
+static void mod_gridsite_soap2cgi_insert(request_rec *r)
+{
+    mod_gridsite_cfg *conf;
+    soap2cgi_ctx     *ctx;
+    
+    conf = (mod_gridsite_cfg *) ap_get_module_config(r->per_dir_config,
+                                                      &gridsite_module);
+                                                      
+    if (conf->soap2cgi) 
+      {
+        ctx = (soap2cgi_ctx *) malloc(sizeof(soap2cgi_ctx));        
+        ctx->doc = NULL;
+        
+        ap_add_output_filter(Soap2cgiFilterName, ctx, r, r->connection);
+
+        ap_add_input_filter(Soap2cgiFilterName, NULL, r, r->connection);
+      }
+}
+
+xmlNodePtr find_one_child(xmlNodePtr parent_node, char *name)
+{
+    xmlNodePtr cur;
+
+    for (cur = parent_node->children; cur != NULL; cur = cur->next)
+       {
+         if ((cur->type == XML_ELEMENT_NODE) &&
+             (strcmp(cur->name, name) == 0)) return cur;
+       }
+
+    return NULL;
+}
+
+int add_one_node(xmlDocPtr doc, char *line)
+{
+    char *p, *name, *aftername, *attrname = NULL, *value = NULL;
+    xmlNodePtr cur, cur_child;
+
+    cur = xmlDocGetRootElement(doc);
+
+    p = index(line, '=');
+    if (p == NULL) return 1;
+
+    *p = '\0';
+    value = &p[1];
+
+    name = line;
+
+    while (1) /* go through each .-deliminated segment of line[] */
+         {
+           if ((p = index(name, '.')) != NULL)
+             {
+               *p = '\0';
+               aftername = &p[1];
+             }
+           else aftername = &name[strlen(name)];
+
+           if ((p = index(name, '_')) != NULL)
+             {
+               *p = '\0';
+               attrname = &p[1];
+             }
+
+           cur_child = find_one_child(cur, name);
+
+           if (cur_child == NULL)
+                    cur_child = xmlNewChild(cur, NULL, name, NULL);
+
+           cur = cur_child;
+
+           name = aftername;
+
+           if (attrname != NULL)
+             {
+               xmlSetProp(cur, attrname, value);
+               return 0;
+             }
+
+           if (*name == '\0')
+             {
+               xmlNodeSetContent(cur, value);
+               return 0;
+             }             
+         }
+}
+
+static apr_status_t mod_gridsite_soap2cgi_out(ap_filter_t *f,
+                                              apr_bucket_brigade *bbIn)
+{
+    char        *p, *name, *outbuffer;
+    request_rec *r = f->r;
+    conn_rec    *c = r->connection;
+    apr_bucket         *bucketIn, *pbktEOS;
+    apr_bucket_brigade *bbOut;
+
+    const char *data;
+    apr_size_t len;
+    char *buf;
+    apr_size_t n;
+    apr_bucket *pbktOut;
+
+    soap2cgi_ctx *ctx;
+    xmlNodePtr   root_node = NULL;
+    xmlBufferPtr buff;
+
+    ctx = (soap2cgi_ctx *) f->ctx;
+
+// LIBXML_TEST_VERSION;
+
+    bbOut = apr_brigade_create(r->pool, c->bucket_alloc);
+
+    if (ctx->doc == NULL)
+      {
+        ctx->doc = xmlNewDoc("1.0");
+             
+        root_node = xmlNewNode(NULL, "Envelope");
+        xmlDocSetRootElement(ctx->doc, root_node);
+                                                                                
+        xmlNewChild(root_node, NULL, "Header", NULL);
+        xmlNewChild(root_node, NULL, "Body",   NULL);
+      }
+    
+    apr_brigade_pflatten(bbIn, &outbuffer, &len, r->pool);
+       
+    /* split up buffer and feed each line to add_one_node() */
+    
+    name = outbuffer;
+    
+    while (*name != '\0')
+         {
+           p = index(name, '\n');
+           if (p != NULL) 
+             {
+               *p = '\0';
+               ++p;             
+             }
+           else p = &name[strlen(name)]; /* point to final NUL */
+           
+           add_one_node(ctx->doc, name);
+           
+           name = p;
+         }
+
+    APR_BRIGADE_FOREACH(bucketIn, bbIn)
+       {
+         if (APR_BUCKET_IS_EOS(bucketIn))
+           {
+             /* write out XML tree we have built */
+
+             buff = xmlBufferCreate();
+             xmlNodeDump(buff, ctx->doc, root_node, 0, 0);
+
+// TODO: simplify/reduce number of copies or libxml vs APR buffers?
+
+             buf = (char *) xmlBufferContent(buff);
+
+             pbktOut = apr_bucket_heap_create(buf, strlen(buf), NULL, 
+                                              c->bucket_alloc);
+
+             APR_BRIGADE_INSERT_TAIL(bbOut, pbktOut);
+       
+             xmlBufferFree(buff);
+
+             pbktEOS = apr_bucket_eos_create(c->bucket_alloc);
+             APR_BRIGADE_INSERT_TAIL(bbOut, pbktEOS);
+
+             continue;
+           }
+       }
+       
+    return ap_pass_brigade(f->next, bbOut);
+}
+
+static apr_status_t mod_gridsite_soap2cgi_in(ap_filter_t *f,
+                                             apr_bucket_brigade *pbbOut,
+                                             ap_input_mode_t eMode,
+                                             apr_read_type_e eBlock,
+                                             apr_off_t nBytes)
+{
+    request_rec *r = f->r;
+    conn_rec *c = r->connection;
+//    CaseFilterInContext *pCtx;
+    apr_status_t ret;
+
+#ifdef NEVERDEFINED
+
+    ret = ap_get_brigade(f->next, pCtx->pbbTmp, eMode, eBlock, nBytes);    
+ 
+    if (!(pCtx = f->ctx)) {
+        f->ctx = pCtx = apr_palloc(r->pool, sizeof *pCtx);
+        pCtx->pbbTmp = apr_brigade_create(r->pool, c->bucket_alloc);
+    }
+ 
+    if (APR_BRIGADE_EMPTY(pCtx->pbbTmp)) {
+        ret = ap_get_brigade(f->next, pCtx->pbbTmp, eMode, eBlock, nBytes);
+ 
+        if (eMode == AP_MODE_EATCRLF || ret != APR_SUCCESS)
+            return ret;
+    }
+ 
+    while(!APR_BRIGADE_EMPTY(pCtx->pbbTmp)) {
+        apr_bucket *pbktIn = APR_BRIGADE_FIRST(pCtx->pbbTmp);
+        apr_bucket *pbktOut;
+        const char *data;
+        apr_size_t len;
+        char *buf;
+        int n;
+ 
+        /* It is tempting to do this...
+         * APR_BUCKET_REMOVE(pB);
+         * APR_BRIGADE_INSERT_TAIL(pbbOut,pB);
+         * and change the case of the bucket data, but that would be wrong
+         * for a file or socket buffer, for example...
+         */
+                                                                                
+        if(APR_BUCKET_IS_EOS(pbktIn)) {
+            APR_BUCKET_REMOVE(pbktIn);
+            APR_BRIGADE_INSERT_TAIL(pbbOut, pbktIn);
+            break;
+        }
+                                                                                
+        ret=apr_bucket_read(pbktIn, &data, &len, eBlock);
+        if(ret != APR_SUCCESS)
+            return ret;
+                                                                                
+        buf = malloc(len);
+        for(n=0 ; n < len ; ++n)
+            buf[n] = apr_toupper(data[n]);
+                                                                                
+        pbktOut = apr_bucket_heap_create(buf, len, 0, c->bucket_alloc);
+        APR_BRIGADE_INSERT_TAIL(pbbOut, pbktOut);
+        apr_bucket_delete(pbktIn);
+    }
+#endif
+                                                                                
+    return APR_SUCCESS;
+}
 
 char *make_admin_footer(request_rec *r, mod_gridsite_cfg *conf,
                         int isdirectory)
@@ -236,7 +490,7 @@ char *make_admin_footer(request_rec *r, mod_gridsite_cfg *conf,
     if (conf->gridsitelink)
       {
         temp = apr_psprintf(r->pool,
-           ". Built with <a href=\"http://www.gridpp.ac.uk/gridsite/\">"
+           ". Built with <a href=\"http://www.gridsite.org/\">"
            "GridSite</a>&nbsp;%s\n", VERSION);
         out = apr_pstrcat(r->pool, out, temp, NULL);
       }
@@ -511,10 +765,11 @@ int html_dir_list(request_rec *r, mod_gridsite_cfg *conf)
                               
                if (S_ISDIR(statbuf.st_mode))
                     temp = apr_psprintf(r->pool, 
-                      "<tr><td><a href=\"%s/\" "
-                      "last-modified=\"%ld\">%s/</a></td>"
+                      "<tr><td><a href=\"%s/\" content-length=\"%ld\" "
+                      "last-modified=\"%ld\">"
+                      "%s/</a></td>"
                       "<td align=right>%ld</td>%s</tr>\n", 
-                      namelist[n]->d_name, statbuf.st_mtime,
+                      namelist[n]->d_name, statbuf.st_size, statbuf.st_mtime,
                       namelist[n]->d_name, 
                       statbuf.st_size, modified);
                else temp = apr_psprintf(r->pool, 
@@ -604,6 +859,81 @@ int html_dir_list(request_rec *r, mod_gridsite_cfg *conf)
     return OK;
 }
 
+int http_downgrade(request_rec *r, mod_gridsite_cfg *conf)
+{ 
+    int          i;
+    char        *httpurl, *filetemplate, *cookievalue, *envname_i, 
+                *grst_cred_i, expires_str[APR_RFC822_DATE_LEN];
+    apr_uint64_t gridauthcookie;
+    apr_table_t *env;
+    apr_time_t   expires_time;
+    apr_file_t  *fp;
+
+    /* create random cookie and gridauthcookie file */
+
+    if (apr_generate_random_bytes((char *) &gridauthcookie, 
+                                  sizeof(gridauthcookie))
+         != APR_SUCCESS) return HTTP_INTERNAL_SERVER_ERROR;
+    
+    filetemplate = apr_psprintf(r->pool, "%s/%016llxXXXXXX", 
+                                ap_server_root_relative(r->pool,
+                                                        conf->authcookiesdir),
+                                gridauthcookie);
+                                    
+    if (apr_file_mktemp(&fp, 
+                        filetemplate, 
+                        APR_CREATE | APR_WRITE | APR_EXCL,
+                        r->pool)
+                      != APR_SUCCESS) return HTTP_INTERNAL_SERVER_ERROR;
+
+    expires_time = apr_time_now() + apr_time_from_sec(300); 
+    /* onetime cookies are valid for only 5 mins! */
+
+    apr_file_printf(fp, "expires=%lu\ndomain=%s\npath=%s\nonetime=yes\n", 
+                   (time_t) apr_time_sec(expires_time), r->hostname, r->uri);
+
+    for (i=0; ; ++i)
+       {
+         envname_i = apr_psprintf(r->pool, "GRST_CRED_%d", i);
+         if (grst_cred_i = (char *)
+                           apr_table_get(r->connection->notes, envname_i))
+           {
+             apr_file_printf(fp, "%s=%s\n", envname_i, grst_cred_i);
+           }
+         else break; /* GRST_CRED_i are numbered consecutively */
+       }
+
+    if (apr_file_close(fp) != APR_SUCCESS) 
+      {
+        apr_file_remove(filetemplate, r->pool); /* try to clean up */
+        return HTTP_INTERNAL_SERVER_ERROR;
+      }
+    
+    /* send redirection header back to client */
+       
+    cookievalue = rindex(filetemplate, '/');
+    if (cookievalue != NULL) ++cookievalue;
+    else cookievalue = filetemplate;
+       
+    apr_rfc822_date(expires_str, expires_time);
+
+    apr_table_add(r->headers_out, 
+                  apr_pstrdup(r->pool, "Set-Cookie"), 
+                  apr_psprintf(r->pool, 
+                  "GRID_AUTH_ONETIME=%s; "
+                  "expires=%s; "
+                  "domain=%s; "
+                  "path=%s",
+                  cookievalue, expires_str, r->hostname, r->uri));
+    
+    httpurl = apr_pstrcat(r->pool, "http://", r->hostname,
+                        ap_escape_uri(r->pool, r->uri), NULL);
+    apr_table_setn(r->headers_out, apr_pstrdup(r->pool, "Location"), httpurl);
+
+    r->status = HTTP_MOVED_TEMPORARILY;  
+    return OK;
+}
+
 int http_put_method(request_rec *r, mod_gridsite_cfg *conf)
 {
   char        buf[2048];
@@ -630,7 +960,7 @@ int http_put_method(request_rec *r, mod_gridsite_cfg *conf)
   if (apr_file_open(&fp, r->filename, APR_WRITE | APR_CREATE | APR_BUFFERED,
       APR_UREAD | APR_UWRITE, r->pool) != 0) return HTTP_INTERNAL_SERVER_ERROR;
    
-// need to add Range: support at some point too
+// TODO: need to add Range: support at some point too
 
   retcode = ap_setup_client_block(r, REQUEST_CHUNKED_DECHUNK);
   if (retcode == OK)
@@ -697,10 +1027,26 @@ static int mod_gridsite_nondir_handler(request_rec *r, mod_gridsite_cfg *conf)
    and GET inside ghost directories.
 */
 {
-    /* *** is this a write method? only possible if  GridSiteAuth on *** */
+    char      *downgradesize;
+    apr_off_t  numericsize;
+
+    /* *** is this a write method or HTTP downgrade? 
+           only possible if  GridSiteAuth on *** */
     
     if (conf->auth)
       {
+        if ((conf->downgrade) &&
+            ((downgradesize = (char *) apr_table_get(r->headers_in, 
+                                       "HTTP-Downgrade-Size")) != NULL) &&
+            ((numericsize = (apr_off_t) atoll(downgradesize)) >= 0) &&
+
+// TODO: what if we're pointing at a CGI or some dynamic content???
+            (((r->method_number == M_GET) && (r->finfo.size >= numericsize))
+             || (r->method_number == M_PUT)) &&
+
+            (strcasecmp(apr_table_get(r->subprocess_env, "HTTPS"), "on") == 0))
+            return http_downgrade(r, conf);
+      
         if ((r->method_number == M_PUT) && 
             (conf->methods != NULL) &&
             (strstr(conf->methods, " PUT "   ) != NULL))
@@ -1113,6 +1459,11 @@ static void *create_gridsite_dir_config(apr_pool_t *p, char *path)
         conf->headfile = apr_pstrdup(p, GRST_HEADFILE);
         conf->footfile = apr_pstrdup(p, GRST_FOOTFILE); 
                /* GridSiteHeadFile and GridSiteFootFile  file name */
+
+        conf->downgrade     = 0;     /* GridSiteDowngrade     on/off       */
+        conf->authcookiesdir = apr_pstrdup(p, "gridauthcookies");
+                                     /* GridSiteAuthCookiesDir dir-path     */
+        conf->soap2cgi      = 0;     /* GridSiteSoap2cgi      on/off       */
       }
     else
       {
@@ -1132,8 +1483,11 @@ static void *create_gridsite_dir_config(apr_pool_t *p, char *path)
         conf->unzip         = NULL;  /* GridSiteUnzip         file-path    */
         conf->methods       = NULL;  /* GridSiteMethods       methods      */
         conf->editable      = NULL;  /* GridSiteEditable      types        */
-        conf->headfile      = NULL;  /* GridSiteHeadFile      file name */
-        conf->footfile      = NULL;  /* GridSiteFootFile      file name */
+        conf->headfile      = NULL;  /* GridSiteHeadFile      file name    */
+        conf->footfile      = NULL;  /* GridSiteFootFile      file name    */
+        conf->downgrade     = UNSET; /* GridSiteDowngrade     on/off       */
+        conf->authcookiesdir= NULL;  /* GridSiteAuthCookiesDir dir-path    */
+        conf->soap2cgi      = UNSET; /* GridSiteSoap2cgi      on/off       */
       }
       
     return conf;
@@ -1203,6 +1557,16 @@ static void *merge_gridsite_dir_config(apr_pool_t *p, void *vserver,
         
     if (direct->footfile != NULL) conf->footfile = direct->footfile;
     else                          conf->footfile = server->footfile;
+        
+    if (direct->downgrade != UNSET) conf->downgrade = direct->downgrade;
+    else                            conf->downgrade = server->downgrade;
+        
+    if (direct->authcookiesdir != NULL)
+                                conf->authcookiesdir = direct->authcookiesdir;
+    else                        conf->authcookiesdir = server->authcookiesdir;
+        
+    if (direct->soap2cgi != UNSET) conf->soap2cgi = direct->soap2cgi;
+    else                           conf->soap2cgi = server->soap2cgi;
         
     return conf;
 }
@@ -1307,6 +1671,14 @@ static const char *mod_gridsite_take1_cmds(cmd_parms *a, void *cfg,
       ((mod_gridsite_cfg *) cfg)->indexheader =
         apr_pstrdup(a->pool, parm);
     }
+    else if (strcasecmp(a->cmd->name, "GridSiteAuthCookiesDir") == 0)
+    {
+      if (index(parm, '/') != NULL) 
+           return "/ not permitted in GridSiteAuthCookiesDir";
+
+      ((mod_gridsite_cfg *) cfg)->authcookiesdir =
+        apr_pstrdup(a->pool, parm);
+    }
         
     return NULL;
 }
@@ -1334,12 +1706,24 @@ static const char *mod_gridsite_flag_cmds(cmd_parms *a, void *cfg,
     {
       ((mod_gridsite_cfg *) cfg)->gridsitelink = flag;
     }
+    else if (strcasecmp(a->cmd->name, "GridSiteDowngrade") == 0)
+    {
+// TODO: return error if try this on non-HTTPS virtual server
+
+      ((mod_gridsite_cfg *) cfg)->downgrade = flag;
+    }
+    else if (strcasecmp(a->cmd->name, "GridSiteSoap2cgi") == 0)
+    {
+      ((mod_gridsite_cfg *) cfg)->soap2cgi = flag;
+    }
 
     return NULL;
 }
 
 static const command_rec mod_gridsite_cmds[] =
 {
+// TODO: need to check and document valid contexts for each command!
+
     AP_INIT_FLAG("GridSiteAuth", mod_gridsite_flag_cmds, 
                  NULL, OR_FILEINFO, "on or off"),
     AP_INIT_FLAG("GridSiteEnvs", mod_gridsite_flag_cmds, 
@@ -1379,6 +1763,13 @@ static const command_rec mod_gridsite_cmds[] =
     AP_INIT_TAKE1("GridSiteIndexHeader", mod_gridsite_take1_cmds,
                    NULL, OR_FILEINFO, "filename of directory header"),
     
+    AP_INIT_FLAG("GridSiteDowngrade", mod_gridsite_flag_cmds, 
+                 NULL, OR_FILEINFO, "on or off"),
+    AP_INIT_TAKE1("GridSiteAuthCookiesDir", mod_gridsite_take1_cmds,
+                 NULL, OR_FILEINFO, "directory with Grid Auth Cookies"),
+
+    AP_INIT_FLAG("GridSiteSoap2cgi", mod_gridsite_flag_cmds,
+                 NULL, OR_FILEINFO, "on or off"),
     {NULL}
 };
 
@@ -1390,6 +1781,9 @@ static int mod_gridsite_first_fixups(request_rec *r)
 
     conf = (mod_gridsite_cfg *)
                     ap_get_module_config(r->per_dir_config, &gridsite_module);
+
+    /* we handle DN Lists as regular files, even if they also match
+       directory names  */
 
     if ((conf != NULL) &&
         (conf->dnlistsuri != NULL) &&
@@ -1412,10 +1806,13 @@ static int mod_gridsite_perm_handler(request_rec *r)
 {
     int          retcode = DECLINED, i, n;
     char        *dn, *p, envname[14], *grst_cred_0 = NULL, *dir_path, 
-                *remotehost, s[99], *grst_cred_i, *file;
+                *remotehost, s[99], *grst_cred_i, *file, *cookies,
+                *gridauthonetime, *cookiefile, oneline[1025], *key_i;
     const char  *content_type;
     time_t       now, notbefore, notafter;
     apr_table_t *env;
+    apr_finfo_t  cookiefile_info;
+    apr_file_t  *fp;
     GRSTgaclCred    *cred = NULL, *cred_0 = NULL;
     GRSTgaclUser    *user = NULL;
     GRSTgaclPerm     perm = GRST_PERM_NONE;
@@ -1430,13 +1827,104 @@ static int mod_gridsite_perm_handler(request_rec *r)
     if ((cfg->auth == 0) &&
         (cfg->envs == 0))
                return DECLINED; /* if not turned on, look invisible */
-    
+
     env = r->subprocess_env;
 
-    if (r->connection->notes != NULL)   
-     grst_cred_0 = (char *) apr_table_get(r->connection->notes, "GRST_CRED_0");
+    if ((p = (char *) apr_table_get(r->headers_in, "Cookie")) != NULL)
+      {
+        cookies = apr_pstrcat(r->pool, " ", p, NULL);
+        gridauthonetime = strstr(cookies, " GRID_AUTH_ONETIME=");
+                
+        if (gridauthonetime != NULL)
+          {
+            for (p = &gridauthonetime[19]; (*p != '\0') && (*p != ';'); ++p)
+                                                if (!isalnum(*p)) *p = '_';
+        
+            cookiefile = apr_psprintf(r->pool, "%s/%s",
+                                      ap_server_root_relative(r->pool, 
+                                                   cfg->authcookiesdir),
+                                      &gridauthonetime[19]);
+                                      
+            if ((apr_stat(&cookiefile_info , cookiefile, 
+                          APR_FINFO_TYPE, r->pool) == APR_SUCCESS) &&
+                (cookiefile_info.filetype == APR_REG) &&
+                (apr_file_open(&fp, cookiefile, APR_READ, 0, r->pool)
+                                                         == APR_SUCCESS))
+              {
+                ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                             "Open Grid Auth Cookie file %s", cookiefile);
+              
+                while (apr_file_gets(oneline, 
+                                     sizeof(oneline), fp) == APR_SUCCESS)
+                     {
+                       p = index(oneline, '\n');
+                       if (p != NULL) *p = '\0';
+                       
+                       ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                                    "%s: %s", cookiefile, oneline);
 
-    if (grst_cred_0 != NULL) /* do we have per-connection cred variable(s)? */
+                       if ((strncmp(oneline, "expires=", 8) == 0) &&
+                           (apr_time_from_sec(atoll(&oneline[8])) < 
+                                                       apr_time_now()))
+                                  break;                
+                       else if ((strncmp(oneline, "domain=", 7) == 0) &&
+                                (strcmp(&oneline[7], r->hostname) != 0))
+                                  break; /* exact needed in the version */
+                       else if ((strncmp(oneline, "path=", 5) == 0) &&
+                                (strcmp(&oneline[5], r->uri) != 0))
+                                  break;
+                       else if  (strncmp(oneline, "onetime=yes", 11) == 0)
+                                  apr_file_remove(cookiefile, r->pool);
+                       else if  (strncmp(oneline, "GRST_CRED_", 10) == 0)
+                           {
+                             grst_cred_i = index(oneline, '=');
+                             if (grst_cred_i == NULL) continue;       
+                             *grst_cred_i = '\0';
+                             ++grst_cred_i;
+
+                             i = atoi(&oneline[10]);
+                             cred = GRSTx509CompactToCred(grst_cred_i);
+                             
+                             if (cred == NULL) continue;
+
+                             if ((i == 0) && (user == NULL))
+                               {           
+                                 if (GRSTgaclCredGetDelegation(cred) 
+                                   <= ((mod_gridsite_cfg *) cfg)->gsiproxylimit)
+                                   {
+                                     user = GRSTgaclUserNew(cred);
+                                   
+                                     ap_log_error(APLOG_MARK, APLOG_DEBUG, 
+                                                  0, r->server,
+                                                  "Using identity %s from "
+                                                  "GRID_AUTH_ONETIME", 
+                                                  grst_cred_i);
+
+                                     if (((mod_gridsite_cfg *) cfg)->envs)
+                                      apr_table_setn(env, oneline, grst_cred_i);
+                                   }
+                               }
+                             else if ((i > 0) && (user != NULL))
+                               {
+                                 GRSTgaclUserAddCred(user, cred);
+                                     
+                                 if (((mod_gridsite_cfg *) cfg)->envs)
+                                       apr_table_set(env,oneline,grst_cred_i);
+                               }                             
+                           }
+                     }
+
+                apr_file_close(fp);
+              }            
+          }
+      }
+    
+    /* do we need/have per-connection (SSL) cred variable(s)? */
+
+    if ((user == NULL) && 
+        (r->connection->notes != NULL) &&
+        ((grst_cred_0 = (char *) 
+            apr_table_get(r->connection->notes, "GRST_CRED_0")) != NULL))
       {
         if (((mod_gridsite_cfg *) cfg)->envs)
                             apr_table_setn(env, "GRST_CRED_0", grst_cred_0);
@@ -1446,6 +1934,9 @@ static int mod_gridsite_perm_handler(request_rec *r)
             (GRSTgaclCredGetDelegation(cred_0) 
                          <= ((mod_gridsite_cfg *) cfg)->gsiproxylimit))
           {
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                         "Using identity %s from SSL/TLS", grst_cred_0);
+
             user = GRSTgaclUserNew(cred_0);
 
             /* check for VOMS GRST_CRED_i too */
@@ -1830,6 +2321,19 @@ static int mod_gridsite_handler(request_rec *r)
 
 static void register_hooks(apr_pool_t *p)
 {
+    /* set up the Soap2cgi input and output filters */
+
+    ap_hook_insert_filter(mod_gridsite_soap2cgi_insert, NULL, NULL,
+                          APR_HOOK_MIDDLE);
+
+    ap_register_output_filter(Soap2cgiFilterName, mod_gridsite_soap2cgi_out,
+                              NULL, AP_FTYPE_RESOURCE);
+
+//    ap_register_input_filter(Soap2cgiFilterName, mod_gridsite_soap2cgi_in,
+//                              NULL, AP_FTYPE_RESOURCE);
+
+    /* config and handler stuff */
+
     ap_hook_post_config(mod_gridsite_server_post_config, NULL, NULL, 
                                                               APR_HOOK_LAST);
     ap_hook_child_init(mod_gridsite_child_init, NULL, NULL, APR_HOOK_MIDDLE);
@@ -1838,7 +2342,7 @@ static void register_hooks(apr_pool_t *p)
     
     ap_hook_fixups(mod_gridsite_perm_handler,NULL,NULL,APR_HOOK_REALLY_LAST);
     
-    ap_hook_handler(mod_gridsite_handler, NULL, NULL, APR_HOOK_FIRST);
+    ap_hook_handler(mod_gridsite_handler, NULL, NULL, APR_HOOK_FIRST);    
 }
 
 module AP_MODULE_DECLARE_DATA gridsite_module =

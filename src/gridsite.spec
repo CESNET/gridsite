@@ -6,11 +6,11 @@ Copyright: Modified BSD
 Group: System Environment/Daemons
 Source: %{name}-%{version}.src.tar.gz
 Prefix: %(echo ${MYPREFIX:-/usr})
-URL: http://www.gridpp.ac.uk/gridsite/
+URL: http://www.gridsite.org/
 Vendor: GridPP
 #Requires: libxml2,curl-ssl,mod_ssl
 #Buildrequires: libxml2-devel,curl-ssl-devel,httpd-devel
-Packager: Andrew McNab <mcnab@hep.man.ac.uk>
+Packager: Andrew McNab <Andrew.McNab@man.ac.uk>
 
 %description
 GridSite adds GSI, VOMS and GACL support to Apache 2.0 (mod_gridsite),
@@ -18,7 +18,7 @@ a library for manipulating these technologies (libgridsite), and CGI
 programs for interactive management of HTTP(S) servers (gridsite-admin.cgi)
 
 See %(echo ${MYPREFIX:-/usr})/share/doc/gridsite-%{version} and
-http://www.gridpp.ac.uk/gridsite/ for details.
+http://www.gridsite.org/ for details.
 
 %package -n htcp
 Group: Applications/Internet
@@ -55,6 +55,7 @@ rm -f %(echo ${MYPREFIX:-/usr})/share/doc/gridsite
 %attr(-, root, root) %(echo ${MYPREFIX:-/usr})/lib/libgridsite.so.%{version}
 %attr(-, root, root) %(echo ${MYPREFIX:-/usr})/lib/libgridsite.so
 %attr(-, root, root) %(echo ${MYPREFIX:-/usr})/bin/urlencode
+%attr(-, root, root) %(echo ${MYPREFIX:-/usr})/bin/findproxyfile
 %attr(-, root, root) %(echo ${MYPREFIX:-/usr})/share/doc/gridsite-%{version}
 %attr(-, root, root) %(echo ${MYPREFIX:-/usr})/share/man/man1/urlencode.1.gz
 %attr(-, root, root) %(echo ${MYPREFIX:-/usr})/include/gridsite.h
@@ -74,3 +75,4 @@ rm -f %(echo ${MYPREFIX:-/usr})/share/doc/gridsite
 %attr(-, root, root) %(echo ${MYPREFIX:-/usr})/share/man/man1/htls.1.gz
 %attr(-, root, root) %(echo ${MYPREFIX:-/usr})/share/man/man1/htll.1.gz
 %attr(-, root, root) %(echo ${MYPREFIX:-/usr})/share/man/man1/htmkdir.1.gz
+%attr(-, root, root) %(echo ${MYPREFIX:-/usr})/share/man/man1/findproxyfile.1.gz

@@ -29,9 +29,9 @@
    POSSIBILITY OF SUCH DAMAGE.
 */
 
-/*------------------------------------------------------------------------*
- * For more about GridSite: http://www.gridpp.ac.uk/gridsite/             *
- *------------------------------------------------------------------------*/
+/*---------------------------------------------------------------*
+ * For more about GridSite: http://www.gridsite.org/             *
+ *---------------------------------------------------------------*/
 
 #ifndef HEADER_SSL_H
 #include <ssl.h>
@@ -67,10 +67,12 @@
 #define GRST_VOMS_OID		"1.3.6.1.4.1.8005.100.100.1"
 #define GRST_VOMS_DIR		"/etc/grid-security/vomsdir"
 
+
+
 typedef struct { char                      *name;
                  char                      *value;
-                 struct _GRSTgaclNamevalue *next;  } GRSTgaclNamevalue;
-  
+                 void                      *next;  } GRSTgaclNamevalue;
+
 typedef struct { char                      *type;
                  int                        delegation;
                  GRSTgaclNamevalue         *firstname;
@@ -117,120 +119,120 @@ typedef struct { GRSTgaclCred *firstcred;
 
 int GRSTgaclInit(void);
 
-// #define GACLnewCred(x)		GRSTgaclCredNew((x))
+/* #define GACLnewCred(x)		GRSTgaclCredNew((x)) */
 GRSTgaclCred  *GRSTgaclCredNew(char *);
 
-// #define GACLaddToCred(x,y,z)	GRSTgaclCredAddValue((x),(y),(z))
+/* #define GACLaddToCred(x,y,z)	GRSTgaclCredAddValue((x),(y),(z)) */
 int        GRSTgaclCredAddValue(GRSTgaclCred *, char *, char *);
 
 #define GRSTgaclCredSetDelegation(cred, level) ((cred)->delegation = (level))
 #define GRSTgaclCredGetDelegation(cred) ((cred)->delegation)
 
-//#define GACLfreeCred(x)		GRSTgaclCredFree((x))
+/* #define GACLfreeCred(x)		GRSTgaclCredFree((x)) */
 int        GRSTgaclCredFree(GRSTgaclCred *);
 
-// #define GACLaddCred(x,y)	GRSTgaclEntryAddCred((x),(y))
+/*  #define GACLaddCred(x,y)	GRSTgaclEntryAddCred((x),(y)) */
 int        GRSTgaclEntryAddCred(GRSTgaclEntry *, GRSTgaclCred *);
 
-// #define GACLdelCred(x,y)	GRSTgaclEntryDelCred((x),(y))
+/*  #define GACLdelCred(x,y)	GRSTgaclEntryDelCred((x),(y)) */
 int        GRSTgaclEntryDelCred(GRSTgaclEntry *, GRSTgaclCred *);
 
-// #define GACLprintCred(x,y)	GRSTgaclCredPrint((x),(y))
+/*  #define GACLprintCred(x,y)	GRSTgaclCredPrint((x),(y)) */
 int        GRSTgaclCredCredPrint(GRSTgaclCred *, FILE *);
 
 
-// #define GACLnewEntry(x)		GRSTgaclEntryNew((x))
+/*  #define GACLnewEntry(x)		GRSTgaclEntryNew((x)) */
 GRSTgaclEntry *GRSTgaclEntryNew(void);
 
-// #define GACLfreeEntry(x)	GRSTgaclEntryFree((x))
+/*  #define GACLfreeEntry(x)	GRSTgaclEntryFree((x)) */
 int        GRSTgaclEntryFree(GRSTgaclEntry *);
 
-// #define GACLaddEntry(x,y)	GRSTgaclAclAddEntry((x),(y))
+/*  #define GACLaddEntry(x,y)	GRSTgaclAclAddEntry((x),(y)) */
 int        GRSTgaclAclAddEntry(GRSTgaclAcl *, GRSTgaclEntry *);
 
-// #define GACLprintEntry(x,y)	GRSTgaclEntryPrint((x),(y))
+/*  #define GACLprintEntry(x,y)	GRSTgaclEntryPrint((x),(y)) */
 int        GRSTgaclEntryPrint(GRSTgaclEntry *, FILE *);
 
 
-// #define GACLprintPerm(x,y)	GRSTgaclPermPrint((x),(y))
+/*  #define GACLprintPerm(x,y)	GRSTgaclPermPrint((x),(y)) */
 int        GRSTgaclPermPrint(GRSTgaclPerm, FILE *);
 
-// #define GACLallowPerm(x,y)	GRSTgaclEntryAllowPerm((x),(y))
+/*  #define GACLallowPerm(x,y)	GRSTgaclEntryAllowPerm((x),(y)) */
 int        GRSTgaclEntryAllowPerm(GRSTgaclEntry *, GRSTgaclPerm);
 
-// #define GACLunallowPerm(x,y)	GRSTgaclEntryUnallowPerm((x),(y))
+/*  #define GACLunallowPerm(x,y)	GRSTgaclEntryUnallowPerm((x),(y)) */
 int        GRSTgaclEntryUnallowPerm(GRSTgaclEntry *, GRSTgaclPerm);
 
-// #define GACLdenyPerm(x,y)	GRSTgaclEntryDenyPerm((x),(y))
+/*  #define GACLdenyPerm(x,y)	GRSTgaclEntryDenyPerm((x),(y)) */
 int        GRSTgaclEntryDenyPerm(GRSTgaclEntry *, GRSTgaclPerm);
 
-// #define GACLundenyPerm(x,y)	GRSTgaclEntryUndenyPerm((x),(y))
+/*  #define GACLundenyPerm(x,y)	GRSTgaclEntryUndenyPerm((x),(y)) */
 int        GRSTgaclUndenyPerm(GRSTgaclEntry *, GRSTgaclPerm);
 
-// #define GACLpermToChar(x)	GRSTgaclPermToChar((x))
+/*  #define GACLpermToChar(x)	GRSTgaclPermToChar((x)) */
 char      *GRSTgaclPermToChar(GRSTgaclPerm);
 
-// #define GACLcharToPerm(x)	GRSTgaclPermFromChar((x))
+/*  #define GACLcharToPerm(x)	GRSTgaclPermFromChar((x)) */
 GRSTgaclPerm   GRSTgaclPermFromChar(char *);
 
-// #define GACLnewAcl(x)		GRSTgaclAclNew((x))
+/*  #define GACLnewAcl(x)		GRSTgaclAclNew((x)) */
 GRSTgaclAcl   *GRSTgaclAclNew(void);
 
-// #define GACLfreeAcl(x)		GRSTgaclAclFree((x))
+/*  #define GACLfreeAcl(x)		GRSTgaclAclFree((x)) */
 int        GRSTgaclAclFree(GRSTgaclAcl *);
 
-// #define GACLprintAcl(x,y)	GRSTgaclAclPrint((x),(y))
+/*  #define GACLprintAcl(x,y)	GRSTgaclAclPrint((x),(y)) */
 int        GRSTgaclAclPrint(GRSTgaclAcl *, FILE *);
 
-// #define GACLsaveAcl(x,y)	GRSTgaclAclSave((y),(x))
+/*  #define GACLsaveAcl(x,y)	GRSTgaclAclSave((y),(x)) */
 int        GRSTgaclAclSave(GRSTgaclAcl *, char *);
 
-// #define GACLloadAcl(x)		GRSTgaclFileLoadAcl((x))
+/*  #define GACLloadAcl(x)		GRSTgaclFileLoadAcl((x)) */
 GRSTgaclAcl   *GRSTgaclAclLoadFile(char *);
 
-// #define GACLfindAclForFile(x)	GRSTgaclFileFindAclname((x))
+/*  #define GACLfindAclForFile(x)	GRSTgaclFileFindAclname((x)) */
 char      *GRSTgaclFileFindAclname(char *);
 
-// #define GACLloadAclForFile(x)	GRSTgaclFileLoadAcl((x))
+/*  #define GACLloadAclForFile(x)	GRSTgaclFileLoadAcl((x)) */
 GRSTgaclAcl   *GRSTgaclAclLoadforFile(char *);
 
-// #define GACLisAclFile(x)	GRSTgaclFileIsAcl((x))
+/*  #define GACLisAclFile(x)	GRSTgaclFileIsAcl((x)) */
 int        GRSTgaclFileIsAcl(char *);
 
 
-// #define GACLnewUser(x)		GRSTgaclUserNew((x))
+/*  #define GACLnewUser(x)		GRSTgaclUserNew((x)) */
 GRSTgaclUser *GRSTgaclUserNew(GRSTgaclCred *);
 
-// #define GACLfreeUser(x)		GRSTgaclUserFree((x))
+/*  #define GACLfreeUser(x)		GRSTgaclUserFree((x)) */
 int       GRSTgaclUserFree(GRSTgaclUser *);
 
-// #define GACLuserAddCred(x,y)	GRSTgaclUserAddCred((x),(y))
+/*  #define GACLuserAddCred(x,y)	GRSTgaclUserAddCred((x),(y)) */
 int       GRSTgaclUserAddCred(GRSTgaclUser *, GRSTgaclCred *);
 
-// #define GACLuserHasCred(x,y)	GRSTgaclUserHasCred((x),(y))
+/*  #define GACLuserHasCred(x,y)	GRSTgaclUserHasCred((x),(y)) */
 int       GRSTgaclUserHasCred(GRSTgaclUser *, GRSTgaclCred *);
 
 int       GRSTgaclUserSetDNlists(GRSTgaclUser *, char *);
 
-// #define GACLuserFindCredType(x,y) GRSTgaclUserFindCredtype((x),(y))
+/*  #define GACLuserFindCredType(x,y) GRSTgaclUserFindCredtype((x),(y)) */
 GRSTgaclCred *GRSTgaclUserFindCredtype(GRSTgaclUser *, char *);
 
-// #define GACLtestDnList(x,y)	GRSTgaclDNlistHasUser((x),(y))
+/*  #define GACLtestDnList(x,y)	GRSTgaclDNlistHasUser((x),(y)) */
 int GRSTgaclDNlistHasUser(char *, GRSTgaclUser *);
 
-// #define GACLtestUserAcl(x,y)	GRSTgaclAclTestUser((x),(y))
+/*  #define GACLtestUserAcl(x,y)	GRSTgaclAclTestUser((x),(y)) */
 GRSTgaclPerm   GRSTgaclAclTestUser(GRSTgaclAcl *, GRSTgaclUser *);
 
-// #define GACLtestExclAcl(x,y)	GRSTgaclAclTestexclUser((x),(y))
+/*  #define GACLtestExclAcl(x,y)	GRSTgaclAclTestexclUser((x),(y)) */
 GRSTgaclPerm   GRSTgaclAclTestexclUser(GRSTgaclAcl *, GRSTgaclUser *);
 
 
 char      *GRSThttpUrlDecode(char *);
 
-// #define GACLurlEncode(x)	GRSThttpUrlEncode((x))
+/*  #define GACLurlEncode(x)	GRSThttpUrlEncode((x)) */
 char      *GRSThttpUrlEncode(char *);
 
-// #define GACLmildUrlEncode(x)	GRSThttpMildUrlEncode((x))
+/*  #define GACLmildUrlEncode(x)	GRSThttpMildUrlEncode((x)) */
 char      *GRSThttpUrlMildencode(char *);
 
 int GRSTx509NameCmp(char *, char *);
@@ -242,13 +244,15 @@ int GRSTx509IsCA(X509 *);
 int GRSTx509CheckChain(int *, X509_STORE_CTX *);
 int GRSTx509VerifyCallback(int, X509_STORE_CTX *);
 
-int GRSTx509CheckVomsSig(unsigned char *, unsigned int,
-                         unsigned char *, unsigned int,
-                         char *, char *, char *);
-int GRSTx509GetVomsCreds(int *, int, size_t, char *, X509 *, X509 *, char *);
+int GRSTx509GetVomsCreds(int *, int, size_t, char *, X509 *, STACK_OF(X509) *, char *);
 GRSTgaclCred *GRSTx509CompactToCred(char *);
 int GRSTx509CompactCreds(int *, int, size_t, char *, STACK_OF(X509) *, char *);
-
+char *GRSTx509CachedProxyFind(char *, char *, char *);
+char *GRSTx509FindProxyFileName(void);
+int GRSTx509MakeProxyCert(char **, FILE *, char *, char *, char *, int);
+char *GRSTx509CachedProxyKeyFind(char *, char *, char *);
+int GRSTx509MakeProxyRequest(char **, char *, char *, char *);
+int GRSTx509CacheProxy(char *, char *, char *, char *);
 
 #define GRST_HEADFILE   "gridsitehead.txt"
 #define GRST_FOOTFILE   "gridsitefoot.txt"

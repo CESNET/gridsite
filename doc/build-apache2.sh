@@ -29,9 +29,9 @@
 #   OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 #   POSSIBILITY OF SUCH DAMAGE.
 #
-#-----------------------------------------------------------------------------
-# For more information about GridSite: http://www.gridpp.ac.uk/gridsite/
-#-----------------------------------------------------------------------------
+#---------------------------------------------------------------
+# For more information about GridSite: http://www.gridsite.org/
+#---------------------------------------------------------------
 #
 # This script takes an Apache .tar.gz as the single command line argument,
 # unpacks the file, modifies the httpd.spec it contains to work without

@@ -1,4 +1,4 @@
-.TH htcp 1 "December 2003" htcp "HTCP Manual"
+.TH htcp 1 "July 2004" htcp "HTCP Manual"
 .SH NAME
 .B htcp, htrm, htls, htll, htmkdir
 \- get, put, delete or list HTTP/HTTPS files or directories
@@ -84,6 +84,15 @@ This is useful for testing sites before their certificate is set up properly,
 but leaves you vulnerable to "man in the middle" attacks by hostile servers
 masquerading as your target.
 
+.IP "--downgrade-size <minimum file size for downgrade>"
+Try to use HTTP-Downgrade for HTTPS URLs. Compatible servers will perform
+authentication and authorization on the HTTPS connection and then redirect
+to HTTP for the GET or PUT file transfer. htcp makes the HTTP request using
+the GRID_AUTH_ONETIME single-use passcode obtained via HTTPS. The downgrade
+option will be ignored for directory operations, HTTP URLs, or if the file
+size is less than the value given. If a downgraded transfer isn't possible,
+a normal HTTPS data transfer will be done.
+
 .SH FILES
 .IP /tmp/x509up_uID
 Default GSI Proxy file for Unix UID equal to ID.
@@ -127,9 +136,9 @@ Recursive copying. Server-side wildcards. Parallel streams. Error recovery.
 Not enough beta testing (hint hint...)
 
 .SH AUTHOR
-Andrew McNab <mcnab@hep.man.ac.uk>
+Andrew McNab <Andrew.McNab@man.ac.uk>
 
-htcp is part of GridSite: http://www.gridpp.ac.uk/gridsite/
+htcp is part of GridSite: http://www.gridsite.org/
 .SH "SEE ALSO"
 .BR scp(1),
 .BR curl(1),

@@ -29,9 +29,9 @@
    POSSIBILITY OF SUCH DAMAGE.
 */
 
-/*---------------------------------------------------------------------------*
-* This program is part of GridSite: http://www.gridpp.ac.uk/authz/gridsite/ *
-*---------------------------------------------------------------------------*/
+/*-----------------------------------------------------------*
+* This program is part of GridSite: http://www.gridsite.org/ *
+*------------------------------------------------------------*/
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -84,7 +84,7 @@ void revert_acl(GRSTgaclUser *user, char *dn, GRSTgaclPerm perm, char *help_uri,
 /*****************************************/
 
 void show_acl(int admin, GRSTgaclUser *user, char *dn, GRSTgaclPerm perm, char *help_uri, char *dir_path, char *file, char *dir_uri, char *admin_file){
-  /* Shows the contents of the ACL. Gives edit 'buttons' if (int admin) == 1*/
+  // Shows the contents of the ACL. Gives edit 'buttons' if (int admin) == 1
   GRSTgaclAcl *acl;
   GRSTgaclEntry *entry;
   GRSTgaclCred *cred;

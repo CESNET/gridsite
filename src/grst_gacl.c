@@ -28,9 +28,9 @@
    OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
    POSSIBILITY OF SUCH DAMAGE.
 */
-/*------------------------------------------------------------------------*
- * For more information about GridSite: http://www.gridpp.ac.uk/gridsite/ *
- *------------------------------------------------------------------------*/
+/*---------------------------------------------------------------*
+ * For more information about GridSite: http://www.gridsite.org/ *
+ *---------------------------------------------------------------*/
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -187,7 +187,7 @@ static int GRSTgaclCredsFree(GRSTgaclCred *firstcred)
   
   if (firstcred->next != NULL) GRSTgaclCredsFree(firstcred->next);
   
-  return GRSTgaclCredsFree(firstcred);
+  return GRSTgaclCredFree(firstcred);
 }
 
 static int GRSTgaclCredInsert(GRSTgaclCred *firstcred, GRSTgaclCred *newcred)
@@ -691,18 +691,36 @@ char *GRSTgaclFileFindAclname(char *pathandfile)
    (for directories, the ACL file is in the directory itself), or NULL if none
    can be found. */
 {
-  char        *path, *p;
+  int          len;
+  char        *path, *file, *p;
   struct stat  statbuf;
+   
+  len = strlen(pathandfile);
+  if (len == 0) return NULL;
   
-  path = malloc(strlen(pathandfile) + sizeof(GRST_ACL_FILE) + 1);
+  path = malloc(len + sizeof(GRST_ACL_FILE) + 2);
   strcpy(path, pathandfile);
 
-  if (stat(path, &statbuf) == 0)
+  if ((stat(path, &statbuf) == 0)	&& 
+       S_ISDIR(statbuf.st_mode)		&&
+      (path[len-1] != '/'))
     {
-      if (!S_ISDIR(statbuf.st_mode)) /* can strip this / off straightaway */
+      strcat(path, "/");
+      ++len;
+    }
+    
+  if (path[len-1] != '/')
+    {
+      p = rindex(pathandfile, '/');
+      if (p != NULL)
         {
-          p = rindex(path, '/');
-          if (p != NULL) *p = '\0';
+          file = &p[1];          
+          p = rindex(path, '/');          
+          sprintf(p, "/%s:%s", GRST_ACL_FILE, file);
+
+          if (stat(path, &statbuf) == 0) return path;
+
+          *p = '\0'; /* otherwise strip off any filename */
         }
     }
 

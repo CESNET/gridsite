@@ -29,9 +29,9 @@
    POSSIBILITY OF SUCH DAMAGE.
 */
 
-/*---------------------------------------------------------------------------*
- * This program is part of GridSite: http://www.gridpp.ac.uk/gridsite/       *
- *---------------------------------------------------------------------------*/
+/*------------------------------------------------------------------*
+ * This program is part of GridSite: http://www.gridsite.org/       *
+ *------------------------------------------------------------------*/
 
 #ifndef VERSION
 #define VERSION "x.x.x"
@@ -115,7 +115,7 @@ void adminfooter(GRSThttpBody *bp, char *dn, char *help_uri, char *dir_uri,
   if ((getenv("GRST_NO_LINK") == NULL) &&
       (getenv("REDIRECT_GRST_NO_LINK") == NULL))
     GRSThttpPrintf(bp, "Built with "
-     "<a href=\"http://www.gridpp.ac.uk/gridsite/\">GridSite</a> %s\n",
+     "<a href=\"http://www.gridsite.org/\">GridSite</a> %s\n",
      VERSION);
    
   GRSThttpPrintf(bp, "</small>\n");

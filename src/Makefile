@@ -131,29 +131,29 @@ endif
 
 delegation.wsdl: delegation.h
 	ls -lR $(GSOAPDIR)
-	$(GSOAPDIR)/soapcpp2 -c delegation.h
+	$(GSOAPDIR)/bin/soapcpp2 -c delegation.h
 
 libstdsoap2.a: $(GSOAPDIR)/stdsoap2.c
 	gcc -c -DWITH_OPENSSL $(GSOAPDIR)/stdsoap2.c
 	ar src libstdsoap2.a stdsoap2.o
 
 gridsite-delegation.cgi: grst-delegation.c delegation.h delegation.wsdl \
-                         libstdsoap2.a soapC.c soapServer.c
+                         soapC.c soapServer.c
 	gcc $(MYCFLAGS) $(MYLDFLAGS) -o gridsite-delegation.cgi \
             grst-delegation.c \
-             -I/usr/kerberos/include -I$(GSOAPDIR) \
-            -DVERSION=\"$(VERSION)\" \
-            soapC.c soapServer.c libstdsoap2.a \
+             -I/usr/kerberos/include -I$(GSOAPDIR)/include \
+            -DVERSION=\"$(VERSION)\" -L$(GSOAPDIR)/lib \
+            soapC.c soapServer.c -lgsoap \
             -lgridsite -lcurl -lz -lssl -lcrypto -lxml2 -lm
 
 htproxyput: htproxyput.c delegation.h delegation.wsdl \
-            soapC.c soapServer.c libstdsoap2.a
+            soapC.c soapServer.c
 	gcc $(MYCFLAGS) $(MYLDFLAGS) -o htproxyput \
             htproxyput.c \
              -I/usr/kerberos/include \
             -g -DVERSION=\"$(VERSION)\" \
-            -I$(GSOAPDIR) -DWITH_OPENSSL \
-            soapC.c soapClient.c libstdsoap2.a \
+            -I$(GSOAPDIR)/include -DWITH_OPENSSL -L$(GSOAPDIR)/lib \
+            soapC.c soapClient.c -lgsoap \
             -lgridsite -lcurl -lz -lssl -lcrypto -lxml2 -lm
 
 proxyput-example: proxyput-example.c delegation.h delegation.wsdl \

@@ -184,5 +184,5 @@ extern GACLperm   gacl_perm_vals[];
 #define GACLmildUrlEncode(x)	GRSThttpUrlMildencode((x))
 /*  char      *GACLmildUrlEncode(char *); */
 
-GACLentry *GRSTgaclEntryParse(xmlNodePtr cur);
+//GACLentry *GRSTgaclEntryParse(xmlNodePtr cur);
 /*  special function for legacy EDG LB service */

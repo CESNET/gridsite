@@ -97,17 +97,17 @@ libgridsite_globus.a: grst_x509_globus.o grst_gacl_globus.o grst_http_globus.o
 	ar src libgridsite_globus.a \
                grst_x509_globus.o grst_gacl_globus.o grst_http_globus.o
 
-grst_x509_globus.o: grst_x509_globus.c ../interface/gridsite.h
+grst_x509_globus.o: grst_x509.c ../interface/gridsite.h
 	gcc $(MYCFLAGS) $(OPENSSL_GLOBUS_FLAGS) \
             -I/usr/kerberos/include -c grst_x509.c \
             -o grst_x509_globus.o
 
-grst_gacl_globus.o: grst_gacl_globus.c ../interface/gridsite.h
+grst_gacl_globus.o: grst_gacl.c ../interface/gridsite.h
 	gcc $(MYCFLAGS) $(OPENSSL_GLOBUS_FLAGS) \
             -I/usr/kerberos/include `xml2-config --cflags` -c grst_gacl.c \
             -o grst_gacl_globus.o
 
-grst_http_globus.o: grst_http_globus.c ../interface/gridsite.h
+grst_http_globus.o: grst_http.c ../interface/gridsite.h
 	gcc $(MYCFLAGS) $(OPENSSL_GLOBUS_FLAGS) \
             -I/usr/kerberos/include -c grst_http.c \
             -o grst_http_globus.o

@@ -20,6 +20,9 @@
 
 	Revision history:
 	$Log$
+	Revision 1.9  2004/12/17 09:02:49  dimeglio
+	Removed redefinition of global.prefix
+	
 	Revision 1.8  2004/12/17 00:32:50  dimeglio
 	Fixed global.prefix
 	
@@ -212,7 +215,45 @@
 		 Private targets
 	     =============================================== -->
 	
-	<!-- ===============================================
+	<!-- ========================================================
+              tag: Tag module     
+	     ======================================================== -->
+	<target name="tag" description="Apply tag.">
+
+		<property name="tag.type" value="B"/>
+		<!-- Set module CVS Label -->
+		<exec executable="tr" inputstring="${module.version}" outputproperty="cvs.module.version">
+			<arg line=". _"/>
+		</exec>
+		<property name="cvs.label" value="gridsite-core_${tag.type}_${cvs.module.version}_${module.build}" />
+		<echo>New tag is ${cvs.label}</echo>
+		
+		<!-- Apply tag -->
+		<property name="failonerror" value="true"/>
+		<property name="tag.switch" value="-FR"/>
+		<exec dir="${workspace.abs.dir}" executable="cvs" failonerror="${failonerror}">
+			<arg line="tag ${tag.switch} ${cvs.label} ${module.name}" />
+		</exec>
+
+	</target>
+
+	<target name="component_release_tag">
+
+		<!-- Set module CVS Label -->
+		<exec executable="tr" inputstring="${module.version}" outputproperty="cvs.module.version">
+			<arg line=". _"/>
+		</exec>
+		<property name="cvs.label" value="gridsite-core_R_${cvs.module.version}" />
+		<echo>New tag is ${cvs.label}</echo>
+		
+		<!-- Apply tag -->
+		<exec dir="${workspace.abs.dir}" executable="cvs" failonerror="true">
+			<arg line="tag -R ${cvs.label} ${module.name}" />
+		</exec>
+
+	</target>
+
+				<!-- ===============================================
 		 Modules proxy targets
 	     =============================================== -->
 

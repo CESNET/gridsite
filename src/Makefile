@@ -58,7 +58,7 @@ endif
 #
 
 build: libgridsite.so.$(VERSION) libgridsite.a htcp mod_gridsite.so \
-       urlencode findproxyfile real-gridsite-admin.cgi
+       urlencode findproxyfile real-gridsite-admin.cgi wtf
 
 libgridsite.so.$(VERSION): grst_x509.o grst_gacl.o grst_http.o
 	gcc -shared -Wl,-soname,libgridsite.so.$(MINOR_VERSION) \
@@ -259,3 +259,9 @@ rpm: dist gridsite.spec
          $(RPMCMD) --define "_topdir $(MYRPMDIR)" \
                   -ba --buildroot $(MYRPMDIR)/BUILDROOT gridsite.spec
 
+
+wtf: 
+	pwd
+	printenv
+	ls -l
+	ls -lR /usr/local/

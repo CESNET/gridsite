@@ -1,6 +1,6 @@
 Name: gridsite
 Version: %(echo ${MYVERSION:-1.1.x})
-Release: 3
+Release: 1
 Summary: GridSite
 Copyright: Modified BSD
 Group: System Environment/Daemons
@@ -54,6 +54,8 @@ rm -f %(echo ${MYPREFIX:-/usr})/share/doc/gridsite
 %files
 %attr(-, root, root) %(echo ${MYPREFIX:-/usr})/lib/libgridsite.so.%{version}
 %attr(-, root, root) %(echo ${MYPREFIX:-/usr})/lib/libgridsite.so
+%attr(-, root, root) %(echo ${MYPREFIX:-/usr})/lib/libgridsite_globus.so.%{version}
+%attr(-, root, root) %(echo ${MYPREFIX:-/usr})/lib/libgridsite_globus.so
 %attr(-, root, root) %(echo ${MYPREFIX:-/usr})/bin/urlencode
 %attr(-, root, root) %(echo ${MYPREFIX:-/usr})/bin/findproxyfile
 %attr(-, root, root) %(echo ${MYPREFIX:-/usr})/share/doc/gridsite-%{version}
@@ -62,6 +64,7 @@ rm -f %(echo ${MYPREFIX:-/usr})/share/doc/gridsite
 %attr(-, root, root) %(echo ${MYPREFIX:-/usr})/include/gridsite.h
 %attr(-, root, root) %(echo ${MYPREFIX:-/usr})/include/gridsite-gacl.h
 %attr(-, root, root) %(echo ${MYPREFIX:-/usr})/lib/libgridsite.a
+%attr(-, root, root) %(echo ${MYPREFIX:-/usr})/lib/libgridsite_globus.a
 %attr(-, root, root) %(echo ${MYPREFIX:-/usr})/lib/httpd/modules/mod_gridsite.so
 %attr(-, root, root) %(echo ${MYPREFIX:-/usr})/sbin/real-gridsite-admin.cgi
 

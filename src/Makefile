@@ -1,6 +1,6 @@
 #
 #   Andrew McNab and Shiv Kaushal, University of Manchester.
-#   Copyright (c) 2002-4. All rights reserved.
+#   Copyright (c) 2002-5. All rights reserved.
 #
 #   Redistribution and use in source and binary forms, with or
 #   without modification, are permitted provided that the following
@@ -48,18 +48,18 @@ ifndef MYCFLAGS
 export MYCFLAGS=-I. -I../interface -I/usr/include/httpd -I/usr/include/apr-0 -I/opt/glite/include
 endif
 
-ifndef OPENSSL_FLAGS
-export OPENSSL_FLAGS=-I/usr/include
-endif
+#ifndef OPENSSL_FLAGS
+#export OPENSSL_FLAGS=-I/usr/include
+#endif
 
 ifndef MYLDFLAGS
 export MYLDFLAGS=-L.
 # export MYLDFLAGS=-L. -L/opt/glite/lib -lvomsc
 endif
 
-ifndef OPENSSL_LIBS
-export OPENSSL_LIBS=-L/usr/lib
-endif
+#ifndef OPENSSL_GLOBUS_LIBS
+#export OPENSSL_GLOBUS_LIBS=-L/usr/lib
+#endif
 
 #
 # Build
@@ -69,6 +69,10 @@ build: libgridsite.so.$(VERSION) libgridsite.a htcp mod_gridsite.so \
        urlencode findproxyfile real-gridsite-admin.cgi \
        # gridsite-delegation.cgi # htproxyput
 
+build: libgridsite_globus.so.$(VERSION) libgridsite_globus.a
+
+# First, normal versions using system OpenSSL rather than Globus OpenSSL
+
 libgridsite.so.$(VERSION): grst_x509.o grst_gacl.o grst_http.o
 	gcc -shared -Wl,-soname,libgridsite.so.$(MINOR_VERSION) \
          -o libgridsite.so.$(PATCH_VERSION) grst_x509.o grst_gacl.o grst_http.o
@@ -77,21 +81,59 @@ libgridsite.a: grst_x509.o grst_gacl.o grst_http.o
 	ar src libgridsite.a grst_x509.o grst_gacl.o grst_http.o
 
 grst_x509.o: grst_x509.c ../interface/gridsite.h
-	gcc $(MYCFLAGS) $(OPENSSL_FLAGS) \
+	gcc $(MYCFLAGS) $(OPENSSL_GLOBUS_FLAGS) \
             -I/usr/kerberos/include -c grst_x509.c
 
 grst_gacl.o: grst_gacl.c ../interface/gridsite.h
-	gcc $(MYCFLAGS) $(OPENSSL_FLAGS) \
+	gcc $(MYCFLAGS) $(OPENSSL_GLOBUS_FLAGS) \
             -I/usr/kerberos/include `xml2-config --cflags` -c grst_gacl.c
 
 grst_http.o: grst_http.c ../interface/gridsite.h
-	gcc $(MYCFLAGS) $(OPENSSL_FLAGS) \
+	gcc $(MYCFLAGS) $(OPENSSL_GLOBUS_FLAGS) \
                         -I/usr/kerberos/include -c grst_http.c
+
+# Then build versions using Globus OpenSSL if configured
+
+ifdef OPENSSL_GLOBUS_LIBS
+
+libgridsite_globus.so.$(VERSION): grst_x509.o grst_gacl.o grst_http.o
+	gcc -shared -Wl,-soname,libgridsite_globus.so.$(MINOR_VERSION) \
+         -o libgridsite_globus.so.$(PATCH_VERSION) \
+         grst_x509_globus.o grst_gacl_globus.o grst_http_globus.o
+
+libgridsite_globus.a: grst_x509_globus.o grst_gacl_globus.o grst_http_globus.o
+	ar src libgridsite_globus.a \
+               grst_x509_globus.o grst_gacl_globus.o grst_http_globus.o
+
+grst_x509_globus.o: grst_x509_globus.c ../interface/gridsite.h
+	gcc $(MYCFLAGS) $(OPENSSL_GLOBUS_FLAGS) \
+            -I/usr/kerberos/include -c grst_x509.c \
+            -o grst_x509_globus.o
+
+grst_gacl_globus.o: grst_gacl_globus.c ../interface/gridsite.h
+	gcc $(MYCFLAGS) $(OPENSSL_GLOBUS_FLAGS) \
+            -I/usr/kerberos/include `xml2-config --cflags` -c grst_gacl.c \
+            -o grst_gacl_globus.o
+
+grst_http_globus.o: grst_http_globus.c ../interface/gridsite.h
+	gcc $(MYCFLAGS) $(OPENSSL_GLOBUS_FLAGS) \
+            -I/usr/kerberos/include -c grst_http.c \
+            -o grst_http_globus.o
+
+else
+
+libgridsite_globus.so.$(VERSION): libgridsite.so.$(VERSION)
+	cp -f libgridsite.so.$(VERSION) libgridsite_globus.so.$(VERSION)
+
+libgridsite_globus.a: libgridsite.a
+	cp -f libgridsite.a libgridsite_globus.a
+
+endif
 
 urlencode: urlencode.c libgridsite.a
 	gcc -DVERSION=\"$(PATCH_VERSION)\" $(MYCFLAGS) \
             -o urlencode urlencode.c -L. \
-             $(OPENSSL_FLAGS) -I/usr/kerberos/include -lgridsite
+             $(OPENSSL_GLOBUS_FLAGS) -I/usr/kerberos/include -lgridsite
 
 htcp: htcp.c
 	gcc -DVERSION=\"$(PATCH_VERSION)\" -I. -o htcp htcp.c \
@@ -99,7 +141,7 @@ htcp: htcp.c
 
 mod_gridsite.so: mod_gridsite.c mod_ssl-private.h libgridsite.a
 	gcc $(MYCFLAGS) -shared -Wl,-soname=gridsite_module \
-            $(OPENSSL_FLAGS) -I/usr/kerberos/include \
+            $(OPENSSL_GLOBUS_FLAGS) -I/usr/kerberos/include \
            -I/usr/include/libxml2 \
            -DVERSION=\"$(VERSION)\" -o mod_gridsite.so \
            mod_gridsite.c $(MYLDFLAGS) -lxml2 -lm -lz -lgridsite
@@ -110,22 +152,22 @@ real-gridsite-admin.cgi: grst_admin_main.c grst_admin_gacl.c \
             grst_admin_main.c \
             grst_admin_gacl.c \
             grst_admin_file.c \
-             $(OPENSSL_FLAGS) -I/usr/kerberos/include \
-            -DVERSION=\"$(VERSION)\" $(OPENSSL_LIBS) -lgridsite -lssl$(FLAVOR_EXT) -lcrypto$(FLAVOR_EXT) -lxml2 -lz -lm
+             $(OPENSSL_GLOBUS_FLAGS) -I/usr/kerberos/include \
+            -DVERSION=\"$(VERSION)\" $(OPENSSL_GLOBUS_LIBS) -lgridsite -lssl$(FLAVOR_GLOBUS_EXT) -lcrypto$(FLAVOR_GLOBUS_EXT) -lxml2 -lz -lm
 
 findproxyfile: findproxyfile.c libgridsite.a
 	gcc -DVERSION=\"$(PATCH_VERSION)\" $(MYCFLAGS) $(MYLDFLAGS) \
             -o findproxyfile findproxyfile.c -L. \
-             $(OPENSSL_FLAGS) -I/usr/kerberos/include -lgridsite \
-             $(OPENSSL_LIBS) -lssl$(FLAVOR_EXT) -lcrypto$(FLAVOR_EXT) -lxml2 -lz -lm
+             $(OPENSSL_GLOBUS_FLAGS) -I/usr/kerberos/include -lgridsite \
+             $(OPENSSL_GLOBUS_LIBS) -lssl$(FLAVOR_GLOBUS_EXT) -lcrypto$(FLAVOR_GLOBUS_EXT) -lxml2 -lz -lm
 
 apidoc:
 	doxygen Doxyfile
 
 gaclexample: gaclexample.c libgridsite.a
 	gcc -o gaclexample gaclexample.c -I. -L. \
-             $(OPENSSL_FLAGS) -I/usr/kerberos/include -lgridsite \
-            -lssl$(FLAVOR_EXT) -lcrypto$(FLAVOR_EXT) -lxml2 -lz -lm 
+             $(OPENSSL_GLOBUS_FLAGS) -I/usr/kerberos/include -lgridsite \
+            -lssl$(FLAVOR_GLOBUS_EXT) -lcrypto$(FLAVOR_GLOBUS_EXT) -lxml2 -lz -lm 
 
 #
 # Delegation machinery, including SOAP delegation portType. To build this
@@ -149,30 +191,30 @@ gridsite-delegation.cgi: grst-delegation.c delegation.h delegation.wsdl \
                          soapC.c soapServer.c
 	gcc $(MYCFLAGS) $(MYLDFLAGS) -o gridsite-delegation.cgi \
             grst-delegation.c \
-             $(OPENSSL_FLAGS) -I/usr/kerberos/include -I$(GSOAPDIR)/include \
+             $(OPENSSL_GLOBUS_FLAGS) -I/usr/kerberos/include -I$(GSOAPDIR)/include \
             -DVERSION=\"$(VERSION)\" -L$(GSOAPDIR)/lib \
             soapC.c soapServer.c -lgsoap \
-            -lgridsite -lcurl -lz -lssl$(FLAVOR_EXT) -lcrypto$(FLAVOR_EXT) -lxml2 -lm
+            -lgridsite -lcurl -lz -lssl$(FLAVOR_GLOBUS_EXT) -lcrypto$(FLAVOR_GLOBUS_EXT) -lxml2 -lm
 
 htproxyput: htproxyput.c delegation.h delegation.wsdl \
             soapC.c soapServer.c
 	gcc $(MYCFLAGS) $(MYLDFLAGS) -o htproxyput \
             htproxyput.c \
-             $(OPENSSL_FLAGS) -I/usr/kerberos/include \
+             $(OPENSSL_GLOBUS_FLAGS) -I/usr/kerberos/include \
             -g -DVERSION=\"$(VERSION)\" \
             -I$(GSOAPDIR)/include -DWITH_OPENSSL -L$(GSOAPDIR)/lib \
             soapC.c soapClient.c -lgsoap \
-            -lgridsite -lcurl -lz -lssl$(FLAVOR_EXT) -lcrypto$(FLAVOR_EXT) -lxml2 -lm
+            -lgridsite -lcurl -lz -lssl$(FLAVOR_GLOBUS_EXT) -lcrypto$(FLAVOR_GLOBUS_EXT) -lxml2 -lm
 
 proxyput-example: proxyput-example.c delegation.h delegation.wsdl \
             soapC.c soapServer.c libstdsoap2.a
 	gcc $(MYCFLAGS) $(MYLDFLAGS) -o proxyput-example \
             proxyput-example.c \
-             $(OPENSSL_FLAGS) -I/usr/kerberos/include \
+             $(OPENSSL_GLOBUS_FLAGS) -I/usr/kerberos/include \
             -g -DVERSION=\"$(VERSION)\" \
             -I$(GSOAPDIR) -DWITH_OPENSSL \
             soapC.c soapClient.c libstdsoap2.a \
-            -lgridsite -lcurl -lz -lssl$(FLAVOR_EXT) -lcrypto$(FLAVOR_EXT) -lxml2 -lm
+            -lgridsite -lcurl -lz -lssl$(FLAVOR_GLOBUS_EXT) -lcrypto$(FLAVOR_GLOBUS_EXT) -lxml2 -lm
 
 clean:
 
@@ -192,8 +234,8 @@ install: apidoc
 	cp -f ../interface/gridsite-gacl.h $(prefix)/include
 	cp -f urlencode $(prefix)/bin
 	cp -f findproxyfile $(prefix)/bin
-	cp -f libgridsite.a $(prefix)/lib
 	cp -f real-gridsite-admin.cgi $(prefix)/sbin
+	cp -f  libgridsite.a $(prefix)/lib
 	cp -f  libgridsite.so.$(PATCH_VERSION) $(prefix)/lib
 	ln -sf libgridsite.so.$(PATCH_VERSION) \
                                  $(prefix)/lib/libgridsite.so
@@ -201,6 +243,14 @@ install: apidoc
                                  $(prefix)/lib/libgridsite.so.$(MAJOR_VERSION)
 	ln -sf libgridsite.so.$(PATCH_VERSION) \
                                  $(prefix)/lib/libgridsite.so.$(MINOR_VERSION)
+	cp -f  libgridsite_globus.a $(prefix)/lib
+	cp -f  libgridsite_globus.so.$(PATCH_VERSION) $(prefix)/lib
+	ln -sf libgridsite_globus.so.$(PATCH_VERSION) \
+                                 $(prefix)/lib/libgridsite_globus.so
+	ln -sf libgridsite_globus.so.$(PATCH_VERSION) \
+                                 $(prefix)/lib/libgridsite_globus.so.$(MAJOR_VERSION)
+	ln -sf libgridsite_globus.so.$(PATCH_VERSION) \
+                                 $(prefix)/lib/libgridsite_globus.so.$(MINOR_VERSION)
 	cp -f doxygen/index.html \
               $(prefix)/share/doc/gridsite-$(PATCH_VERSION)/doxygen-index.html
 	cp -f doxygen/* $(prefix)/share/doc/gridsite-$(PATCH_VERSION)

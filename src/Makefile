@@ -48,9 +48,17 @@ ifndef MYCFLAGS
 export MYCFLAGS=-I. -I../interface -I/usr/include/httpd -I/usr/include/apr-0 -I/opt/glite/include
 endif
 
+ifndef OPENSSL_FLAGS
+export OPENSSL_FLAGS=-I/usr/include/openssl
+endif
+
 ifndef MYLDFLAGS
 export MYLDFLAGS=-L.
 # export MYLDFLAGS=-L. -L/opt/glite/lib -lvomsc
+endif
+
+ifndef OPENSSL_LIBS
+export OPENSSL_LIBS=-L/usr/lib/openssl
 endif
 
 #
@@ -69,21 +77,21 @@ libgridsite.a: grst_x509.o grst_gacl.o grst_http.o
 	ar src libgridsite.a grst_x509.o grst_gacl.o grst_http.o
 
 grst_x509.o: grst_x509.c ../interface/gridsite.h
-	gcc $(MYCFLAGS) \
+	gcc $(MYCFLAGS) $(OPENSSL_FLAGS) \
             -I/usr/kerberos/include -c grst_x509.c
 
 grst_gacl.o: grst_gacl.c ../interface/gridsite.h
-	gcc $(MYCFLAGS) \
+	gcc $(MYCFLAGS) $(OPENSSL_FLAGS) \
             -I/usr/kerberos/include `xml2-config --cflags` -c grst_gacl.c
 
 grst_http.o: grst_http.c ../interface/gridsite.h
-	gcc $(MYCFLAGS)  \
+	gcc $(MYCFLAGS) $(OPENSSL_FLAGS) \
                         -I/usr/kerberos/include -c grst_http.c
 
 urlencode: urlencode.c libgridsite.a
 	gcc -DVERSION=\"$(PATCH_VERSION)\" $(MYCFLAGS) \
             -o urlencode urlencode.c -L. \
-             -I/usr/kerberos/include -lgridsite
+             $(OPENSSL_FLAGS) -I/usr/kerberos/include -lgridsite
 
 htcp: htcp.c
 	gcc -DVERSION=\"$(PATCH_VERSION)\" -I. -o htcp htcp.c \
@@ -91,7 +99,7 @@ htcp: htcp.c
 
 mod_gridsite.so: mod_gridsite.c mod_ssl-private.h libgridsite.a
 	gcc $(MYCFLAGS) -shared -Wl,-soname=gridsite_module \
-            -I/usr/kerberos/include \
+            $(OPENSSL_FLAGS) -I/usr/kerberos/include \
            -I/usr/include/libxml2 \
            -DVERSION=\"$(VERSION)\" -o mod_gridsite.so \
            mod_gridsite.c $(MYLDFLAGS) -lxml2 -lm -lz -lgridsite
@@ -102,21 +110,21 @@ real-gridsite-admin.cgi: grst_admin_main.c grst_admin_gacl.c \
             grst_admin_main.c \
             grst_admin_gacl.c \
             grst_admin_file.c \
-             -I/usr/kerberos/include \
-            -DVERSION=\"$(VERSION)\" -lgridsite -lssl -lcrypto -lxml2 -lz -lm
+             $(OPENSSL_FLAGS) -I/usr/kerberos/include \
+            -DVERSION=\"$(VERSION)\" $(OPENSSL_LIBS) -lgridsite -lssl -lcrypto -lxml2 -lz -lm
 
 findproxyfile: findproxyfile.c libgridsite.a
 	gcc -DVERSION=\"$(PATCH_VERSION)\" $(MYCFLAGS) $(MYLDFLAGS) \
             -o findproxyfile findproxyfile.c -L. \
-             -I/usr/kerberos/include -lgridsite \
-            -lssl -lcrypto -lxml2 -lz -lm
+             $(OPENSSL_FLAGS) -I/usr/kerberos/include -lgridsite \
+             $(OPENSSL_LIBS) -lssl -lcrypto -lxml2 -lz -lm
 
 apidoc:
 	doxygen Doxyfile
 
 gaclexample: gaclexample.c libgridsite.a
 	gcc -o gaclexample gaclexample.c -I. -L. \
-             -I/usr/kerberos/include -lgridsite \
+             $(OPENSSL_FLAGS) -I/usr/kerberos/include -lgridsite \
             -lssl -lcrypto -lxml2 -lz -lm 
 
 #
@@ -141,7 +149,7 @@ gridsite-delegation.cgi: grst-delegation.c delegation.h delegation.wsdl \
                          soapC.c soapServer.c
 	gcc $(MYCFLAGS) $(MYLDFLAGS) -o gridsite-delegation.cgi \
             grst-delegation.c \
-             -I/usr/kerberos/include -I$(GSOAPDIR)/include \
+             $(OPENSSL_FLAGS) -I/usr/kerberos/include -I$(GSOAPDIR)/include \
             -DVERSION=\"$(VERSION)\" -L$(GSOAPDIR)/lib \
             soapC.c soapServer.c -lgsoap \
             -lgridsite -lcurl -lz -lssl -lcrypto -lxml2 -lm
@@ -150,7 +158,7 @@ htproxyput: htproxyput.c delegation.h delegation.wsdl \
             soapC.c soapServer.c
 	gcc $(MYCFLAGS) $(MYLDFLAGS) -o htproxyput \
             htproxyput.c \
-             -I/usr/kerberos/include \
+             $(OPENSSL_FLAGS) -I/usr/kerberos/include \
             -g -DVERSION=\"$(VERSION)\" \
             -I$(GSOAPDIR)/include -DWITH_OPENSSL -L$(GSOAPDIR)/lib \
             soapC.c soapClient.c -lgsoap \
@@ -160,7 +168,7 @@ proxyput-example: proxyput-example.c delegation.h delegation.wsdl \
             soapC.c soapServer.c libstdsoap2.a
 	gcc $(MYCFLAGS) $(MYLDFLAGS) -o proxyput-example \
             proxyput-example.c \
-             -I/usr/kerberos/include \
+             $(OPENSSL_FLAGS) -I/usr/kerberos/include \
             -g -DVERSION=\"$(VERSION)\" \
             -I$(GSOAPDIR) -DWITH_OPENSSL \
             soapC.c soapClient.c libstdsoap2.a \
@@ -269,3 +277,4 @@ wtf:
 	printenv
 	ls -l
 	ls -lR /usr/local/
+

@@ -20,6 +20,9 @@
 
 	Revision history:
 	$Log$
+	Revision 1.6  2004/11/13 10:55:44  glbuild
+	Added artifacts RPMS directory
+	
 	Revision 1.5  2004/10/29 22:55:07  dimeglio
 	Use envset target
 	
@@ -95,12 +98,16 @@
 		  Public common targets
 	     =============================================== -->
 	
+        <var name="global.prefix" unset="true"/>
+        <property name="global.prefix" value="gridsite"/>
+
 	<target name="localinit" depends="envcheck">
 		<mkdir dir="${stage.dir}" />
 		<mkdir dir="${dist.dir}" />
 	</target>
 
 	<target name="init" depends="localinit">
+		<echo>${global.prefix}</echo>
 	</target>
 
 	<target name="checkstyle" depends="init">
@@ -213,3 +220,4 @@
 	<target name="buildmodules" depends="envset"/>
 
 </project>
+

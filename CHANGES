@@ -1,10 +1,10 @@
 * Tue Feb 8 2005 Andrew McNab <Andrew.McNab@man.ac.uk>
 - Include GRSTx509MakeProxyFileName() and 
   GRSTx509StringToChain() (code to used hashes in cached
-  proxy file names.)
+  proxy file names.) Bug #6357
 - Change ordering of output proxy file produced by 
   GRSTx509CacheProxy so proxy private key is the 2nd PEM
-  encoded block (rather than at the end.)
+  encoded block (rather than at the end.) Bug #6365
 * Tue Feb 8 2005 Andrew McNab <Andrew.McNab@man.ac.uk>
 - ==== GridSite version 1.1.5 ====
 * Tue Dec 14 2004 Andrew McNab <Andrew.McNab@man.ac.uk>

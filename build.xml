@@ -20,6 +20,9 @@
 
 	Revision history:
 	$Log$
+	Revision 1.8  2004/12/17 00:32:50  dimeglio
+	Fixed global.prefix
+	
 	Revision 1.7  2004/12/03 14:49:59  dimeglio
 	Added OPENSSL_FLAGS and _LIBS options
 	
@@ -53,8 +56,6 @@
 	     Import properties (order is important) 
 	     ========================================= -->
 	
-    <property name="global.prefix" value="gridsite"/>
-
 	<!-- Import baseline & user properties -->
 	<import file="../org.glite/project/baseline.properties.xml" />
 

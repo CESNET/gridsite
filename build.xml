@@ -20,6 +20,9 @@
 
 	Revision history:
 	$Log$
+	Revision 1.7  2004/12/03 14:49:59  dimeglio
+	Added OPENSSL_FLAGS and _LIBS options
+	
 	Revision 1.6  2004/11/13 10:55:44  glbuild
 	Added artifacts RPMS directory
 	
@@ -50,6 +53,8 @@
 	     Import properties (order is important) 
 	     ========================================= -->
 	
+    <property name="global.prefix" value="gridsite"/>
+
 	<!-- Import baseline & user properties -->
 	<import file="../org.glite/project/baseline.properties.xml" />
 
@@ -98,9 +103,6 @@
 		  Public common targets
 	     =============================================== -->
 	
-        <var name="global.prefix" unset="true"/>
-        <property name="global.prefix" value="gridsite"/>
-
 	<target name="localinit" depends="envcheck">
 		<mkdir dir="${stage.dir}" />
 		<mkdir dir="${dist.dir}" />

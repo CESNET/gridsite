@@ -111,13 +111,13 @@ real-gridsite-admin.cgi: grst_admin_main.c grst_admin_gacl.c \
             grst_admin_gacl.c \
             grst_admin_file.c \
              $(OPENSSL_FLAGS) -I/usr/kerberos/include \
-            -DVERSION=\"$(VERSION)\" $(OPENSSL_LIBS) -lgridsite -lssl -lcrypto -lxml2 -lz -lm
+            -DVERSION=\"$(VERSION)\" $(OPENSSL_LIBS) -lgridsite -lssl$(FLAVOR_EXT) -lcrypto$(FLAVOR_EXT) -lxml2 -lz -lm
 
 findproxyfile: findproxyfile.c libgridsite.a
 	gcc -DVERSION=\"$(PATCH_VERSION)\" $(MYCFLAGS) $(MYLDFLAGS) \
             -o findproxyfile findproxyfile.c -L. \
              $(OPENSSL_FLAGS) -I/usr/kerberos/include -lgridsite \
-             $(OPENSSL_LIBS) -lssl -lcrypto -lxml2 -lz -lm
+             $(OPENSSL_LIBS) -lssl$(FLAVOR_EXT) -lcrypto$(FLAVOR_EXT) -lxml2 -lz -lm
 
 apidoc:
 	doxygen Doxyfile
@@ -125,7 +125,7 @@ apidoc:
 gaclexample: gaclexample.c libgridsite.a
 	gcc -o gaclexample gaclexample.c -I. -L. \
              $(OPENSSL_FLAGS) -I/usr/kerberos/include -lgridsite \
-            -lssl -lcrypto -lxml2 -lz -lm 
+            -lssl$(FLAVOR_EXT) -lcrypto$(FLAVOR_EXT) -lxml2 -lz -lm 
 
 #
 # Delegation machinery, including SOAP delegation portType. To build this
@@ -152,7 +152,7 @@ gridsite-delegation.cgi: grst-delegation.c delegation.h delegation.wsdl \
              $(OPENSSL_FLAGS) -I/usr/kerberos/include -I$(GSOAPDIR)/include \
             -DVERSION=\"$(VERSION)\" -L$(GSOAPDIR)/lib \
             soapC.c soapServer.c -lgsoap \
-            -lgridsite -lcurl -lz -lssl -lcrypto -lxml2 -lm
+            -lgridsite -lcurl -lz -lssl$(FLAVOR_EXT) -lcrypto$(FLAVOR_EXT) -lxml2 -lm
 
 htproxyput: htproxyput.c delegation.h delegation.wsdl \
             soapC.c soapServer.c
@@ -162,7 +162,7 @@ htproxyput: htproxyput.c delegation.h delegation.wsdl \
             -g -DVERSION=\"$(VERSION)\" \
             -I$(GSOAPDIR)/include -DWITH_OPENSSL -L$(GSOAPDIR)/lib \
             soapC.c soapClient.c -lgsoap \
-            -lgridsite -lcurl -lz -lssl -lcrypto -lxml2 -lm
+            -lgridsite -lcurl -lz -lssl$(FLAVOR_EXT) -lcrypto$(FLAVOR_EXT) -lxml2 -lm
 
 proxyput-example: proxyput-example.c delegation.h delegation.wsdl \
             soapC.c soapServer.c libstdsoap2.a
@@ -172,7 +172,7 @@ proxyput-example: proxyput-example.c delegation.h delegation.wsdl \
             -g -DVERSION=\"$(VERSION)\" \
             -I$(GSOAPDIR) -DWITH_OPENSSL \
             soapC.c soapClient.c libstdsoap2.a \
-            -lgridsite -lcurl -lz -lssl -lcrypto -lxml2 -lm
+            -lgridsite -lcurl -lz -lssl$(FLAVOR_EXT) -lcrypto$(FLAVOR_EXT) -lxml2 -lm
 
 clean:
 

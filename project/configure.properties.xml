@@ -3,9 +3,7 @@
 		 ====================================================== -->
 
 	<project name="configure options">
-<!--        <property name="build.make.arguments"
-               value="prefix=${stage.abs.dir} GSOAPDIR=${with.gsoap.prefix} OPENSSL_FLAGS=-I${with.globus.prefix}/include/gcc32 OPENSSL_LIBS=-L${with.globus.prefix}/lib/"/> -->
         <property name="build.make.arguments"
-               value="prefix=${stage.abs.dir} GSOAPDIR=${with.gsoap.prefix}"/>
+               value="prefix=${stage.abs.dir} GSOAPDIR=${with.gsoap.prefix} OPENSSL_FLAGS=-I${with.globus.prefix}/include/gcc32 OPENSSL_LIBS=-L${with.globus.prefix}/lib/ FLAVOR_EXT=_gcc32" />
 	</project>
 

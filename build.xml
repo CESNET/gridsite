@@ -20,6 +20,9 @@
 
 	Revision history:
 	$Log$
+	Revision 1.1  2004/10/26 17:54:24  dimeglio
+	First version of this file
+	
 -->
 
 <project name="gridsite-core" default="dist">
@@ -138,7 +141,7 @@
 		</exec>
 		<copy file="gridsite-${module.version}_bin.tar.gz" todir="${dist.dir}"/>
 		<copy file="gridsite-${module.version}.src.tar.gz" tofile="${dist.dir}/gridsite-${module.version}_src.tar.gz"/>
-		<copy todir="${dist.dir}/rhel30/1386/RPMS">
+		<copy todir="${dist.dir}/${os.platform}/1386/RPMS">
 			<fileset dir="${module.dir}/RPMTMP/RPMS/i386">
 				<include name="*.rpm"/>
 			</fileset>
@@ -168,6 +171,7 @@
 				<include name="*.so"/>
 				<include name="*.so.*"/>
 				<include name="*.a"/>
+				<include name="rm -rf urlencode"/>
 			</fileset>
 		</delete>
 	</target>

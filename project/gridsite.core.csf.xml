@@ -21,6 +21,9 @@
 
 	Revision history:
 	$Log$
+	Revision 1.2  2004/10/27 10:28:29  dimeglio
+	Modified to use gridsite-core
+	
 	Revision 1.1  2004/10/26 17:54:24  dimeglio
 	First version of this file
 	
@@ -90,44 +93,46 @@
 		 =============================================== -->
 
     	<target name="evaluate.cvs.tags" description="Figure out if we need tagged CVS checkout">
-		<condition property="glite.head">
-			<and>
-				<equals arg1="${org.glite.version}" arg2="HEAD" />
-				<or>
-					<istrue value="${update}" />
-					<not>
-						<available file="${global.dependencies.file}" type="file" />
-					</not>
-				</or>
-			</and>
-		</condition>
-		<condition property="glite.tag">
-			<and>
-				<not>
+			<condition property="glite.head">
+				<and>
 					<equals arg1="${org.glite.version}" arg2="HEAD" />
-				</not>
-				<or>
-					<istrue value="${update}" />
+					<or>
+						<istrue value="${update}" />
+						<not>
+							<available file="${global.dependencies.file}" type="file" />
+						</not>
+					</or>
+				</and>
+			</condition>
+			<condition property="glite.tag">
+				<and>
 					<not>
-						<available file="${global.dependencies.file}" type="file" />
+						<equals arg1="${org.glite.version}" arg2="HEAD" />
 					</not>
-				</or>
-			</and>
-		</condition>
-		<condition property="gridsite-core.head">
-			<and>
-				<equals arg1="${org.gridsite-core.version}" arg2="HEAD" />
-				<istrue value="${update}" />
-			</and>
-		</condition>
-		<condition property="gridsite-core.tag">
-			<and>
-				<not>
+					<or>
+						<istrue value="${update}" />
+						<not>
+							<available file="${global.dependencies.file}" type="file" />
+						</not>
+					</or>
+				</and>
+			</condition>
+			<condition property="gridsite-core.head">
+				<and>
 					<equals arg1="${org.gridsite-core.version}" arg2="HEAD" />
-				</not>
-				<istrue value="${update}" />
-			</and>
-		</condition>
+					<istrue value="${update}" />
+				</and>
+			</condition>
+			<condition property="gridsite-core.tag">
+				<and>
+					<not>
+						<equals arg1="${org.gridsite-core.version}" arg2="HEAD" />
+					</not>
+					<istrue value="${update}" />
+				</and>
+			</condition>
+
+		</target>
 	
 		<!-- condition property tag = do not remove = -->
 

@@ -58,11 +58,9 @@ endif
 
 build: libgridsite.so.$(VERSION) libgridsite.a htcp mod_gridsite.so \
        urlencode findproxyfile real-gridsite-admin.cgi \
-       # gridsite-delegation.cgi # htproxyput
+       gridsite-delegation.cgi htproxyput
 
 build: libgridsite_globus.so.$(VERSION) libgridsite_globus.a
-
-build: wtf
 
 # First, normal versions using system OpenSSL rather than Globus OpenSSL
 
@@ -218,7 +216,7 @@ htproxyput: htproxyput.c delegation.h delegation.wsdl \
             -lgridsite -lcurl -lz -lssl -lcrypto -lxml2 -lm
 
 proxyput-example: proxyput-example.c delegation.h delegation.wsdl \
-            soapC.c soapServer.c libstdsoap2.a
+            soapC.c soapServer.c
 	gcc $(MYCFLAGS) $(MYLDFLAGS) -o proxyput-example \
             proxyput-example.c \
             -I/usr/kerberos/include \

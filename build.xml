@@ -20,6 +20,9 @@
 
 	Revision history:
 	$Log$
+	Revision 1.2  2004/10/27 11:18:38  dimeglio
+	Use os.platform instead of hard-coded rhel30
+	
 	Revision 1.1  2004/10/26 17:54:24  dimeglio
 	First version of this file
 	
@@ -141,7 +144,7 @@
 		</exec>
 		<copy file="gridsite-${module.version}_bin.tar.gz" todir="${dist.dir}"/>
 		<copy file="gridsite-${module.version}.src.tar.gz" tofile="${dist.dir}/gridsite-${module.version}_src.tar.gz"/>
-		<copy todir="${dist.dir}/${os.platform}/1386/RPMS">
+		<copy todir="${dist.dir}/${os.platform}/i386/RPMS">
 			<fileset dir="${module.dir}/RPMTMP/RPMS/i386">
 				<include name="*.rpm"/>
 			</fileset>

@@ -20,6 +20,9 @@
 
 	Revision history:
 	$Log$
+	Revision 1.5  2004/10/29 22:55:07  dimeglio
+	Use envset target
+	
 	Revision 1.4  2004/10/28 23:00:14  dimeglio
 	Removed post-subsystem entry
 	
@@ -155,6 +158,13 @@
 				<include name="*.rpm"/>
 			</fileset>
 		</copy>
+		<delete dir="${module.dir}/RPMS"/>
+		<mkdir dir="${module.dir}/RPMS"/>
+                <copy todir="${module.dir}/RPMS">
+                        <fileset dir="${module.dir}/RPMTMP/RPMS/i386">
+                                <include name="*.rpm"/>
+                        </fileset>
+                </copy>
 		<delete>
 			<fileset dir="${module.dir}">
 				<include name="*.tar.gz"/>
@@ -183,6 +193,7 @@
 				<include name="rm -rf urlencode"/>
 			</fileset>
 		</delete>
+		<delete dir="${module.dir}/RPMS"/>
 	</target>
 
 	<target name="cleanAll" depends="clean"/>

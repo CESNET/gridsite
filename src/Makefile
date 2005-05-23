@@ -64,12 +64,12 @@ build: libgridsite_globus.so.$(VERSION) libgridsite_globus.a
 
 # First, normal versions using system OpenSSL rather than Globus OpenSSL
 
-libgridsite.so.$(VERSION): grst_x509.o grst_gacl.o grst_http.o grst_asn1.o
+libgridsite.so.$(VERSION): grst_x509.o grst_gacl.o grst_xacml.o grst_http.o grst_asn1.o
 	gcc -shared -Wl,-soname,libgridsite.so.$(MINOR_VERSION) \
-         -o libgridsite.so.$(PATCH_VERSION) grst_x509.o grst_gacl.o grst_http.o grst_asn1.o
+         -o libgridsite.so.$(PATCH_VERSION) grst_x509.o grst_gacl.o grst_xacml.o grst_http.o grst_asn1.o
 
-libgridsite.a: grst_x509.o grst_gacl.o grst_http.o grst_asn1.o
-	ar src libgridsite.a grst_x509.o grst_gacl.o grst_http.o grst_asn1.o
+libgridsite.a: grst_x509.o grst_gacl.o grst_xacml.o grst_http.o grst_asn1.o
+	ar src libgridsite.a grst_x509.o grst_gacl.o grst_xacml.o grst_http.o grst_asn1.o
 
 grst_x509.o: grst_x509.c ../interface/gridsite.h
 	gcc $(MYCFLAGS) \
@@ -78,6 +78,10 @@ grst_x509.o: grst_x509.c ../interface/gridsite.h
 grst_gacl.o: grst_gacl.c ../interface/gridsite.h
 	gcc $(MYCFLAGS) \
             -I/usr/kerberos/include `xml2-config --cflags` -c grst_gacl.c
+
+grst_xacml.o: grst_xacml.c ../interface/gridsite.h
+	gcc $(MYCFLAGS) \
+            -I/usr/kerberos/include `xml2-config --cflags` -c grst_xacml.c
 
 grst_http.o: grst_http.c ../interface/gridsite.h
 	gcc $(MYCFLAGS) \
@@ -176,7 +180,12 @@ apidoc:
 gaclexample: gaclexample.c libgridsite.a
 	gcc -o gaclexample gaclexample.c -I. -L. \
             -I/usr/kerberos/include -lgridsite \
-            -lssl -lcrypto -lxml2 -lz -lm 
+            -lssl -lcrypto -lxml2 -lz -lm
+	    
+xacmlexample: xacmlexample.c libgridsite.a
+	gcc -o xacmlexample xacmlexample.c -I. -L. \
+            -I/usr/kerberos/include -lgridsite \
+            -lssl -lcrypto -lxml2 -lz -lm
 
 #
 # Delegation machinery, including SOAP delegation portType. To build this

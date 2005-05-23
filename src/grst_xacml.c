@@ -229,29 +229,39 @@ static GRSTgaclEntry *GRSTxacmlEntryParse(xmlNodePtr cur)
 
 GRSTgaclAcl *GRSTxacmlAclLoadFile(char *filename)
 {
-  xmlDocPtr   doc;
+xmlDocPtr   doc;
   xmlNodePtr  cur;
   GRSTgaclAcl    *acl;
-  GRSTgaclEntry  *entry;
-#ifdef XACML_DEBUG
-  debugfile=fopen(XACML_DEBUG_FILE, "w");
-  fprintf (debugfile, "Loading acl..\n");
-#endif
+
   doc = xmlParseFile(filename);
   if (doc == NULL) return NULL;
 
   cur = xmlDocGetRootElement(doc);
   if (cur == NULL) return NULL;
- 
-   if (xmlStrcmp(cur->name, (const xmlChar *) "Policy"))
+
+  if (!xmlStrcmp(cur->name, (const xmlChar *) "Policy")) { acl=GRSTxacmlAclParse(doc, cur, acl);}
+  else if (!xmlStrcmp(cur->name, (const xmlChar *) "gacl")) {acl=GRSTgaclAclParse(doc, cur, acl);}
+  else /* ACL format not recognised */
     {
       free(doc);
       free(cur);
       return NULL;
     }
-#ifdef XACML_DEBUG
-  fprintf (debugfile, "Error Checks done, load acl\n");
-#endif
+
+  xmlFreeDoc(doc);
+  return acl;
+}
+
+GRSTgaclAcl *GRSTxacmlAclParse(xmlDocPtr doc, xmlNodePtr cur, GRSTgaclAcl *acl){
+
+  GRSTgaclEntry  *entry;
+
+  #ifdef XACML_DEBUG
+  debugfile=fopen(XACML_DEBUG_FILE, "w");
+  fprintf (debugfile, "ACL loaded..\n");
+  fprintf (debugfile, "Parsing XACML\n");
+  #endif
+
   // Have an XACML policy file.
   // Skip <Target> tag and set cur to first <Rule> tag
   cur = cur->xmlChildrenNode->next;
@@ -260,45 +270,54 @@ GRSTgaclAcl *GRSTxacmlAclLoadFile(char *filename)
 
   while (cur != NULL){
 
-
-    if ( xmlStrcmp(cur->name, (const xmlChar *)"Rule") == 0 ){ // IF statement not needed?
-#ifdef XACML_DEBUG
+    if ( !xmlStrcmp(cur->name, (const xmlChar *)"Rule") )
+    { // IF statement not needed?
+      #ifdef XACML_DEBUG
       fprintf (debugfile, "Rule %s found\n", xmlNodeGetContent(cur->properties->children) );
       fprintf (debugfile, "Parsing Entry for this rule\n");
-#endif
+      #endif
       entry = GRSTxacmlEntryParse(cur);
 
-      if (entry == NULL){
+      if (entry == NULL)
+      {
         GRSTgaclAclFree(acl);
         xmlFreeDoc(doc);
         return NULL;
       }
       else GRSTgaclAclAddEntry(acl, entry);
-#ifdef XACML_DEBUG
+
+      #ifdef XACML_DEBUG
       fprintf (debugfile, "Entry read in\n\n");
-#endif
+      #endif
     }
+
     // If the current and next Rules are part of the same entry then advance two Rules
     // If not then advance 1
     if (cur->next != NULL)
+    {
       if ( strncmp(xmlNodeGetContent(cur->properties->children),       // RuleId of this Rule
                    xmlNodeGetContent(cur->next->properties->children), // RuleId of next Rule
-                   6) == 0) {
-#ifdef XACML_DEBUG
-		   fprintf (debugfile, "skipping next rule %s, should have been caught previously\n\n", xmlNodeGetContent(cur->next->properties->children) );
-#endif
-		   cur=cur->next;
-		   } // Check first 6 characters i.e. Entry1**/
+                   6) == 0)
+      {
+        #ifdef XACML_DEBUG
+	fprintf (debugfile, "skipping next rule %s, should have been caught previously\n\n", xmlNodeGetContent(cur->next->properties->children) );
+	#endif
+	cur=cur->next;
+      } // Check first 6 characters i.e. Entry1**/
+    }
+
     cur=cur->next;
 
   }
-#ifdef XACML_DEBUG
+
+  #ifdef XACML_DEBUG
   fprintf (debugfile, "Finished loading ACL - Fanfare!\n");
   fclose(debugfile);
-#endif
-  xmlFreeDoc(doc);
+  #endif
+
   return acl;
 }
+
 
 int GRSTxacmlFileIsAcl(char *pathandfile)
 /* Return 1 if filename in *pathandfile starts GRST_ACL_FILE

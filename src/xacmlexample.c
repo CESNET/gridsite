@@ -122,7 +122,7 @@ int main()
 
   GRSTgaclAclPrint(acl1, stdout);
 
-  GRSTxacmlAclSave(acl1, "example.gacl");
+  GRSTgaclAclSave(acl1, "example.xacml");
 
   puts("gridacl.out saved");
 
@@ -130,7 +130,7 @@ int main()
 
   /* load the ACL back off the disk, print and test it */
 
-  acl2 = GRSTxacmlAclLoadFile("example.gacl");
+  acl2 = GRSTxacmlAclLoadFile("example.xacml");
 
   puts("gridacl.out loaded");
 

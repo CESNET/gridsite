@@ -305,7 +305,7 @@ GRSTgaclEntry *GRSTgaclEntryNew(void)
   newentry->allowed      = 0;
   newentry->denied       = 0;
   newentry->next         = NULL;
-      
+
   return newentry;
 }
 
@@ -376,7 +376,7 @@ int GRSTgaclEntryPrint(GRSTgaclEntry *entry, FILE *fp)
 {
   GRSTgaclCred  *cred;
   GRSTgaclPerm  i;
-  
+
   fputs("<entry>\n", fp);
   
   for (cred = entry->firstcred; cred != NULL; cred = cred->next)
@@ -589,7 +589,7 @@ static GRSTgaclEntry *GRSTgaclEntryParse(xmlNodePtr cur)
   if (xmlStrcmp(cur->name, (const xmlChar *) "entry") != 0) return NULL;
   
   cur = cur->xmlChildrenNode;
-  
+
   entry = GRSTgaclEntryNew();
   
   while (cur != NULL)
@@ -636,24 +636,35 @@ GRSTgaclAcl *GRSTgaclAclLoadFile(char *filename)
   xmlDocPtr   doc;
   xmlNodePtr  cur;
   GRSTgaclAcl    *acl;
-  GRSTgaclEntry  *entry;
-        
+
   doc = xmlParseFile(filename);
   if (doc == NULL) return NULL;
-    
+
   cur = xmlDocGetRootElement(doc);
-  
-  if (xmlStrcmp(cur->name, (const xmlChar *) "gacl"))
+  if (cur == NULL) return NULL;
+
+  if (!xmlStrcmp(cur->name, (const xmlChar *) "Policy")) { acl=GRSTxacmlAclParse(doc, cur, acl);}
+  else if (!xmlStrcmp(cur->name, (const xmlChar *) "gacl")) {acl=GRSTgaclAclParse(doc, cur, acl);}
+  else /* ACL format not recognised */
     {
       free(doc);
       free(cur);
       return NULL;
     }
 
+    
+  xmlFreeDoc(doc);
+  return acl;
+}
+
+GRSTgaclAcl *GRSTgaclAclParse(xmlDocPtr doc, xmlNodePtr cur, GRSTgaclAcl *acl)
+{
+  GRSTgaclEntry  *entry;
+
   cur = cur->xmlChildrenNode;
 
   acl = GRSTgaclAclNew();
-  
+
   while (cur != NULL)
        {
          entry = GRSTgaclEntryParse(cur);
@@ -665,24 +676,22 @@ GRSTgaclAcl *GRSTgaclAclLoadFile(char *filename)
            }
 
          GRSTgaclAclAddEntry(acl, entry);
-         
+
          cur=cur->next;
        }
 
-  xmlFreeDoc(doc);
   return acl;
 }
-
 int GRSTgaclFileIsAcl(char *pathandfile)
-/* Return 1 if filename in *pathandfile starts GRST_ACL_FILE 
+/* Return 1 if filename in *pathandfile starts GRST_ACL_FILE
    Return 0 otherwise. */
-{ 
+{
   char *filename;
-      
+
   filename = rindex(pathandfile, '/');
   if (filename == NULL) filename = pathandfile;
   else                  filename++;
-            
+
   return (strncmp(filename, GRST_ACL_FILE, sizeof(GRST_ACL_FILE) - 1) == 0);
 }
 
@@ -694,14 +703,14 @@ char *GRSTgaclFileFindAclname(char *pathandfile)
   int          len;
   char        *path, *file, *p;
   struct stat  statbuf;
-   
+
   len = strlen(pathandfile);
   if (len == 0) return NULL;
   
   path = malloc(len + sizeof(GRST_ACL_FILE) + 2);
   strcpy(path, pathandfile);
 
-  if ((stat(path, &statbuf) == 0)	&& 
+  if ((stat(path, &statbuf) == 0)	&&
        S_ISDIR(statbuf.st_mode)		&&
       (path[len-1] != '/'))
     {

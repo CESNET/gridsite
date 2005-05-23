@@ -122,7 +122,7 @@ int main()
 
   GRSTgaclAclPrint(acl1, stdout);
 
-  GRSTgaclAclSave(acl1, "example.xacml");
+  GRSTxacmlAclSave(acl1, "example.xacml");
 
   puts("gridacl.out saved");
 

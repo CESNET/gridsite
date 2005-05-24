@@ -83,6 +83,11 @@ int GRSTgaclInit(void)
   return 1;
 }                             
 
+/* declare these two private functions at the start */
+
+GRSTgaclAcl *GRSTgaclAclParse(xmlDocPtr, xmlNodePtr, GRSTgaclAcl *);
+GRSTgaclAcl *GRSTxacmlAclParse(xmlDocPtr, xmlNodePtr, GRSTgaclAcl *);
+
 /*                                             *
  * Functions to manipulate GRSTgaclCred structures *
  *                                             */

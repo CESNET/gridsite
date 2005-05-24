@@ -69,6 +69,8 @@ extern GRSTgaclPerm grst_perm_vals[];
 
 FILE* debugfile;
 
+GRSTgaclAcl *GRSTgaclAclParse(xmlDocPtr, xmlNodePtr, GRSTgaclAcl *);
+GRSTgaclAcl *GRSTxacmlAclParse(xmlDocPtr, xmlNodePtr, GRSTgaclAcl *);
 
 /*                                                     *
  * Functions to read in XACML 1.1 compliant format ACL *
@@ -252,8 +254,8 @@ xmlDocPtr   doc;
   return acl;
 }
 
-GRSTgaclAcl *GRSTxacmlAclParse(xmlDocPtr doc, xmlNodePtr cur, GRSTgaclAcl *acl){
-
+GRSTgaclAcl *GRSTxacmlAclParse(xmlDocPtr doc, xmlNodePtr cur, GRSTgaclAcl *acl)
+{
   GRSTgaclEntry  *entry;
 
   #ifdef XACML_DEBUG

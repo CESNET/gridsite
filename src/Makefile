@@ -57,7 +57,7 @@ endif
 #
 
 build: libgridsite.so.$(VERSION) libgridsite.a htcp mod_gridsite.so \
-       urlencode findproxyfile real-gridsite-admin.cgi \
+       urlencode findproxyfile real-gridsite-admin.cgi gsexec \
        # gridsite-delegation.cgi # htproxyput 
 
 build: libgridsite_globus.so.$(VERSION) libgridsite_globus.a
@@ -135,6 +135,11 @@ libgridsite_globus.a: libgridsite.a
 	cp -f libgridsite.a libgridsite_globus.a
 
 endif
+
+gsexec:	gsexec.c 
+	gcc -DVERSION=\"$(PATCH_VERSION)\" -I/usr/include/httpd \
+	    -I/usr/include/apr-0 \
+	    -o gsexec gsexec.c
 
 urlencode: urlencode.c libgridsite.a
 	gcc -DVERSION=\"$(PATCH_VERSION)\" $(MYCFLAGS) \

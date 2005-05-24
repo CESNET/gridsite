@@ -233,7 +233,6 @@ GRSTgaclPerm   GRSTgaclAclTestUser(GRSTgaclAcl *, GRSTgaclUser *);
 /*  #define GACLtestExclAcl(x,y)	GRSTgaclAclTestexclUser((x),(y)) */
 GRSTgaclPerm   GRSTgaclAclTestexclUser(GRSTgaclAcl *, GRSTgaclUser *);
 
-
 char      *GRSThttpUrlDecode(char *);
 
 /*  #define GACLurlEncode(x)	GRSThttpUrlEncode((x)) */

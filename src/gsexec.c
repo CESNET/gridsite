@@ -95,6 +95,7 @@ char *safe_env_lst[] =
     /* variable name starts with */
     "HTTP_",
     "SSL_",
+    "GRST_",
 
     /* variable name is */
     "AUTH_TYPE=",
@@ -244,11 +245,20 @@ static void clean_env(void)
     environ = cleanenv;
 }
 
+int GRSTexecGetMapping(char **target_uname, char **target_gname, 
+                       char *map_x509dn) 
+{
+    return 1;
+}
+
 int main(int argc, char *argv[])
 {
     int userdir = 0;        /* ~userdir flag             */
     uid_t uid;              /* user information          */
     gid_t gid;              /* target group placeholder  */
+    char *mapping_type;	    /* suexec / X509DN / directory */
+    char *map_x509dn;	    /* DN to use as pool acct. key */
+    char *map_directory;    /* directory as pool acct. key */
     char *target_uname;     /* target user name          */
     char *target_gname;     /* target group name         */
     char *target_homedir;   /* target home directory     */
@@ -326,8 +336,56 @@ int main(int argc, char *argv[])
         log_err("too few arguments\n");
         exit(101);
     }
-    target_uname = argv[1];
-    target_gname = argv[2];
+    
+    mapping_type = getenv("GRST_EXEC_MAPPING");
+    if ((mapping_type    == NULL) ||
+        (mapping_type[0] == '\0') ||
+        (strcasecmp(mapping_type, "suexec") == 0))
+      {
+        target_uname = argv[1];
+        target_gname = argv[2];
+        mapping_type = NULL;
+      }
+    else if (strcasecmp(mapping_type, "X509DN") == 0)
+      {
+        map_x509dn = getenv("SSL_CLIENT_S_DN");
+        if (map_x509dn == NULL)
+          {
+            log_err("No SSL_CLIENT_S_DN despite X509DN mapping\n");
+            exit(151);
+          }
+
+        if (GRSTexecGetMapping(&target_uname, &target_gname, map_x509dn) 
+            != 0)
+          {
+            log_err("GRSTexecGetMapping() failed mapping \"%s\"\n", 
+                    map_x509dn);
+            exit(152);          
+          }
+      }
+    else if (strcasecmp(mapping_type, "directory") == 0)
+      {
+        map_directory = getenv("GRST_EXEC_MAP_DIR");
+        if (map_directory == NULL)
+          {
+            log_err("No GRST_EXEC_MAP_DIR despite directory mapping\n");
+            exit(153);
+          }
+
+        if (GRSTexecGetMapping(&target_uname, &target_gname, map_directory) 
+            != 0)
+          {
+            log_err("GRSTexecGetMapping() failed mapping \"%s\"\n", 
+                    map_directory);
+            exit(154);          
+          }
+      }
+    else 
+      {
+        log_err("mapping type \"%s\" not recognised\n", mapping_type);
+        exit(155);
+      }
+
     cmd = argv[3];
 
     /*

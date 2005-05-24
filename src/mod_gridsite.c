@@ -1,5 +1,5 @@
 /*
-   Copyright (c) 2003-4, Andrew McNab, University of Manchester
+   Copyright (c) 2003-5, Andrew McNab and Shiv Kaushal, University of Manchester
    All rights reserved.
 
    Redistribution and use in source and binary forms, with or
@@ -99,6 +99,7 @@ typedef struct
    int   downgrade;
    char *authcookiesdir;
    int   soap2cgi;
+   char *aclformat;
 }  mod_gridsite_cfg; /* per-directory config choices */
 
 
@@ -1433,7 +1434,7 @@ static void *create_gridsite_dir_config(apr_pool_t *p, char *path)
     mod_gridsite_cfg *conf = apr_palloc(p, sizeof(*conf));
 
     if (path == NULL) /* set up server defaults */
-      { 
+      {
         conf->auth          = 0;     /* GridSiteAuth          on/off       */
         conf->envs          = 1;     /* GridSiteEnvs          on/off       */
         conf->format        = 0;     /* GridSiteHtmlFormat    on/off       */
@@ -1452,18 +1453,19 @@ static void *create_gridsite_dir_config(apr_pool_t *p, char *path)
 
         conf->methods    = apr_pstrdup(p, " GET ");
                                         /* GridSiteMethods      methods   */
-                            
+
         conf->editable = apr_pstrdup(p, " txt shtml html htm css js php jsp ");
                                         /* GridSiteEditable     types   */
-     
+
         conf->headfile = apr_pstrdup(p, GRST_HEADFILE);
-        conf->footfile = apr_pstrdup(p, GRST_FOOTFILE); 
+        conf->footfile = apr_pstrdup(p, GRST_FOOTFILE);
                /* GridSiteHeadFile and GridSiteFootFile  file name */
 
         conf->downgrade     = 0;     /* GridSiteDowngrade     on/off       */
         conf->authcookiesdir = apr_pstrdup(p, "gridauthcookies");
                                      /* GridSiteAuthCookiesDir dir-path     */
         conf->soap2cgi      = 0;     /* GridSiteSoap2cgi      on/off       */
+	conf->aclformat     = apr_pstrdup(p, "GACL");
       }
     else
       {
@@ -1488,24 +1490,25 @@ static void *create_gridsite_dir_config(apr_pool_t *p, char *path)
         conf->downgrade     = UNSET; /* GridSiteDowngrade     on/off       */
         conf->authcookiesdir= NULL;  /* GridSiteAuthCookiesDir dir-path    */
         conf->soap2cgi      = UNSET; /* GridSiteSoap2cgi      on/off       */
+	conf->aclformat     = NULL;  /* GridSiteACLFormat     gacl/xacml   */
       }
-      
+
     return conf;
 }
 
-static void *merge_gridsite_dir_config(apr_pool_t *p, void *vserver, 
+static void *merge_gridsite_dir_config(apr_pool_t *p, void *vserver,
                                                       void *vdirect)
 /* merge directory with server-wide directory configs */
 {
     mod_gridsite_cfg *conf, *server, *direct;
-   
+
     server = (mod_gridsite_cfg *) vserver;
     direct = (mod_gridsite_cfg *) vdirect;
     conf = apr_palloc(p, sizeof(*conf));
-    
+
     if (direct->auth != UNSET) conf->auth = direct->auth;
     else                       conf->auth = server->auth;
-    
+
     if (direct->envs != UNSET) conf->envs = direct->envs;
     else                       conf->envs = server->envs;
         
@@ -1535,29 +1538,29 @@ static void *merge_gridsite_dir_config(apr_pool_t *p, void *vserver,
         
     if (direct->dnlistsuri != NULL) conf->dnlistsuri = direct->dnlistsuri;
     else                            conf->dnlistsuri = server->dnlistsuri;
-        
+
     if (direct->adminlist != NULL) conf->adminlist = direct->adminlist;
     else                           conf->adminlist = server->adminlist;
-        
-    if (direct->gsiproxylimit != UNSET) 
+
+    if (direct->gsiproxylimit != UNSET)
                          conf->gsiproxylimit = direct->gsiproxylimit;
     else                 conf->gsiproxylimit = server->gsiproxylimit;
-        
+
     if (direct->unzip != NULL) conf->unzip = direct->unzip;
     else                       conf->unzip = server->unzip;
-        
+
     if (direct->methods != NULL) conf->methods = direct->methods;
     else                         conf->methods = server->methods;
-        
+
     if (direct->editable != NULL) conf->editable = direct->editable;
     else                          conf->editable = server->editable;
-        
+
     if (direct->headfile != NULL) conf->headfile = direct->headfile;
     else                          conf->headfile = server->headfile;
-        
+
     if (direct->footfile != NULL) conf->footfile = direct->footfile;
     else                          conf->footfile = server->footfile;
-        
+
     if (direct->downgrade != UNSET) conf->downgrade = direct->downgrade;
     else                            conf->downgrade = server->downgrade;
         
@@ -1567,7 +1570,10 @@ static void *merge_gridsite_dir_config(apr_pool_t *p, void *vserver,
         
     if (direct->soap2cgi != UNSET) conf->soap2cgi = direct->soap2cgi;
     else                           conf->soap2cgi = server->soap2cgi;
-        
+
+    if (direct->aclformat !=NULL)   conf->aclformat = direct->aclformat;
+    else                           conf->aclformat = server->aclformat;
+
     return conf;
 }
 
@@ -1679,7 +1685,17 @@ static const char *mod_gridsite_take1_cmds(cmd_parms *a, void *cfg,
       ((mod_gridsite_cfg *) cfg)->authcookiesdir =
         apr_pstrdup(a->pool, parm);
     }
-        
+    else if (strcasecmp(a->cmd->name, "GridSiteACLFormat") == 0)
+    {
+      if (strcasecmp(parm,"GACL")==0)
+         ((mod_gridsite_cfg *) cfg)->aclformat = 
+	   apr_pstrdup(a->pool, parm);
+      else if (strcasecmp(parm,"XACML")==0)
+         ((mod_gridsite_cfg *) cfg)->aclformat =
+	   apr_pstrdup(a->pool, parm);
+      else return "GridsiteACLFormat must be either GACL or XACML";
+    }
+
     return NULL;
 }
 
@@ -1763,13 +1779,17 @@ static const command_rec mod_gridsite_cmds[] =
     AP_INIT_TAKE1("GridSiteIndexHeader", mod_gridsite_take1_cmds,
                    NULL, OR_FILEINFO, "filename of directory header"),
     
-    AP_INIT_FLAG("GridSiteDowngrade", mod_gridsite_flag_cmds, 
+    AP_INIT_FLAG("GridSiteDowngrade", mod_gridsite_flag_cmds,
                  NULL, OR_FILEINFO, "on or off"),
     AP_INIT_TAKE1("GridSiteAuthCookiesDir", mod_gridsite_take1_cmds,
                  NULL, OR_FILEINFO, "directory with Grid Auth Cookies"),
-
+    
     AP_INIT_FLAG("GridSiteSoap2cgi", mod_gridsite_flag_cmds,
                  NULL, OR_FILEINFO, "on or off"),
+
+    AP_INIT_TAKE1("GridSiteACLFormat", mod_gridsite_take1_cmds,
+                 NULL, OR_FILEINFO, "format to save access control lists in"),
+
     {NULL}
 };
 
@@ -2028,8 +2048,8 @@ static int mod_gridsite_perm_handler(request_rec *r)
 	          apr_table_setn(env, "GRST_ADMIN_LIST",
                               ((mod_gridsite_cfg *) cfg)->adminlist);
 
-	apr_table_setn(env, "GRST_GSIPROXY_LIMIT", 
- 	                     apr_psprintf(r->pool, "%d", 
+	apr_table_setn(env, "GRST_GSIPROXY_LIMIT",
+ 	                     apr_psprintf(r->pool, "%d",
   	                           ((mod_gridsite_cfg *)cfg)->gsiproxylimit));
 
         if (((mod_gridsite_cfg *) cfg)->unzip != NULL)
@@ -2038,12 +2058,16 @@ static int mod_gridsite_perm_handler(request_rec *r)
 
         if (!(((mod_gridsite_cfg *) cfg)->gridsitelink))
                   apr_table_setn(env, "GRST_NO_LINK", "1");
+
+        if (((mod_gridsite_cfg *) cfg)->aclformat != NULL)
+	          apr_table_setn(env, "GRST_ACL_FORMAT",
+                              ((mod_gridsite_cfg *) cfg)->aclformat);
       }
-     
+
     if (((mod_gridsite_cfg *) cfg)->auth)
       {
         /* *** Check HTTP method to decide which perm bits to check *** */
-                                  
+
         if (r->filename != NULL)
           {
             file = rindex(r->filename, '/');
@@ -2053,7 +2077,7 @@ static int mod_gridsite_perm_handler(request_rec *r)
         else file = NULL;
 
         content_type = r->content_type;
-        if ((content_type != NULL) && 
+        if ((content_type != NULL) &&
             (strcmp(content_type, DIR_MAGIC_TYPE) == 0) &&
             (((mod_gridsite_cfg *) cfg)->dnlistsuri != NULL) &&
             (strncmp(r->uri,
@@ -2061,7 +2085,7 @@ static int mod_gridsite_perm_handler(request_rec *r)
                      strlen(((mod_gridsite_cfg *) cfg)->dnlistsuri)) == 0) &&
             (strlen(r->uri) > strlen(((mod_gridsite_cfg *) cfg)->dnlistsuri)))
             content_type = "text/html";
-        
+
         if ( GRSTgaclPermHasNone(perm) ||
 
             /* first two M_GET conditions make the subtle distinction
@@ -2069,20 +2093,20 @@ static int mod_gridsite_perm_handler(request_rec *r)
                Read perm) or to dir list (governed by List perm);
                third M_GET condition deals with typeless CGI requests */
 
-            ((r->method_number == M_GET) && 
+            ((r->method_number == M_GET) &&
              !GRSTgaclPermHasRead(perm)  &&
              (content_type != NULL)   &&
              (strcmp(content_type, DIR_MAGIC_TYPE) != 0)) ||
 
-            ((r->method_number == M_GET) && 
+            ((r->method_number == M_GET) &&
              !GRSTgaclPermHasList(perm)  &&
              (content_type != NULL)   &&
              (strcmp(content_type, DIR_MAGIC_TYPE) == 0)) ||
 
-            ((r->method_number == M_GET) && 
+            ((r->method_number == M_GET) &&
              !GRSTgaclPermHasRead(perm)  &&
              (content_type == NULL))      ||
-                                                                           
+
             ((r->method_number == M_POST) && !GRSTgaclPermHasRead(perm) ) ||
 
             (((r->method_number == M_PUT) || (r->method_number == M_DELETE)) &&
@@ -2091,7 +2115,7 @@ static int mod_gridsite_perm_handler(request_rec *r)
 
             (((r->method_number == M_PUT) || (r->method_number == M_DELETE)) &&
              !GRSTgaclPermHasAdmin(perm) &&
-             (file != NULL)              && 
+             (file != NULL)              &&
              (strcmp(file, GRST_ACL_FILE) == 0) ) ) retcode = HTTP_FORBIDDEN;
       }
 

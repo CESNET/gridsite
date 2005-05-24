@@ -1,5 +1,5 @@
 /*
-  Copyright (c) 2003, Shiv Kaushal, University of Manchester
+  Copyright (c) 2003-5, Shiv Kaushal, University of Manchester
   All rights reserved.
 
   Redistribution and use in source and binary forms, with or
@@ -918,7 +918,19 @@ void check_acl_save(char *dn, GRSTgaclPerm perm, char *help_uri, char *dir_path,
   strcat(dir_path_vfile, "/");
   strcat(dir_path_vfile, vfile);
 
-  GRSTgaclAclSave(acl, dir_path_vfile); // save the new ACL to the temporary file
+
+  // save the new ACL to the temporary file in the correct format using the GridsiteACLFormat directive
+
+  if (strcasecmp(getenv("REDIRECT_GRST_ACL_FORMAT"), "XACML") ==0) GRSTxacmlAclSave(acl, dir_path_vfile);
+  else if (strcasecmp(getenv("REDIRECT_GRST_ACL_FORMAT"), "GACL") ==0) GRSTgaclAclSave(acl, dir_path_vfile);
+  else
+  {
+    GRSThttpPrintf (bp, "ERROR: ACL type not correctly specified");
+    admin_continue(dn, perm, help_uri, dir_path, file, dir_uri, admin_file, bp);
+    return;
+  }
+
+
   unlink(dir_path_file);
   if (link (dir_path_vfile,dir_path_file)!=0) GRSThttpError("403 Forbidden");
 

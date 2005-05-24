@@ -1,6 +1,6 @@
 /*
    Andrew McNab and Shiv Kaushal, University of Manchester. 
-   Copyright (c) 2002-3. All rights reserved.
+   Copyright (c) 2002-5. All rights reserved.
 
    Redistribution and use in source and binary forms, with or
    without modification, are permitted provided that the following

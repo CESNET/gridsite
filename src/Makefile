@@ -306,6 +306,7 @@ dist:
 	cp -f Makefile grst*.c htproxyput.c proxyput-example.c htcp.c \
                  urlencode.c findproxyfile.c gaclexample.c mod_gridsite.c \
                  delegation.h grst_admin.h mod_ssl-private.h \
+                 gsexec.c gsexec.h \
                  roffit gridsite.spec \
                  Doxyfile doxygen.css doxyheader.html \
                  ../gridsite-$(PATCH_VERSION)/src

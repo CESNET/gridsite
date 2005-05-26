@@ -34,24 +34,37 @@
  *               this program.
  */
 #ifndef AP_HTTPD_USER
-#define AP_HTTPD_USER "www"
+#define AP_HTTPD_USER "apache"
+#endif
+
+/*
+ * HTTPD_GROUP -- Define as the group under which Apache normally
+ *                runs.  This is the only user allowed to execute
+ *                this program.
+ */
+#ifndef AP_HTTPD_GROUP
+#define AP_HTTPD_GROUP "apache"
 #endif
 
 /*
  * UID_MIN -- Define this as the lowest UID allowed to be a target user
- *            for suEXEC.  For most systems, 500 or 100 is common.
+ *            for suEXEC.  For most systems, 500 or 100 is common, but
+ *            99 will include user nobody on RedHat Linux systems.
  */
-#ifndef AP_UID_MIN
-#define AP_UID_MIN 100
+#ifdef AP_UID_MIN
+#undef AP_UID_MIN
 #endif
+#define AP_UID_MIN 99
 
 /*
  * GID_MIN -- Define this as the lowest GID allowed to be a target group
- *            for suEXEC.  For most systems, 100 is common.
+ *            for suEXEC.  For most systems, 100 is common, but 99 will
+ *            include group nobody on RedHat Linux systems.
  */
-#ifndef AP_GID_MIN
-#define AP_GID_MIN 100
+#ifdef AP_GID_MIN
+#undef AP_GID_MIN
 #endif
+#define AP_GID_MIN 99
 
 /*
  * USERDIR_SUFFIX -- Define to be the subdirectory under users' 
@@ -103,5 +116,11 @@
 #ifndef AP_SAFE_PATH
 #define AP_SAFE_PATH "/usr/local/bin:/usr/bin:/bin"
 #endif
+
+/*
+ * GRST_EXECMAPDIR -- Location of the gridmapdir-style directory of lock files
+ *
+ */
+#define GRST_EXECMAPDIR "/var/www/execmapdir"
 
 #endif /* _SUEXEC_H */

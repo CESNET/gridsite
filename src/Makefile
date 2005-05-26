@@ -136,7 +136,7 @@ libgridsite_globus.a: libgridsite.a
 
 endif
 
-gsexec:	gsexec.c 
+gsexec:	gsexec.c gsexec.h
 	gcc -DVERSION=\"$(PATCH_VERSION)\" -I/usr/include/httpd \
 	    -I/usr/include/apr-0 \
 	    -o gsexec gsexec.c

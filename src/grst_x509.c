@@ -1412,7 +1412,7 @@ int GRSTx509CacheProxy(char *proxydir, char *delegation_id,
       return GRST_RET_FAILED;
     }
 
-  fprintf(stderr, "\n\n\n\n PROXYCHAIN = \n %s", proxychain);
+//  fprintf(stderr, "\n\n\n\n PROXYCHAIN = \n %s", proxychain);
   if (GRSTx509StringToChain(&certstack, proxychain) != GRST_RET_OK)
                                                     return GRST_RET_FAILED;
 

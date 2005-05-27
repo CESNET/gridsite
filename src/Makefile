@@ -251,6 +251,7 @@ install: apidoc
                  $(prefix)/bin \
                  $(prefix)/sbin \
                  $(prefix)/share/man/man1 \
+                 $(prefix)/share/man/man8 \
                  $(prefix)/lib/httpd/modules \
                  $(prefix)/share/doc/gridsite-$(PATCH_VERSION)
 	cp -f ../interface/gridsite.h $(prefix)/include
@@ -279,17 +280,20 @@ install: apidoc
 	cp -f doxygen/* $(prefix)/share/doc/gridsite-$(PATCH_VERSION)
 	cp -f ../CHANGES ../README ../INSTALL ../LICENSE ../VERSION \
                $(prefix)/share/doc/gridsite-$(PATCH_VERSION)
-	cp -f ../doc/*.html ../doc/*.conf ../doc/*.1 ../doc/*.sh \
+	cp -f ../doc/*.html ../doc/*.conf ../doc/*.1 ../doc/*.8 ../doc/*.sh \
                $(prefix)/share/doc/gridsite-$(VERSION)
 	cp -f ../doc/*.1 $(prefix)/share/man/man1
+	cp -f ../doc/*.8 $(prefix)/share/man/man8
 	gzip -f $(prefix)/share/man/man1/*.1
-	cd ../doc ; for i in *.1 ; do ../src/roffit < $$i \
+	gzip -f $(prefix)/share/man/man8/*.8
+	cd ../doc ; for i in *.1 *.8 ; do ../src/roffit < $$i \
           > $(prefix)/share/doc/gridsite-$(VERSION)/$$i.html ; done
 	cp -f htcp $(prefix)/bin
 	ln -sf htcp $(prefix)/bin/htls
 	ln -sf htcp $(prefix)/bin/htll
 	ln -sf htcp $(prefix)/bin/htrm
 	ln -sf htcp $(prefix)/bin/htmkdir
+	cp -f gsexec $(prefix)/sbin
 	cp -f mod_gridsite.so $(prefix)/lib/httpd/modules
 
 #
@@ -310,7 +314,7 @@ dist:
                  roffit gridsite.spec \
                  Doxyfile doxygen.css doxyheader.html \
                  ../gridsite-$(PATCH_VERSION)/src
-	cp -f ../doc/*.html ../doc/*.1 ../doc/*.conf ../doc/*.sh \
+	cp -f ../doc/*.html ../doc/*.1 ../doc/*.8 ../doc/*.conf ../doc/*.sh \
                  ../gridsite-$(PATCH_VERSION)/doc
 	cp -f ../interface/*.h \
                  ../gridsite-$(PATCH_VERSION)/interface

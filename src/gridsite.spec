@@ -10,7 +10,7 @@ URL: http://www.gridsite.org/
 Vendor: GridPP
 #Requires: libxml2,curl-ssl,mod_ssl
 #Buildrequires: libxml2-devel,curl-ssl-devel,httpd-devel
-Packager: Andrew McNab <Andrew.McNab@man.ac.uk>
+Packager: Andrew McNab <Andrew.McNab@manchester.ac.uk>
 
 %description
 GridSite adds GSI, VOMS and GACL support to Apache 2.0 (mod_gridsite),
@@ -30,6 +30,18 @@ htcp is a client to fetch files or directory listings from remote
 servers using HTTP or HTTPS, or to put or delete files or directories
 onto remote servers using HTTPS. htcp is similar to scp(1), but uses
 HTTP/HTTPS rather than ssh as its transfer protocol.
+
+%package gsexec
+Group: Applications/Internet
+Summary: gsexec binary for the Apache HTTP server
+#Requires: curl-ssl
+
+%description gsexec
+This package includes the /usr/sbin/gsexec binary which can be installed
+to allow the Apache HTTP server to run CGI programs (and any programs
+executed by SSI pages) as a user other than the 'apache' user. gsexec
+is a drop-in replacement for suexec, with extended functionality for use
+with GridSite and Grid Security credentials.
 
 %prep
 
@@ -83,3 +95,7 @@ rm -f %(echo ${MYPREFIX:-/usr})/share/doc/gridsite
 %attr(-, root, root) %(echo ${MYPREFIX:-/usr})/share/man/man1/htls.1.gz
 %attr(-, root, root) %(echo ${MYPREFIX:-/usr})/share/man/man1/htll.1.gz
 %attr(-, root, root) %(echo ${MYPREFIX:-/usr})/share/man/man1/htmkdir.1.gz
+
+%files gsexec
+%attr(-, root, root) %(echo ${MYPREFIX:-/usr})/sbin/gsexec
+%attr(-, root, root) %(echo ${MYPREFIX:-/usr})/share/man/man8/gsexec.8.gz

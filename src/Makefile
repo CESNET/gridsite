@@ -97,10 +97,10 @@ ifdef OPENSSL_GLOBUS_LIBS
 
 libgridsite_globus.so.$(VERSION): \
                grst_x509_globus.o grst_gacl_globus.o grst_http_globus.o \
-               grst_asn1_globus.o
+               grst_asn1_globus.o grst_xacml_globus.o \
 	gcc -shared -Wl,-soname,libgridsite_globus.so.$(MINOR_VERSION) \
          -o libgridsite_globus.so.$(PATCH_VERSION) \
-         grst_x509_globus.o grst_gacl_globus.o grst_http_globus.o grst_asn1_globus.o
+         grst_x509_globus.o grst_gacl_globus.o grst_xacml_globus.o grst_http_globus.o grst_asn1_globus.o
 
 libgridsite_globus.a: grst_x509_globus.o grst_gacl_globus.o grst_http_globus.o grst_asn1_globus.o
 	ar src libgridsite_globus.a \
@@ -115,6 +115,11 @@ grst_gacl_globus.o: grst_gacl.c ../interface/gridsite.h
 	gcc $(MYCFLAGS) $(OPENSSL_GLOBUS_FLAGS) \
             -I/usr/kerberos/include `xml2-config --cflags` -c grst_gacl.c \
             -o grst_gacl_globus.o
+
+grst_xacml_globus.o: grst_xacml.c ../interface/gridsite.h
+	gcc $(MYCFLAGS) $(OPENSSL_GLOBUS_FLAGS) \
+            -I/usr/kerberos/include `xml2-config --cflags` -c grst_xacml.c \
+            -o grst_xacml_globus.o
 
 grst_http_globus.o: grst_http.c ../interface/gridsite.h
 	gcc $(MYCFLAGS) $(OPENSSL_GLOBUS_FLAGS) \

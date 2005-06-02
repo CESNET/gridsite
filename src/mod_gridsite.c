@@ -371,7 +371,7 @@ char *make_admin_footer(request_rec *r, mod_gridsite_cfg *conf,
     p[1] = '\0';
     /* dir_uri always gets both a leading and a trailing slash */
        
-    out = apr_pstrdup(r->pool, "<p><small>\n");
+    out = apr_pstrdup(r->pool, "<p>\n");
 
     if (!isdirectory)
       {
@@ -380,7 +380,7 @@ char *make_admin_footer(request_rec *r, mod_gridsite_cfg *conf,
         localtime_r(&mtime_time, &mtime_tm);
         strftime(modified, sizeof(modified), 
                  "%a&nbsp;%e&nbsp;%B&nbsp;%Y", &mtime_tm);    
-        temp = apr_psprintf(r->pool,"<hr>Last modified %s\n", modified);
+        temp = apr_psprintf(r->pool,"<hr><small>Last modified %s\n", modified);
         out = apr_pstrcat(r->pool, out, temp, NULL);
 
         if ((conf->adminuri != NULL) &&
@@ -390,14 +390,16 @@ char *make_admin_footer(request_rec *r, mod_gridsite_cfg *conf,
             (strncmp(file, GRST_HIST_PREFIX, sizeof(GRST_HIST_PREFIX)-1) != 0))
           {
             temp = apr_psprintf(r->pool, 
-                            ". <a href=\"%s?cmd=history&file=%s\">"
+                            ". <a href=\"%s?cmd=history&amp;file=%s\">"
                             "View&nbsp;page&nbsp;history</a>\n",
                             conf->adminfile, file);
             out = apr_pstrcat(r->pool, out, temp, NULL);
           }
+          
+        out = apr_pstrcat(r->pool, out, "</small>", NULL);
       }
 
-    out = apr_pstrcat(r->pool, out, "<hr>", NULL);
+    out = apr_pstrcat(r->pool, out, "<hr><small>", NULL);
 
     if (r->connection->notes != NULL)
          grst_cred_0 = (char *) 
@@ -444,7 +446,7 @@ char *make_admin_footer(request_rec *r, mod_gridsite_cfg *conf,
                          sizeof(GRST_HIST_PREFIX) - 1) != 0))
               {
                 temp = apr_psprintf(r->pool, 
-                     "<a href=\"%s?cmd=edit&file=%s\">"
+                     "<a href=\"%s?cmd=edit&amp;file=%s\">"
                      "Edit&nbsp;page</a> .\n", conf->adminfile, file);
                 out = apr_pstrcat(r->pool, out, temp, NULL);
               }
@@ -483,7 +485,7 @@ char *make_admin_footer(request_rec *r, mod_gridsite_cfg *conf,
         (conf->adminfile != NULL) &&
         (conf->adminfile[0] != '\0'))
       {
-        temp = apr_psprintf(r->pool, ". <a href=\"%s?cmd=print&file=%s\">"
+        temp = apr_psprintf(r->pool, ". <a href=\"%s?cmd=print&amp;file=%s\">"
                "Print&nbsp;View</a>\n", conf->adminfile, file);
         out = apr_pstrcat(r->pool, out, temp, NULL);
       }

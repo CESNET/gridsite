@@ -955,7 +955,7 @@ void filehistory(char *dn, GRSTgaclPerm perm, char *help_uri, char *dir_path,
                {
 	            GRSThttpPrintf(&bp, "<td><a href=\"");
                     if (strcmp (file, GRST_ACL_FILE)==0)
-                        GRSThttpPrintf(&bp, "%s%s?cmd=acl_history&dir_uri=%s&file=%s\">View</a></td></tr>\n",
+                        GRSThttpPrintf(&bp, "%s%s?cmd=acl_history&amp;dir_uri=%s&amp;file=%s\">View</a></td></tr>\n",
                            dir_uri, admin_file, dir_uri, namelist[i]->d_name);
                     else GRSThttpPrintf(&bp, "%s%s\">View</a></td></tr>\n",
                        dir_uri, namelist[i]->d_name);
@@ -1338,7 +1338,7 @@ void managedir(char *dn, GRSTgaclPerm perm, char *help_uri, char *dir_path,
                       statbuf.st_size, modified);
 
               GRSThttpPrintf(&bp,
-                   "<td><a href=\"%s%s?cmd=history&file=%s\">"
+                   "<td><a href=\"%s%s?cmd=history&amp;file=%s\">"
                       "History</a></td>",
                       dir_uri, admin_file, GRST_ACL_FILE);
             }
@@ -1351,7 +1351,7 @@ void managedir(char *dn, GRSTgaclPerm perm, char *help_uri, char *dir_path,
           if (GRSTgaclPermHasAdmin(perm)) 
                GRSThttpPrintf(&bp,
                    "<td><a href=\"%s%s?cmd=admin_acl\">Edit</a></td>"
-                   "<td><a href=\"%s%s?cmd=delete&file=%s\">Delete</a></td>",
+                   "<td><a href=\"%s%s?cmd=delete&amp;file=%s\">Delete</a></td>",
                    dir_uri, admin_file,
                    dir_uri, admin_file, GRST_ACL_FILE);
           else if (GRSTgaclPermHasRead(perm))
@@ -1420,7 +1420,7 @@ void managedir(char *dn, GRSTgaclPerm perm, char *help_uri, char *dir_path,
 
                    if (numfiles == 0)
                         GRSThttpPrintf(&bp,
-                        "<td><a href=\"%s%s?cmd=delete&file=%s\">"
+                        "<td><a href=\"%s%s?cmd=delete&amp;file=%s\">"
                         "Delete</a></td>\n", 
                         dir_uri, admin_file, namelist[n]->d_name);
                    else GRSThttpPrintf(&bp, "<td>&nbsp;</td>\n");
@@ -1473,7 +1473,7 @@ void managedir(char *dn, GRSTgaclPerm perm, char *help_uri, char *dir_path,
                           statbuf.st_size, modified);                                        
 
                    GRSThttpPrintf(&bp,
-                     "<td><a href=\"%s%s?cmd=history&file=%s\">"
+                     "<td><a href=\"%s%s?cmd=history&amp;file=%s\">"
                       "History</a></td>",
                       dir_uri, admin_file, d_name);
 
@@ -1484,28 +1484,28 @@ void managedir(char *dn, GRSTgaclPerm perm, char *help_uri, char *dir_path,
                             (strcasecmp(&p[1], "zip") == 0) &&
                             GRSTgaclPermHasRead(perm))
                              GRSThttpPrintf(&bp,
-                               "<td><a href=\"%s%s?cmd=ziplist&file=%s\">"
+                               "<td><a href=\"%s%s?cmd=ziplist&amp;file=%s\">"
                                "List</a></td>\n",
                                dir_uri, admin_file, d_name);                   
                    else if ((p != NULL) && 
                        (strstr(editable, &p[1]) != NULL) &&
                        GRSTgaclPermHasWrite(perm))
                          GRSThttpPrintf(&bp,
-                               "<td><a href=\"%s%s?cmd=edit&file=%s\">"
+                               "<td><a href=\"%s%s?cmd=edit&amp;file=%s\">"
                                "Edit</a></td>\n",
                                dir_uri, admin_file, d_name);
                    else  GRSThttpPrintf(&bp, "<td>&nbsp;</td>");
 
                    if (GRSTgaclPermHasWrite(perm))
                     GRSThttpPrintf(&bp,
-                     "<td><a href=\"%s%s?cmd=delete&file=%s\">"
+                     "<td><a href=\"%s%s?cmd=delete&amp;file=%s\">"
                      "Delete</a></td>\n", dir_uri, admin_file, d_name);
                    else
                     GRSThttpPrintf(&bp, "<td>&nbsp;</td>\n");
 
                    if (GRSTgaclPermHasWrite(perm))
                     GRSThttpPrintf(&bp,
-                     "<td><a href=\"%s%s?cmd=rename&file=%s\">"
+                     "<td><a href=\"%s%s?cmd=rename&amp;file=%s\">"
                      "Rename</a></td></tr>\n", dir_uri, admin_file, d_name);
                    else
                     GRSThttpPrintf(&bp, "<td>&nbsp;</td></tr>");

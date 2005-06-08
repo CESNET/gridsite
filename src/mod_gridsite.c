@@ -1485,7 +1485,7 @@ static void *create_gridsite_dir_config(apr_pool_t *p, char *path)
 	conf->aclformat     = apr_pstrdup(p, "GACL");
                                      /* GridSiteACLFormat     gacl/xacml */
 	conf->execmethod    = NULL;
-               /* GridSiteExecMethod  suexec/X509DN/directory */
+               /* GridSiteExecMethod  nosetuid/suexec/X509DN/directory */
                
         conf->execugid.uid     = 0;	/* GridSiteUserGroup User Group */
         conf->execugid.gid     = 0;	/* ditto */

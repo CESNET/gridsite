@@ -621,8 +621,8 @@ int main(int argc, char *argv[])
         exit(101);
     }
     
-    mapping_type = getenv("GRST_EXEC_MAPPING");
-log_err("mapping_type=%s\n",mapping_type);
+    mapping_type = getenv("GRST_EXEC_METHOD");
+log_err("mapping_type from GRST_EXEC_METHOD=%s\n",mapping_type);
     if ((mapping_type    == NULL) ||
         (mapping_type[0] == '\0') ||
         (strcasecmp(mapping_type, "suexec") == 0))

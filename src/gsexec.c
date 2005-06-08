@@ -654,10 +654,10 @@ log_err("X509DN mapping type\n");
       }
     else if (strcasecmp(mapping_type, "directory") == 0)
       {
-        map_directory = getenv("GRST_EXEC_MAP_DIR");
+        map_directory = getenv("GRST_EXEC_DIRECTORY");
         if (map_directory == NULL)
           {
-            log_err("No GRST_EXEC_MAP_DIR despite directory mapping\n");
+            log_err("No GRST_EXEC_DIRECTORY despite directory mapping\n");
             internal_server_error();
             exit(153);
           }

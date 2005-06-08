@@ -50,6 +50,7 @@
 #include <http_log.h>
 #include <http_protocol.h>
 #include <http_request.h>
+#include <unixd.h>
 
 #include <stdio.h>
 #include <sys/types.h>
@@ -78,28 +79,31 @@ module AP_MODULE_DECLARE_DATA gridsite_module;
 
 typedef struct
 {
-   int   auth;
-   int   envs;
-   int   format;
-   int   indexes;
-   char *indexheader;
-   int   gridsitelink;
-   char *adminfile;
-   char *adminuri;
-   char *helpuri;
-   char *dnlists;
-   char *dnlistsuri;
-   char *adminlist;
-   int   gsiproxylimit;
-   char *unzip;
-   char *methods;
-   char *editable;
-   char *headfile;
-   char *footfile;
-   int   downgrade;
-   char *authcookiesdir;
-   int   soap2cgi;
-   char *aclformat;
+   int			auth;
+   int			envs;
+   int			format;
+   int			indexes;
+   char			*indexheader;
+   int			gridsitelink;
+   char			*adminfile;
+   char			*adminuri;
+   char			*helpuri;
+   char			*dnlists;
+   char			*dnlistsuri;
+   char			*adminlist;
+   int			gsiproxylimit;
+   char			*unzip;
+   char			*methods;
+   char			*editable;
+   char			*headfile;
+   char			*footfile;
+   int			downgrade;
+   char			*authcookiesdir;
+   int			soap2cgi;
+   char			*aclformat;
+   char			*execmethod;
+   ap_unix_identity_t	execugid;
+   apr_fileperms_t	diskmode;
 }  mod_gridsite_cfg; /* per-directory config choices */
 
 
@@ -950,9 +954,16 @@ int http_put_method(request_rec *r, mod_gridsite_cfg *conf)
       (r->unparsed_uri[0] != '\0') &&
       (r->unparsed_uri[strlen(r->unparsed_uri) - 1] == '/'))
     {
-      if (apr_dir_make(r->filename, APR_UREAD | APR_UWRITE | APR_UEXECUTE, 
-                          r->pool) != 0) return HTTP_INTERNAL_SERVER_ERROR;
+      if (apr_dir_make(r->filename, 
+                       conf->diskmode 
+                       | APR_UEXECUTE | APR_GEXECUTE | APR_WEXECUTE, 
+                       r->pool) != 0) return HTTP_INTERNAL_SERVER_ERROR;
 
+      /* we force the permissions, rather than accept any existing ones */
+
+      apr_file_perms_set(r->filename, conf->diskmode
+                             | APR_UEXECUTE | APR_GEXECUTE | APR_WEXECUTE);
+                             
       ap_set_content_length(r, 0);
       ap_set_content_type(r, "text/html");
       return OK;
@@ -961,8 +972,12 @@ int http_put_method(request_rec *r, mod_gridsite_cfg *conf)
   /* ***  otherwise assume trying to create a regular file *** */
 
   if (apr_file_open(&fp, r->filename, APR_WRITE | APR_CREATE | APR_BUFFERED,
-      APR_UREAD | APR_UWRITE, r->pool) != 0) return HTTP_INTERNAL_SERVER_ERROR;
+      conf->diskmode, r->pool) != 0) return HTTP_INTERNAL_SERVER_ERROR;
    
+  /* we force the permissions, rather than accept any existing ones */
+
+  apr_file_perms_set(r->filename, conf->diskmode);
+                             
 // TODO: need to add Range: support at some point too
 
   retcode = ap_setup_client_block(r, REQUEST_CHUNKED_DECHUNK);
@@ -1468,6 +1483,17 @@ static void *create_gridsite_dir_config(apr_pool_t *p, char *path)
                                      /* GridSiteAuthCookiesDir dir-path     */
         conf->soap2cgi      = 0;     /* GridSiteSoap2cgi      on/off       */
 	conf->aclformat     = apr_pstrdup(p, "GACL");
+                                     /* GridSiteACLFormat     gacl/xacml */
+	conf->execmethod    = NULL;
+               /* GridSiteExecMethod  suexec/X509DN/directory */
+               
+        conf->execugid.uid     = 0;	/* GridSiteUserGroup User Group */
+        conf->execugid.gid     = 0;	/* ditto */
+        conf->execugid.userdir = 0;	/* ditto */
+        
+        conf->diskmode	= APR_UREAD | APR_UWRITE; 
+              /* GridSiteDiskMode group-mode world-mode
+                 GroupNone | GroupRead | GroupWrite   WorldNone | WorldRead */
       }
     else
       {
@@ -1493,6 +1519,11 @@ static void *create_gridsite_dir_config(apr_pool_t *p, char *path)
         conf->authcookiesdir= NULL;  /* GridSiteAuthCookiesDir dir-path    */
         conf->soap2cgi      = UNSET; /* GridSiteSoap2cgi      on/off       */
 	conf->aclformat     = NULL;  /* GridSiteACLFormat     gacl/xacml   */
+	conf->execmethod    = NULL;  /* GridSiteExecMethod */
+        conf->execugid.uid     = UNSET;	/* GridSiteUserGroup User Group */
+        conf->execugid.gid     = UNSET; /* ditto */
+        conf->execugid.userdir = UNSET; /* ditto */
+        conf->diskmode	    = UNSET; /* GridSiteDiskMode group world */
       }
 
     return conf;
@@ -1573,9 +1604,24 @@ static void *merge_gridsite_dir_config(apr_pool_t *p, void *vserver,
     if (direct->soap2cgi != UNSET) conf->soap2cgi = direct->soap2cgi;
     else                           conf->soap2cgi = server->soap2cgi;
 
-    if (direct->aclformat !=NULL)   conf->aclformat = direct->aclformat;
+    if (direct->aclformat != NULL) conf->aclformat = direct->aclformat;
     else                           conf->aclformat = server->aclformat;
 
+    if (direct->execmethod != NULL) conf->execmethod = direct->execmethod;
+    else                            conf->execmethod = server->execmethod;
+
+    if (direct->execugid.uid != UNSET)
+      { conf->execugid.uid = direct->execugid.uid;
+        conf->execugid.gid = direct->execugid.gid;
+        conf->execugid.userdir = direct->execugid.userdir; }
+    else
+      { conf->execugid.uid = server->execugid.uid;
+        conf->execugid.gid = server->execugid.gid;
+        conf->execugid.userdir = server->execugid.userdir; }
+
+    if (direct->diskmode != UNSET) conf->diskmode = direct->diskmode;
+    else                            conf->diskmode = server->diskmode;
+        
     return conf;
 }
 
@@ -1689,15 +1735,67 @@ static const char *mod_gridsite_take1_cmds(cmd_parms *a, void *cfg,
     }
     else if (strcasecmp(a->cmd->name, "GridSiteACLFormat") == 0)
     {
-      if (strcasecmp(parm,"GACL")==0)
-         ((mod_gridsite_cfg *) cfg)->aclformat = 
-	   apr_pstrdup(a->pool, parm);
-      else if (strcasecmp(parm,"XACML")==0)
-         ((mod_gridsite_cfg *) cfg)->aclformat =
-	   apr_pstrdup(a->pool, parm);
-      else return "GridsiteACLFormat must be either GACL or XACML";
+      if ((strcasecmp(parm,"GACL") != 0) &&
+          (strcasecmp(parm,"XACML") != 0))
+          return "GridsiteACLFormat must be either GACL or XACML";
+      
+      ((mod_gridsite_cfg *) cfg)->aclformat = apr_pstrdup(a->pool, parm);
+    }
+    else if (strcasecmp(a->cmd->name, "GridSiteExecMethod") == 0)
+    {
+      if (strcasecmp(parm, "nosetuid") == 0)
+        {
+          ((mod_gridsite_cfg *) cfg)->execmethod = NULL;
+          return NULL;
+        }
+    
+      if ((strcasecmp(parm, "suexec")    != 0) &&
+          (strcasecmp(parm, "X509DN")    != 0) &&
+          (strcasecmp(parm, "directory") != 0))
+          return "GridsiteExecMethod must be nosetuid, suexec, X509DN or directory";
+      
+      ((mod_gridsite_cfg *) cfg)->execmethod = apr_pstrdup(a->pool, parm);
     }
 
+    return NULL;
+}
+
+static const char *mod_gridsite_take2_cmds(cmd_parms *a, void *cfg,
+                                       const char *parm1, const char *parm2)
+{
+    if (strcasecmp(a->cmd->name, "GridSiteUserGroup") == 0)
+    {
+      if (!(unixd_config.suexec_enabled))
+          return "Using GridSiteUserGroup will "
+                 "require rebuilding Apache with suexec support!";
+    
+      /* NB ap_uname2id/ap_gname2id are NOT thread safe - but OK
+         as long as not used in .htaccess, just at server start time */
+
+      ((mod_gridsite_cfg *) cfg)->execugid.uid = ap_uname2id(parm1);
+      ((mod_gridsite_cfg *) cfg)->execugid.gid = ap_gname2id(parm2);
+      ((mod_gridsite_cfg *) cfg)->execugid.userdir = 0;
+    }
+    else if (strcasecmp(a->cmd->name, "GridSiteDiskMode") == 0)
+    {
+      if ((strcasecmp(parm1, "GroupNone" ) != 0) &&
+          (strcasecmp(parm1, "GroupRead" ) != 0) &&
+          (strcasecmp(parm1, "GroupWrite") != 0))
+        return "First parameter of GridSiteDiskMode must be "
+               "GroupNone, GroupRead or GroupWrite!";
+          
+      if ((strcasecmp(parm2, "WorldNone" ) != 0) &&
+          (strcasecmp(parm2, "WorldRead" ) != 0))
+        return "Second parameter of GridSiteDiskMode must be "
+               "WorldNone or WorldRead!";
+          
+      ((mod_gridsite_cfg *) cfg)->diskmode = 
+       APR_UREAD | APR_UWRITE 
+       | ( APR_GREAD               * (strcasecmp(parm1, "GroupRead") == 0))
+       | ((APR_GREAD | APR_GWRITE) * (strcasecmp(parm1, "GroupWrite") == 0))
+       | ((APR_GREAD | APR_WREAD)  * (strcasecmp(parm2, "WorldRead") == 0));
+    }
+    
     return NULL;
 }
 
@@ -1792,6 +1890,17 @@ static const command_rec mod_gridsite_cmds[] =
     AP_INIT_TAKE1("GridSiteACLFormat", mod_gridsite_take1_cmds,
                  NULL, OR_FILEINFO, "format to save access control lists in"),
 
+    AP_INIT_TAKE1("GridSiteExecMethod", mod_gridsite_take1_cmds,
+                 NULL, OR_FILEINFO, "execution strategy used by gsexec"),
+                 
+    AP_INIT_TAKE2("GridSiteUserGroup", mod_gridsite_take2_cmds, 
+                  NULL, OR_FILEINFO,
+                  "user and group of gsexec processes in suexec mode"),
+          
+    AP_INIT_TAKE2("GridSiteDiskMode", mod_gridsite_take2_cmds, 
+                  NULL, OR_FILEINFO,
+                  "group and world file modes for new files/directories"),
+          
     {NULL}
 };
 
@@ -2064,6 +2173,14 @@ static int mod_gridsite_perm_handler(request_rec *r)
         if (((mod_gridsite_cfg *) cfg)->aclformat != NULL)
 	          apr_table_setn(env, "GRST_ACL_FORMAT",
                               ((mod_gridsite_cfg *) cfg)->aclformat);
+
+        if (((mod_gridsite_cfg *) cfg)->execmethod != NULL)
+	          apr_table_setn(env, "GRST_EXEC_METHOD",
+                              ((mod_gridsite_cfg *) cfg)->execmethod);
+
+        apr_table_setn(env, "GRST_DISK_MODE",
+ 	                     apr_psprintf(r->pool, "0x%04x",
+    	                      ((mod_gridsite_cfg *)cfg)->diskmode));
       }
 
     if (((mod_gridsite_cfg *) cfg)->auth)
@@ -2345,6 +2462,27 @@ static int mod_gridsite_handler(request_rec *r)
    return mod_gridsite_nondir_handler(r, conf);
 }
 
+static ap_unix_identity_t *mod_gridsite_get_suexec_id_doer(const request_rec *r)
+{
+   mod_gridsite_cfg *conf;
+    
+   conf = (mod_gridsite_cfg *)
+                    ap_get_module_config(r->per_dir_config, &gridsite_module);
+
+   if ((conf->execugid.uid != UNSET) && 
+       (conf->execmethod != NULL)) 
+     {
+     
+     /* also push GRST_EXEC_DIRECTORY into request environment here too */
+     
+       return &(conf->execugid);
+     }
+       
+       
+       
+   return NULL;
+}
+
 static void register_hooks(apr_pool_t *p)
 {
     /* set up the Soap2cgi input and output filters */
@@ -2369,6 +2507,9 @@ static void register_hooks(apr_pool_t *p)
     ap_hook_fixups(mod_gridsite_perm_handler,NULL,NULL,APR_HOOK_REALLY_LAST);
     
     ap_hook_handler(mod_gridsite_handler, NULL, NULL, APR_HOOK_FIRST);    
+    
+    ap_hook_get_suexec_identity(mod_gridsite_get_suexec_id_doer,
+                                NULL, NULL, APR_HOOK_MIDDLE);
 }
 
 module AP_MODULE_DECLARE_DATA gridsite_module =

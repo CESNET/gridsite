@@ -1,3 +1,8 @@
+* Thu Jun 2 2005 Andrew McNab <Andrew.McNab@man.ac.uk>
+- HTML improvements for Bug #4083
+- Note that GridSite currently doesn't work with SHM
+  SSL session cache, in httpd-*.conf and config guide.
+- Add GridSiteExecMethod for use with gsexec
 * Thu May 26 2005 Andrew McNab <Andrew.McNab@man.ac.uk>
 - Include gsexec, a drop-in replacement for suexec,
   which can do suexec execution of CGI programs or

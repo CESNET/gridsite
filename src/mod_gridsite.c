@@ -2175,8 +2175,28 @@ static int mod_gridsite_perm_handler(request_rec *r)
                               ((mod_gridsite_cfg *) cfg)->aclformat);
 
         if (((mod_gridsite_cfg *) cfg)->execmethod != NULL)
-	          apr_table_setn(env, "GRST_EXEC_METHOD",
+          {
+	    apr_table_setn(env, "GRST_EXEC_METHOD",
                               ((mod_gridsite_cfg *) cfg)->execmethod);
+                              
+            if ((strcasecmp(((mod_gridsite_cfg *) cfg)->execmethod,  
+                           "directory") == 0) && (r->filename != NULL))
+              {
+                if ((r->content_type != NULL) && 
+                    (strcmp(r->content_type, DIR_MAGIC_TYPE) == 0))
+                  apr_table_setn(env, "GRST_EXEC_DIRECTORY", r->filename);
+                else
+                  {
+                    file = apr_pstrdup(r->pool, r->filename);
+                    p = rindex(file, '/');
+                    if (p != NULL)
+                      {
+                        *p = '\0';
+                        apr_table_setn(env, "GRST_EXEC_DIRECTORY", file);
+                      }                    
+                  }                 
+              }
+          }
 
         apr_table_setn(env, "GRST_DISK_MODE",
  	                     apr_psprintf(r->pool, "0x%04x",

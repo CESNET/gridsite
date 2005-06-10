@@ -30,6 +30,7 @@
  */
 
 #include "apr.h"
+#include "apr_file_io.h"
 #include "ap_config.h"
 #include "gsexec.h"
 
@@ -531,6 +532,11 @@ int main(int argc, char *argv[])
     char *mapping_type;	    /* suexec / X509DN / directory */
     char *map_x509dn;	    /* DN to use as pool acct. key */
     char *map_directory;    /* directory as pool acct. key */
+
+    char *diskmode_env;	          /* GRST_DISK_MODE as a string     */
+    apr_fileperms_t diskmode_apr; /* GRST_DISK_MODE as Apache perms */
+    mode_t diskmode_t;            /* GRST_DISK_MODE as mode_t       */
+
     char *target_uname;     /* target user name          */
     char *target_gname;     /* target group name         */
     char *target_homedir;   /* target home directory     */
@@ -982,16 +988,29 @@ log_err("X509DN mapping type\n");
         exit(121);
     }
 
+    diskmode_env = getenv("GRST_DISK_MODE");
+    if (diskmode_env != NULL)
+      {
+        diskmode_apr = 0;
+        sscanf(diskmode_env, "%d", &diskmode_apr);
+      
+        diskmode_t = S_IRUSR | S_IWUSR;
+        
+        if (diskmode_apr & APR_GREAD ) diskmode_t |= S_IRGRP;
+        if (diskmode_apr & APR_GWRITE) diskmode_t |= S_IWGRP;
+        if (diskmode_apr & APR_WREAD ) diskmode_t |= S_IROTH;
+        
+        diskmode_t &= (S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH);
+        
+        umask(~diskmode_t);
+      }
 #ifdef AP_SUEXEC_UMASK
-    /*
-     * umask() uses inverse logic; bits are CLEAR for allowed access.
-     */
-    if ((~AP_SUEXEC_UMASK) & 0022) {
-        log_err("notice: AP_SUEXEC_UMASK of %03o allows "
-                "write permission to group and/or other\n", AP_SUEXEC_UMASK);
-    }
-    umask(AP_SUEXEC_UMASK);
+    else umask(AP_SUEXEC_UMASK);
+#else
+    else umask(~(S_IRUSR | S_IWUSR));
 #endif /* AP_SUEXEC_UMASK */
+    
+    
 
     /* 
      * Be sure to close the log file so the CGI can't
@@ -1018,7 +1037,7 @@ log_err("X509DN mapping type\n");
         ap_execve(cmd, &argv[3], environ);
     }
 #else /*NEED_HASHBANG_EMUL*/
-    execv(cmd, &argv[3]);
+   execv(cmd, &argv[3]);
 #endif /*NEED_HASHBANG_EMUL*/
 
     /*

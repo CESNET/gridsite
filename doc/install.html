@@ -13,26 +13,30 @@ Guide to decide which is the easiest route for your system.
 <h2>Installing with RPM</h2>
 
 <p>
-If you are installing on Linux with the binary RPM release, you can skip
+If you are installing on Linux with a binary RPM release, you can skip
 most of this Guide, install the binary rpm(s) and go straight
 to the Config Guide.
 
+<!--
 <p>
 We currently distribute GridSite RPMs for RedHat Linux versions 9 and 7.3
 from our download area at 
 <a href="https://www.gridsite.org/download/">
 https://www.gridsite.org/download/</a>
+-->
 
 <p>
-<b>RedHat 9</b>:
+<b>RedHat 9, Fedora, RHEL, Scientific Linix</b>:
 This is the simpler case, since the standard release includes a suitable
 version of Apache 2.0: just install the gridsite-...-1.i386.rpm to get the
 various GridSite components. 
 
 <p>
-<b>RedHat 7.3</b>:
+<b>Earlier, eg RedHat 7.3</b>:
 This is more complicated because you must also install a back-ported Apache
-2.0 RPM. We distribute RPMs built on 7.3 aimed at RedHat 7.3 
+2.0 RPM or build from source. 
+<!--
+We distribute RPMs built on 7.3 aimed at RedHat 7.3 
 machines with updates, from our download area. These are built from the 
 tar.gz and .spec files distributed by the
 Apache Foundation itself, using the 
@@ -40,10 +44,11 @@ Apache Foundation itself, using the
 /usr/share/doc/gridsite directory. The Apache RPMs install in /usr, and you
 should at least install the httpd and mod_ssl RPMs.
 You must also install the gridsite-...-1.i386.rpm as above.
+-->
 
 <p>
 GridSite also depends on shared libraries from libcurl and libxml2, and the
-RPMs distributed as part of the standard RedHat 7.3 and 9 releases are
+RPMs distributed as part of the standard RedHat, from 7.3 onwards, are
 sufficient. 
 
 <p>
@@ -65,8 +70,11 @@ tools (htcp, urlencode.)
 <p>
 All of the components use the GridSite library, and this in turn depends on
 libcurl and libxml2. You will need the development versions of these
-packages installed before you can proceed. (They are available as part of
+packages installed before you can proceed. 
+<!--
+(They are available as part of
 RedHat Linux releases 7.x onwards, for instance.) 
+-->
 
 <h2>Building GridSite with Make</h2>
 
@@ -111,11 +119,13 @@ directory ../RPMTMP/RPMS/i386 relative to the working directory. An SRPM is
 put into ../RPMTMP/SRPMS
 This build assumes the Apache 2.0 includes are in /usr/include/httpd.
 
+<!--
 <p>
-<b>If you make RPMs on a RedHat 9 system (or a 7.3 system with our httpd RPM
+<b>If you make RPMs on a RedHat 9 system (or a 7.3 system with a 2.0 httpd RPM
 installed), you can install the resulting GridSite 
 RPM alongside the standard Apache 2.0 RPM without having to
 modify shared library or Apache module paths.</b>
+-->
 
 <p>
 For other configurations,

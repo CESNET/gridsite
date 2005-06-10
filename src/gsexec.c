@@ -994,7 +994,7 @@ int main(int argc, char *argv[])
     if (diskmode_env != NULL)
       {
         diskmode_apr = 0;
-        sscanf(diskmode_env, "%d", &diskmode_apr);
+        sscanf(diskmode_env, "%i", &diskmode_apr);
       
         diskmode_t = S_IRUSR | S_IWUSR;
         
@@ -1003,7 +1003,9 @@ int main(int argc, char *argv[])
         if (diskmode_apr & APR_WREAD ) diskmode_t |= S_IROTH;
         
         diskmode_t &= (S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH);
-        
+
+// log_err("diskmode_env=%s diskmode_apr=%x diskmode_t=%o ~diskmode_t=%o\n", diskmode_env, diskmode_apr, diskmode_t, ~diskmode_t);  
+              
         umask(~diskmode_t);
       }
 #ifdef AP_SUEXEC_UMASK
@@ -1012,8 +1014,6 @@ int main(int argc, char *argv[])
     else umask(~(S_IRUSR | S_IWUSR));
 #endif /* AP_SUEXEC_UMASK */
     
-    
-
     /* 
      * Be sure to close the log file so the CGI can't
      * mess with it.  If the exec fails, it will be reopened 

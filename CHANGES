@@ -1,3 +1,7 @@
+* Fri Jun 10 2005 Andrew McNab <Andrew.McNab@man.ac.uk>
+- Tidy up gsexec vs GridSiteDiskPerms
+* Fri Jun 10 2005 Andrew McNab <Andrew.McNab@man.ac.uk>
+- ==== GridSite version 1.1.10 ====
 * Wed Jun 8 2005 Andrew McNab <Andrew.McNab@man.ac.uk>
 - Add GridSiteDiskMode Apache directive to set file
   permissions.

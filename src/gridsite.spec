@@ -97,5 +97,5 @@ rm -f %(echo ${MYPREFIX:-/usr})/share/doc/gridsite
 %attr(-, root, root) %(echo ${MYPREFIX:-/usr})/share/man/man1/htmkdir.1.gz
 
 %files gsexec
-%attr(-, root, root) %(echo ${MYPREFIX:-/usr})/sbin/gsexec
+%attr(4510, root, apache) %(echo ${MYPREFIX:-/usr})/sbin/gsexec
 %attr(-, root, root) %(echo ${MYPREFIX:-/usr})/share/man/man8/gsexec.8.gz

@@ -628,7 +628,7 @@ int main(int argc, char *argv[])
     }
     
     mapping_type = getenv("GRST_EXEC_METHOD");
-log_err("mapping_type from GRST_EXEC_METHOD=%s\n",mapping_type);
+// log_err("mapping_type from GRST_EXEC_METHOD=%s\n",mapping_type);
     if ((mapping_type    == NULL) ||
         (mapping_type[0] == '\0') ||
         (strcasecmp(mapping_type, "suexec") == 0))
@@ -639,12 +639,14 @@ log_err("mapping_type from GRST_EXEC_METHOD=%s\n",mapping_type);
       }
     else if (strcasecmp(mapping_type, "X509DN") == 0)
       {
-log_err("X509DN mapping type\n");
-        map_x509dn = getenv("SSL_CLIENT_S_DN");
-        if (map_x509dn == NULL)
+// log_err("X509DN mapping type\n");
+        if ((map_x509dn = getenv("GRST_CRED_0")) == NULL)
+                            map_x509dn = getenv("SSL_CLIENT_S_DN");
+
+        if ((map_x509dn == NULL) || (map_x509dn[0] == '\0'))
           {
-            log_err("No SSL_CLIENT_S_DN despite X509DN mapping\n");
-            internal_server_error();
+            log_err("No GRST_CRED_0/SSL_CLIENT_S_DN despite X509DN mapping\n");
+            forbidden_error();
             exit(151);
           }
 
@@ -654,7 +656,7 @@ log_err("X509DN mapping type\n");
           {
             log_err("GRSTexecGetMapping() failed mapping \"%s\"\n", 
                     map_x509dn);
-            internal_server_error();
+            forbidden_error();
             exit(152);          
           }
       }

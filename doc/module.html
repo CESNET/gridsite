@@ -201,6 +201,64 @@ GridSite features in different ways.
     (Default: none)
 <p>
 
+<dt><b>GridSiteDowngrade on|off</b>
+<dd>Enable HTTPS Downgrade for this server, virtual server or directory:
+    HTTPS requests made with the header HTTP-Downgrade-Size: 
+    will be redirected to an HTTP version of the file, unless the file is
+    smaller than the given size.
+    <br>
+    (Default: off)
+<p>
+
+<dt><b>GridSiteAuthCookiesDir path</b>
+<dd>Location of authentication cookies directory, relative to ServerRoot.
+    Used by HTTPS Downgrade to record the credentials obtained via HTTPS,
+    and available to the corresponding HTTP request.
+    <br>
+    (Default: gridauthcookies)
+<p>
+
+<dt><b>GridSiteACLFormat GACL|XACML</b>
+<dd>Format to use when writing .gacl files. (Both formats are automatically
+    recognised when reading.)
+    <br>
+    (Default: GACL)
+<p>
+
+<dt><b>GridSiteExecMethod nosetuid|suexec|X509DN|directory</b>
+<dd>Execution strategy for CGI scripts and executables. For options other
+    than nosetuid, suexec (or gsexec renamed suexec) must installed. For
+    X509DN and directory, gsexec must be installed, as suexec. 
+    <br>
+    With X509DN, the CGI process runs as a pool user, detemined using lock
+    files in the pool mapping directory chosen as build time of gsexec.
+    (/var/www/execmapdir by default.) The pool user is chosen according
+    to the client's full certificate X.509 DN (ie without any GSI proxy
+    name components.)
+    <br>
+    With directory, the CGI process runs as a pool user chosen according
+    to the directory in which the CGI is located: all CGIs in that directory
+    run as the same pool user.
+    <br>
+    (Default: nosetuid)
+<p>
+
+<dt><b>GridSiteUserGroup user group</b>
+<dd>Unix user and group when using suexec (or gsexec as suexec.) This
+    is equivalent to the suexec SuexecUserGroup directive, but can be
+    specified on a per-directory basis.
+    <br>
+    (Default: none)
+<p>
+
+<dt><b>GridSiteDiskMode GroupNone|GroupRead|GroupWrite WorldNone|WorldRead</b>
+<dd>The file creation permissions mode, taking two arguments to specify
+    the group and other permissions. The mode always includes read and write
+    permission for the CGI user itself.
+    <br>
+    (Default: GroupNone WorldNone)
+<p>
+
 </dl>
 
 <h2>Environment variables</h2>
@@ -264,6 +322,27 @@ in effect.
 
 <dt><b>GRST_NO_LINK</b>
 <dd>If set, do not include credit links to GridSite in page footers.
+<p>
+
+<dt><b>GRST_ACL_FORMAT</b>
+<dd>Format to use when writing .gacl files: either GACL or XACML.
+<p>
+
+<dt><b>GRST_EXEC_METHOD</b>
+<dd>Specified by GridSiteExecMethod, either suexec, X509DN or directory.
+<p>
+
+<dt><b>GRST_EXEC_DIRECTORY</b>
+<dd>The directory containing the CGI script or executable (used by gsexec
+    to determine which pool account to use in directory mapping mode.)
+<p>
+
+<dt><b>GRST_DISK_MODE</b>
+<dd>The <b>Apache</b> disk permission modes bit pattern, in hexadecimal,
+    starting with 0x. 
+    (Similar to the Unix bit pattern, except with hexadecimal rather than
+    octal values: eg 0x600 [Apache] vs 0600 [Unix] 
+    are both read/write for user only.)
 <p>
 
 </dl>

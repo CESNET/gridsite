@@ -647,7 +647,7 @@ GRSTgaclCred *GRSTx509CompactToCred(char *grst_cred)
 
    if (strncmp(grst_cred, "VOMS ", 5) == 0)
      {
-       if ((sscanf(grst_cred, "VOMS %lu %lu", 
+       if ((sscanf(grst_cred, "VOMS %lu %lu %d",
                               &notbefore, &notafter, &delegation) == 3)
             && (now >= notbefore)
             && (now <= notafter)
@@ -658,11 +658,11 @@ GRSTgaclCred *GRSTx509CompactToCred(char *grst_cred)
          {
            /* include /VO/group/subgroup/Role=role/Capability=cap */
 
-           if (*p != '/') return NULL; /* must begin with / */
+           if (p[1] != '/') return NULL; /* must begin with / */
 
            cred = GRSTgaclCredNew("voms");
            GRSTgaclCredSetDelegation(cred, delegation);
-           GRSTgaclCredAddValue(cred, "fqan", p);
+           GRSTgaclCredAddValue(cred, "fqan", &p[1]);
          }
 
        return cred;

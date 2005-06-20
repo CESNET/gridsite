@@ -837,8 +837,7 @@ int GRSTgaclUserHasCred(GRSTgaclUser *user, GRSTgaclCred *cred)
 {
   GRSTgaclCred      *crediter;
   GRSTgaclNamevalue *usernamevalue, *crednamevalue;
-  int i;
-  char buf[12];
+
 
   if (cred == NULL) return 0;
 
@@ -854,33 +853,8 @@ int GRSTgaclUserHasCred(GRSTgaclUser *user, GRSTgaclCred *cred)
       
       return GRSTgaclDNlistHasUser((cred->firstname)->value, user);
     }
-  /* Check for voms attributes*/
-  
-  if  (strcmp(cred->type, "voms")==0)
-    {
-      if ( (user->firstcred==NULL) ||
-           ((user->firstcred)->firstname == NULL) ||
-           (cred->firstname == NULL) ||
-           (strcmp((cred->firstname)->name, "fqan") != 0) ||
-           ((cred->firstname)->next != NULL)) return 0;
-          
-      /*assuimng only one name/value pair per cred*/
-      for(i=1; ; i++)
-      {
-	      sprintf (buf, "GRST_CRED_%d", i);
-	      if (getenv(buf)==NULL) break;
 
-	      if (strcmp ( 
-		           index(getenv(buf),'/'), 
-			   (cred->firstname)->value
-			 )  
-		   == 0) return 1;
-      }
-      /* no match found */
-      return 0;
-    }
-
-  if (strcmp(cred->type, "dns") == 0) 
+  if (strcmp(cred->type, "dns") == 0)
     {
       if ((user->firstcred == NULL) ||
           ((user->firstcred)->firstname == NULL) ||

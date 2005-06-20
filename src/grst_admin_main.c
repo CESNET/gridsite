@@ -87,7 +87,7 @@ void GRSThttpError(char *status)
   printf("Server-CGI: GridSite Admin %s\n", VERSION);
   printf("Content-Length: %d\n", 2 * strlen(status) + 58);
   puts("Content-Type: text/html\n");
-   
+
   printf("<head><title>%s</title></head>\n", status);
   printf("<body><h1   >%s</h1   ></body>\n", status);
    
@@ -108,7 +108,7 @@ void adminfooter(GRSThttpBody *bp, char *dn, char *help_uri, char *dir_uri,
                       dir_uri, admin_file);
   else GRSThttpPrintf(bp, "<a href=\"%s\">"
                       "Back&nbsp;to&nbsp;directory</a> .\n", dir_uri);
-  
+
   if (help_uri != NULL) 
     GRSThttpPrintf(bp, "<a href=\"%s\">Website&nbsp;Help</a> .\n", help_uri);
 
@@ -179,13 +179,13 @@ void justfooter(char *dn, GRSTgaclPerm perm, char *help_uri, char *dir_path,
                 char *dir_uri, char *admin_file)
 {
   GRSThttpBody bp;
- 
+
   puts("Status: 200 OK\nContent-Type: text/html");
    
   GRSThttpBodyInit(&bp);
  
   if (GRSTgaclPermHasList(perm) || GRSTgaclPermHasWrite(perm) 
-                                || GRSTgaclPermHasAdmin(perm)) 
+                                || GRSTgaclPermHasAdmin(perm))
                adminfooter(&bp, dn, help_uri, dir_uri, admin_file);
 
   GRSThttpPrintHeaderFooter(&bp, dir_path, GRST_FOOTFILE);
@@ -195,10 +195,10 @@ void justfooter(char *dn, GRSTgaclPerm perm, char *help_uri, char *dir_path,
 
 int main()
 {
-  int           gsiproxylimit_i = 1;
+  int           i, gsiproxylimit_i = 1;
   char         *cmd, *dir_uri, *file, *dir_path, *admin_file, *dn = NULL,
                *help_uri, *p, *content_type, *request_uri, *button, 
-               *grst_cred_0, *gsiproxylimit, *dn_lists;
+               *grst_cred_0, *gsiproxylimit, *dn_lists, buf[12];
   GRSTgaclCred *cred;
   GRSTgaclUser *user = NULL;
   GRSTgaclAcl  *acl;
@@ -233,11 +233,24 @@ int main()
           if ((p = index(grst_cred_0, ' ')) &&
               (p = index(++p, ' ')) &&
               (p = index(++p, ' ')) &&
-              (p = index(++p, ' '))) dn = &p[1];          
-        }                                               
+              (p = index(++p, ' '))) dn = &p[1];
+        }
+	      /* User has a cert so check for voms attributes */
+      for(i=1; ; i++)
+        {
+	   sprintf (buf, "GRST_CRED_%d", i);
+
+
+	   grst_cred_0 = getenv(buf);
+	   if (grst_cred_0==NULL) break;
+
+           if (cred=GRSTx509CompactToCred(grst_cred_0))
+                     GRSTgaclUserAddCred(user, cred);
+        }
+      /* no more voms attributes found found */
     }
   else if ((dn = getenv("SSL_CLIENT_S_DN")) != NULL)
-    {      
+    {
       cred = GRSTgaclCredNew("person");
       GRSTgaclCredAddValue(cred, "dn", dn);
       user = GRSTgaclUserNew(cred);
@@ -277,7 +290,7 @@ int main()
 
   if ((content_type != NULL) &&
       (GRSTstrCmpShort(content_type, "multipart/form-data; boundary=") == 0))
-    {    
+    {
       uploadfile(dn, perm, help_uri, dir_path, dir_uri, admin_file);
       return 0;
     }

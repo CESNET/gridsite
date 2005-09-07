@@ -1,5 +1,5 @@
 /*
-   Copyright (c) 2002-4, Andrew McNab, University of Manchester
+   Copyright (c) 2002-5, Andrew McNab, University of Manchester
    All rights reserved.
 
    Redistribution and use in source and binary forms, with or
@@ -72,6 +72,7 @@
 #define HTCP_LIST	4
 #define HTCP_LONGLIST	5
 #define HTCP_MKDIR	6
+#define HTCP_MOVE	7
 
 struct grst_stream_data { char *source;
                           char *destination;
@@ -200,8 +201,15 @@ int set_std_opts(CURL *easyhandle, struct grst_stream_data *common_data)
     }
 
   if (common_data->noverify)
-       curl_easy_setopt(easyhandle, CURLOPT_SSL_VERIFYHOST, 0);
-  else curl_easy_setopt(easyhandle, CURLOPT_SSL_VERIFYHOST, 2);
+    {
+      curl_easy_setopt(easyhandle, CURLOPT_SSL_VERIFYPEER, 0);
+      curl_easy_setopt(easyhandle, CURLOPT_SSL_VERIFYHOST, 0);
+    }      
+  else 
+    {
+      curl_easy_setopt(easyhandle, CURLOPT_SSL_VERIFYPEER, 2);
+      curl_easy_setopt(easyhandle, CURLOPT_SSL_VERIFYHOST, 2);
+    }
   
   return 1;
 }
@@ -442,6 +450,64 @@ int do_deletes(char *sources[], struct grst_stream_data *common_data)
        else if (common_data->verbose > 0) 
                      fprintf(stderr, "... OK (%d)\n", header_data.retcode);
      }
+
+  curl_easy_cleanup(easyhandle);
+     
+  return anyerror;
+}
+
+int do_move(char *source, char *destination, 
+            struct grst_stream_data *common_data)
+{
+  int    anyerror = 0, thiserror;
+  char  *destination_header;
+  CURL  *easyhandle;
+  struct grst_header_data header_data;
+  struct curl_slist *header_slist = NULL;
+  
+  easyhandle = curl_easy_init();
+  
+  header_data.common_data = common_data;
+
+  easyhandle = curl_easy_init();
+  
+  asprintf(&destination_header, "Destination: %s", destination);
+  header_slist = curl_slist_append(header_slist, destination_header);
+  curl_easy_setopt(easyhandle, CURLOPT_HTTPHEADER, header_slist);
+
+  curl_easy_setopt(easyhandle, CURLOPT_USERAGENT, common_data->useragent);
+  if (common_data->verbose > 1)
+                   curl_easy_setopt(easyhandle, CURLOPT_VERBOSE, 1);
+
+  curl_easy_setopt(easyhandle, CURLOPT_HEADERFUNCTION, headers_callback);
+  curl_easy_setopt(easyhandle, CURLOPT_WRITEHEADER,   &header_data);
+
+  curl_easy_setopt(easyhandle, CURLOPT_ERRORBUFFER,   common_data->errorbuf);
+  curl_easy_setopt(easyhandle, CURLOPT_CUSTOMREQUEST, "MOVE");
+  curl_easy_setopt(easyhandle, CURLOPT_NOBODY,        1);
+
+  set_std_opts(easyhandle, common_data);
+
+  if (common_data->verbose > 0)
+            fprintf(stderr, "Moving %s to %s\n", source, destination);
+
+  curl_easy_setopt(easyhandle, CURLOPT_URL, source);
+
+  header_data.retcode = 0;
+  thiserror = curl_easy_perform(easyhandle);
+       
+  if ((thiserror != 0) ||
+           (header_data.retcode <  200) ||
+           (header_data.retcode >= 300))
+         {
+           fprintf(stderr, "... curl error: %s (%d), HTTP error: %d\n",
+                   common_data->errorbuf, thiserror, header_data.retcode);
+           
+           if (thiserror != 0) anyerror = thiserror;
+           else                anyerror = header_data.retcode;
+         }
+  else if (common_data->verbose > 0) 
+                     fprintf(stderr, "... OK (%d)\n", header_data.retcode);
 
   curl_easy_cleanup(easyhandle);
      
@@ -988,6 +1054,7 @@ int main(int argc, char *argv[])
                 			{"no-verify",		0, 0, 0},
                 			{"anon",		0, 0, 0},
                 			{"downgrade-size",	1, 0, 0},
+                			{"move",		0, 0, 0},
 //					{"streams",		1, 0, 0},
 //              			{"blocksize",		1, 0, 0},
 //                			{"recursive",		0, 0, 0},
@@ -1034,6 +1101,7 @@ int main(int argc, char *argv[])
              else if (option_index == 8) common_data.noverify  = 1;
              else if (option_index == 9) common_data.anonymous = 1;
              else if (option_index ==10) common_data.downgrade = atoll(optarg);
+             else if (option_index ==11) common_data.method    = HTCP_MOVE;
            }
          else if (c == 'v') ++(common_data.verbose);
        }
@@ -1115,6 +1183,7 @@ int main(int argc, char *argv[])
       else if (strcmp(executable,"htll")==0) common_data.method=HTCP_LONGLIST;
       else if (strcmp(executable,"htrm")==0) common_data.method=HTCP_DELETE;
       else if (strcmp(executable,"htmkdir")==0) common_data.method=HTCP_MKDIR;
+      else if (strcmp(executable,"htmv")==0) common_data.method=HTCP_MOVE;
     }
 
   if ((common_data.method == HTCP_DELETE) || 
@@ -1153,6 +1222,22 @@ int main(int argc, char *argv[])
       else if (common_data.method == HTCP_LONGLIST) 
                             anyerror = do_listings(sources, &common_data, 1);
       else anyerror = do_listings(sources, &common_data, 0);
+
+      if (anyerror > 99) anyerror = CURLE_HTTP_RETURNED_ERROR;
+
+      return anyerror;
+    }
+
+  if (common_data.method == HTCP_MOVE)
+    {
+      if (optind >= argc - 1)
+        {
+          fputs("Must give exactly 2 non-option arguments\n\n", stderr);
+          printsyntax(argv[0]);
+          return CURLE_URL_MALFORMAT;
+        }
+      
+      anyerror = do_move(argv[optind], argv[optind + 1], &common_data);
 
       if (anyerror > 99) anyerror = CURLE_HTTP_RETURNED_ERROR;
 

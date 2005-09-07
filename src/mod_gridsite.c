@@ -971,7 +971,8 @@ int http_put_method(request_rec *r, mod_gridsite_cfg *conf)
 
   /* ***  otherwise assume trying to create a regular file *** */
 
-  if (apr_file_open(&fp, r->filename, APR_WRITE | APR_CREATE | APR_BUFFERED,
+  if (apr_file_open(&fp, r->filename, 
+      APR_WRITE | APR_CREATE | APR_BUFFERED | APR_TRUNCATE,
       conf->diskmode, r->pool) != 0) return HTTP_INTERNAL_SERVER_ERROR;
    
   /* we force the permissions, rather than accept any existing ones */
@@ -979,6 +980,7 @@ int http_put_method(request_rec *r, mod_gridsite_cfg *conf)
   apr_file_perms_set(r->filename, conf->diskmode);
                              
 // TODO: need to add Range: support at some point too
+// Also return 201 Created rather than 200 OK if not already existing
 
   retcode = ap_setup_client_block(r, REQUEST_CHUNKED_DECHUNK);
   if (retcode == OK)
@@ -1002,8 +1004,26 @@ int http_put_method(request_rec *r, mod_gridsite_cfg *conf)
 
 int http_delete_method(request_rec *r, mod_gridsite_cfg *conf)
 {
-  if (remove(r->filename) != 0) return HTTP_FORBIDDEN;
+  if (apr_file_remove(r->filename, r->pool) != 0) return HTTP_FORBIDDEN;
        
+  ap_set_content_length(r, 0);
+  ap_set_content_type(r, "text/html");
+
+  return OK;
+}
+
+int http_move_method(request_rec *r, mod_gridsite_cfg *conf)
+{
+  char *destination_translated = NULL;
+  
+  if (r->notes != NULL) destination_translated = 
+            (char *) apr_table_get(r->notes, "GRST_DESTINATION_TRANSLATED");
+
+
+  if ((destination_translated == NULL) ||  
+      (apr_file_rename(r->filename, destination_translated, r->pool) != 0))
+                                                       return HTTP_FORBIDDEN;
+
   ap_set_content_length(r, 0);
   ap_set_content_type(r, "text/html");
 
@@ -1074,6 +1094,11 @@ static int mod_gridsite_nondir_handler(request_rec *r, mod_gridsite_cfg *conf)
             (conf->methods != NULL) &&
             (strstr(conf->methods, " DELETE ") != NULL)) 
                                            return http_delete_method(r, conf);
+
+        if ((r->method_number == M_MOVE) &&
+            (conf->methods != NULL) &&
+            (strstr(conf->methods, " MOVE ") != NULL)) 
+                                           return http_move_method(r, conf);
       }
 
     /* *** check if a special ghost admin CGI *** */
@@ -1935,18 +1960,22 @@ static int mod_gridsite_perm_handler(request_rec *r)
     We also publish environment variables here if requested by GridSiteEnv.
 */
 {
-    int          retcode = DECLINED, i, n;
+    int          retcode = DECLINED, i, n, file_is_acl = 0,
+                 destination_is_acl = 0;
     char        *dn, *p, envname[14], *grst_cred_0 = NULL, *dir_path, 
-                *remotehost, s[99], *grst_cred_i, *file, *cookies,
-                *gridauthonetime, *cookiefile, oneline[1025], *key_i;
+                *remotehost, s[99], *grst_cred_i, *cookies, *file,
+                *gridauthonetime, *cookiefile, oneline[1025], *key_i,
+                *destination = NULL, *destination_uri = NULL, 
+                *destination_prefix = NULL, *destination_translated = NULL;
     const char  *content_type;
     time_t       now, notbefore, notafter;
     apr_table_t *env;
     apr_finfo_t  cookiefile_info;
     apr_file_t  *fp;
+    request_rec *destreq;
     GRSTgaclCred    *cred = NULL, *cred_0 = NULL;
     GRSTgaclUser    *user = NULL;
-    GRSTgaclPerm     perm = GRST_PERM_NONE;
+    GRSTgaclPerm     perm = GRST_PERM_NONE, destination_perm = GRST_PERM_NONE;
     GRSTgaclAcl     *acl = NULL;
     mod_gridsite_cfg *cfg;
 
@@ -2094,26 +2123,93 @@ static int mod_gridsite_perm_handler(request_rec *r)
     if ((user != NULL) && ((mod_gridsite_cfg *) cfg)->dnlists)
           GRSTgaclUserSetDNlists(user, ((mod_gridsite_cfg *) cfg)->dnlists);
 
-    /* this checks for NULL arguments itself */
-    if (GRSTgaclDNlistHasUser(((mod_gridsite_cfg *) cfg)->adminlist, user))
-                                                        perm = GRST_PERM_ALL;
-    else
-      {
-        remotehost = (char *) ap_get_remote_host(r->connection,
+    /* add DNS credential */
+    
+    remotehost = (char *) ap_get_remote_host(r->connection,
                                   r->per_dir_config, REMOTE_DOUBLE_REV, NULL);
-        if ((remotehost != NULL) && (*remotehost != '\0'))
-          {            
-            cred = GRSTgaclCredNew("dns");
-            GRSTgaclCredAddValue(cred, "hostname", remotehost);
+    if ((remotehost != NULL) && (*remotehost != '\0'))
+      {            
+        cred = GRSTgaclCredNew("dns");
+        GRSTgaclCredAddValue(cred, "hostname", remotehost);
 
-            if (user == NULL) user = GRSTgaclUserNew(cred);
-            else              GRSTgaclUserAddCred(user, cred);
-          }
-
-        acl = GRSTgaclAclLoadforFile(r->filename);
-        if (acl != NULL) perm = GRSTgaclAclTestUser(acl, user);
+        if (user == NULL) user = GRSTgaclUserNew(cred);
+        else              GRSTgaclUserAddCred(user, cred);
       }
 
+    /* check for Destination: header and evaluate if present */
+
+    if ((destination = (char *) apr_table_get(r->headers_in,
+                                              "Destination")) != NULL)
+      {
+        destination_prefix = apr_psprintf(r->pool, "https://%s:%d/", 
+                         r->server->server_hostname, (int) r->server->port);
+
+        if (strncmp(destination_prefix, destination,
+                    strlen(destination_prefix)) == 0) 
+           destination_uri = &destination[strlen(destination_prefix)-1];
+        else if ((int) r->server->port == 443)
+          {
+            destination_prefix = apr_psprintf(r->pool, "https://%s/", 
+                                              r->server->server_hostname);
+
+            if (strncmp(destination_prefix, destination,
+                                strlen(destination_prefix)) == 0)
+              destination_uri = &destination[strlen(destination_prefix)-1];
+          }
+          
+        if (destination_uri != NULL)
+          {
+            destreq = ap_sub_req_method_uri("GET", destination_uri, r, NULL);
+
+            if ((destreq != NULL) && (destreq->filename != NULL) 
+                                  && (destreq->path_info != NULL))
+              {
+                destination_translated = apr_pstrcat(r->pool, 
+                               destreq->filename, destreq->path_info, NULL);
+
+                apr_table_setn(r->notes, "GRST_DESTINATION_TRANSLATED", 
+                               destination_translated);
+                             
+                if (((mod_gridsite_cfg *) cfg)->envs)
+                        apr_table_setn(env, "GRST_DESTINATION_TRANSLATED", 
+                                                  destination_translated);
+                                                  
+                 p = rindex(destination_translated, '/');
+                 if ((p != NULL) && (strcmp(&p[1], GRST_ACL_FILE) == 0))
+                                                    destination_is_acl = 1;
+              }
+          }
+      }
+    
+    /* this checks for NULL arguments itself */
+    if (GRSTgaclDNlistHasUser(((mod_gridsite_cfg *) cfg)->adminlist, user))
+      {
+        perm = GRST_PERM_ALL;
+        if (destination_translated != NULL) destination_perm = GRST_PERM_ALL;
+      }
+    else
+      {
+        acl = GRSTgaclAclLoadforFile(r->filename);
+        if (acl != NULL) perm = GRSTgaclAclTestUser(acl, user);
+        GRSTgaclAclFree(acl);
+        
+        if (destination_translated != NULL)
+          {
+            acl = GRSTgaclAclLoadforFile(destination_translated);
+            if (acl != NULL) destination_perm = GRSTgaclAclTestUser(acl, user);
+            GRSTgaclAclFree(acl);
+
+            apr_table_setn(r->notes, "GRST_DESTINATION_PERM",
+                              apr_psprintf(r->pool, "%d", destination_perm));
+          
+            if (((mod_gridsite_cfg *) cfg)->envs)
+              apr_table_setn(env, "GRST_DESTINATION_PERM",
+                              apr_psprintf(r->pool, "%d", destination_perm));
+          }
+      }
+      
+    /* set permission and GACL environment variables */
+    
     apr_table_setn(r->notes, "GRST_PERM", apr_psprintf(r->pool, "%d", perm));
 
     if (((mod_gridsite_cfg *) cfg)->envs)
@@ -2207,13 +2303,9 @@ static int mod_gridsite_perm_handler(request_rec *r)
       {
         /* *** Check HTTP method to decide which perm bits to check *** */
 
-        if (r->filename != NULL)
-          {
-            file = rindex(r->filename, '/');
-            if (file != NULL) ++file;
-            else file = r->filename;
-          }
-        else file = NULL;
+        if ((r->filename != NULL) && 
+            ((p = rindex(r->filename, '/')) != NULL) &&
+            (strcmp(&p[1], GRST_ACL_FILE) == 0)) file_is_acl = 1;
 
         content_type = r->content_type;
         if ((content_type != NULL) &&
@@ -2248,14 +2340,23 @@ static int mod_gridsite_perm_handler(request_rec *r)
 
             ((r->method_number == M_POST) && !GRSTgaclPermHasRead(perm) ) ||
 
-            (((r->method_number == M_PUT) || (r->method_number == M_DELETE)) &&
-             !GRSTgaclPermHasWrite(perm) &&
-             ((file == NULL) || (strcmp(file, GRST_ACL_FILE) != 0)) ) ||
+            (((r->method_number == M_PUT) || 
+              (r->method_number == M_DELETE)) &&
+             !GRSTgaclPermHasWrite(perm) && !file_is_acl) ||
 
-            (((r->method_number == M_PUT) || (r->method_number == M_DELETE)) &&
-             !GRSTgaclPermHasAdmin(perm) &&
-             (file != NULL)              &&
-             (strcmp(file, GRST_ACL_FILE) == 0) ) ) retcode = HTTP_FORBIDDEN;
+            ((r->method_number == M_MOVE) &&
+             ((!GRSTgaclPermHasWrite(perm) && !file_is_acl) || 
+              (!GRSTgaclPermHasAdmin(perm) && file_is_acl)  ||
+              (!GRSTgaclPermHasWrite(destination_perm) 
+                                    && !destination_is_acl) || 
+              (!GRSTgaclPermHasAdmin(destination_perm) 
+                                     && destination_is_acl)) ) ||
+
+            (((r->method_number == M_PUT) || 
+              (r->method_number == M_DELETE)) &&
+             !GRSTgaclPermHasAdmin(perm) && file_is_acl) 
+             
+             ) retcode = HTTP_FORBIDDEN;
       }
 
     return retcode;

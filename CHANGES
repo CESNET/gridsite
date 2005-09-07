@@ -1,3 +1,9 @@
+* Fri Aug 26 2005 Andrew McNab <Andrew.McNab@man.ac.uk>
+- Fix for HTTP PUT lack-of-truncation bug found by 
+  Mike Jones, and support for HTTP/WebDAV MOVE.
+- Add MOVE support to htcp and update htcp manpage.
+- Unset CURLOPT_SSL_VERIFYPEER in htcp etc when using
+  --noverify option.
 * Fri Jun 10 2005 Andrew McNab <Andrew.McNab@man.ac.uk>
 - ==== GridSite version 1.1.11 ====
 * Fri Jun 10 2005 Andrew McNab <Andrew.McNab@man.ac.uk>

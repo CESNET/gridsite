@@ -1,6 +1,6 @@
-.TH htcp 1 "July 2004" htcp "HTCP Manual"
+.TH htcp 1 "September 2005" htcp "HTCP Manual"
 .SH NAME
-.B htcp, htrm, htls, htll, htmkdir
+.B htcp, htrm, htls, htll, htmkdir, htmv
 \- get, put, delete or list HTTP/HTTPS files or directories
 .SH SYNOPSIS
 .B htcp [options]
@@ -52,6 +52,11 @@ Instead of copying files, attempt to create a directory on a remote server
 with HTTP PUT. The server must support the convention that PUT to a URL with
 a trailing slash means create a directory. No file body is sent. Calling the
 program as htmkdir has the same effect.
+
+.IP "--move"
+Move/rename files on a single remote server, given the two, absolute URLs
+of the remote file names. Server must support HTTP/WebDAV MOVE. Calling the
+program as htmv has the same effect.
 
 .IP "--anon"
 .br
@@ -136,7 +141,7 @@ Recursive copying. Server-side wildcards. Parallel streams. Error recovery.
 Not enough beta testing (hint hint...)
 
 .SH AUTHOR
-Andrew McNab <Andrew.McNab@man.ac.uk>
+Andrew McNab <Andrew.McNab@manchester.ac.uk>
 
 htcp is part of GridSite: http://www.gridsite.org/
 .SH "SEE ALSO"

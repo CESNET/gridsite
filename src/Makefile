@@ -298,6 +298,7 @@ install: apidoc
 	ln -sf htcp $(prefix)/bin/htll
 	ln -sf htcp $(prefix)/bin/htrm
 	ln -sf htcp $(prefix)/bin/htmkdir
+	ln -sf htcp $(prefix)/bin/htmv
 	cp -f gsexec $(prefix)/sbin
 	cp -f mod_gridsite.so $(prefix)/lib/httpd/modules
 
@@ -335,11 +336,13 @@ htcp-bin: htcp
 	cp -f ../doc/README.htcp-bin ../htcp-bin-$(PATCH_VERSION)
 	cp -f htcp ../htcp-bin-$(PATCH_VERSION)/bin
 	cp -f ../doc/htcp.1 ../doc/htrm.1 ../doc/htls.1 ../doc/htll.1 \
-              ../doc/htmkdir.1	../htcp-bin-$(PATCH_VERSION)/man/man1
+              ../doc/htmkdir.1 ../doc/htmv.1 \
+              ../htcp-bin-$(PATCH_VERSION)/man/man1
 	ln -sf htcp ../htcp-bin-$(PATCH_VERSION)/bin/htls
 	ln -sf htcp ../htcp-bin-$(PATCH_VERSION)/bin/htll
 	ln -sf htcp ../htcp-bin-$(PATCH_VERSION)/bin/htrm
 	ln -sf htcp ../htcp-bin-$(PATCH_VERSION)/bin/htmkdir
+	ln -sf htcp ../htcp-bin-$(PATCH_VERSION)/bin/htmv
 	cd ../htcp-bin-$(VERSION) ; tar zcvf ../htcp-$(VERSION).bin.tar.gz .
 	rm -Rf ../htcp-bin-$(PATCH_VERSION)
 

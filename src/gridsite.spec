@@ -8,7 +8,7 @@ Source: %{name}-%{version}.src.tar.gz
 Prefix: %(echo ${MYPREFIX:-/usr})
 URL: http://www.gridsite.org/
 Vendor: GridPP
-#Requires: libxml2,curl-ssl,mod_ssl
+Requires: libxml2,mod_ssl
 #Buildrequires: libxml2-devel,curl-ssl-devel,httpd-devel
 Packager: Andrew McNab <Andrew.McNab@manchester.ac.uk>
 
@@ -23,7 +23,7 @@ http://www.gridsite.org/ for details.
 %package -n htcp
 Group: Applications/Internet
 Summary: HTTP(S) read/write client
-#Requires: curl-ssl
+Requires: curl
 
 %description -n htcp
 htcp is a client to fetch files or directory listings from remote
@@ -34,7 +34,6 @@ HTTP/HTTPS rather than ssh as its transfer protocol.
 %package gsexec
 Group: Applications/Internet
 Summary: gsexec binary for the Apache HTTP server
-#Requires: curl-ssl
 
 %description gsexec
 This package includes the /usr/sbin/gsexec binary which can be installed

@@ -8,7 +8,7 @@ Source: %{name}-%{version}.src.tar.gz
 Prefix: %(echo ${MYPREFIX:-/usr})
 URL: http://www.gridsite.org/
 Vendor: GridPP
-Requires: libxml2,mod_ssl
+Requires: libxml2
 #Buildrequires: libxml2-devel,curl-ssl-devel,httpd-devel
 Packager: Andrew McNab <Andrew.McNab@manchester.ac.uk>
 

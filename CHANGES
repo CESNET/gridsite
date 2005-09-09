@@ -1,3 +1,9 @@
+* Fri Sep 9 2005 Andrew McNab <Andrew.McNab@man.ac.uk>
+- GRST_DESTINATION_TRANSLATED and GRST_DESTINATION_PERM
+  environment variables, for use with CGI-based COPY.
+- Rework GridHTTP (ex-Downgrade) code to store method
+  and URI with permission, rather than credentials.
+- Restrict use of GridSiteOnetimesDir to main server.
 * Fri Aug 26 2005 Andrew McNab <Andrew.McNab@man.ac.uk>
 - Fix for HTTP PUT lack-of-truncation bug found by 
   Mike Jones, and support for HTTP/WebDAV MOVE.

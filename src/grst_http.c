@@ -405,3 +405,39 @@ char *GRSThttpUrlMildencode(char *in)
   *q = '\0';  
   return out;
 }
+
+/// Return a one-time passcode string, for use with GridHTTP
+/**
+ *  Returns
+ *
+ *  String is timestamp+SHA1_HASH(timestamp+":"+method+":"+URL)
+ *  Timestamps and hashes are in lowercase hexadecimal. Timestamps are
+ *  seconds since 00:00:00 on January 1, 1970 UTC.
+ */
+
+/*
+char *GRSThttpMakeOneTimePasscode(time_t timestamp, char *method, char *url)
+{
+  int    len, i;
+  char  *stringtohash, hashedstring[EVP_MAX_MD_SIZE], *returnstring;
+  const EVP_MD *m;
+  EVP_MD_CTX ctx;
+
+  m = EVP_sha1();
+  if (m == NULL) return NULL;
+
+  asprintf(&stringtohash, "%08x:%s:%s", timestamp, method, url);
+ 
+  EVP_DigestInit(&ctx, m);
+  EVP_DigestUpdate(&ctx, stringtohash, strlen(stringtohash));
+  EVP_DigestFinal(&ctx, hashedstring, &len);
+
+  returnstring = malloc(9 + len * 2);
+
+  sprintf(returnstring, "%08x", timestamp);
+
+  for (i=0; 
+
+  return returnstring;
+}
+*/

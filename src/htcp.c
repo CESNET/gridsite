@@ -86,7 +86,7 @@ struct grst_stream_data { char *source;
                           char *errorbuf;
                           int   noverify;
                           int   anonymous;
-                          long long downgrade;
+                          int   gridhttp;
                           int   verbose;	} ;
                           
 struct grst_index_blob { char   *text;
@@ -101,7 +101,7 @@ struct grst_dir_list { char   *filename;
 
 struct grst_header_data { int    retcode;                         
                           char  *location;
-                          char  *gridauthonetime;
+                          char  *gridhttponetime;
                           size_t length;
                           int    length_set;
                           time_t modified;                           
@@ -130,19 +130,22 @@ size_t headers_callback(void *ptr, size_t size, size_t nmemb, void *p)
   else if (strncmp(s, "Location: ", 10) == 0) 
       {
         header_data->location = strdup(&s[10]);
+        
+        for (q=header_data->location; *q != '\0'; ++q)
+         if ((*q == '\r') || (*q == '\n')) *q = '\0';
          
         if (header_data->common_data->verbose > 0)
              fprintf(stderr, "Received Location: %s\n", header_data->location);
       }
-  else if (strncmp(s, "Set-Cookie: GRID_AUTH_ONETIME=", 30) == 0) 
+  else if (strncmp(s, "Set-Cookie: GRIDHTTP_ONETIME=", 29) == 0) 
       {
-        header_data->gridauthonetime = strdup(&s[12]);
-        q = index(header_data->gridauthonetime, ';');
+        header_data->gridhttponetime = strdup(&s[12]);
+        q = index(header_data->gridhttponetime, ';');
         if (q != NULL) *q = '\0';       
 
         if (header_data->common_data->verbose > 0)
-             fprintf(stderr, "Received Grid Auth Cookie: %s\n", 
-                             header_data->gridauthonetime);
+             fprintf(stderr, "Received GridHTTP Auth Cookie: %s\n", 
+                             header_data->gridhttponetime);
       }
   else if (strncmp(s, "Last-Modified: ", 15) == 0)
       {
@@ -222,18 +225,17 @@ int do_copies(char *sources[], char *destination,
   CURL        *easyhandle;
   struct stat  statbuf;
   struct       grst_header_data header_data;
-  struct curl_slist *dgheader_slist = NULL, *nodgheader_slist = NULL;
+  struct curl_slist *gh_header_slist = NULL, *nogh_header_slist = NULL;
   
   easyhandle = curl_easy_init();
   
-  if (common_data->downgrade >= (long long) 0)
+  if (common_data->gridhttp)
     {               
-      asprintf(&p, "HTTP-Downgrade-Size: %lld", common_data->downgrade);      
-      dgheader_slist = curl_slist_append(dgheader_slist, p);
+      asprintf(&p, "Upgrade: GridHTTP/1.0");
+      gh_header_slist = curl_slist_append(gh_header_slist, p);
       free(p);
       
-      nodgheader_slist = curl_slist_append(nodgheader_slist,
-                                           "HTTP-Downgrade-Size:");
+      nogh_header_slist = curl_slist_append(nogh_header_slist, "Upgrade:");
     }
   
   curl_easy_setopt(easyhandle, CURLOPT_USERAGENT, common_data->useragent);
@@ -283,17 +285,16 @@ int do_copies(char *sources[], char *destination,
            curl_easy_setopt(easyhandle, CURLOPT_WRITEDATA, common_data->fp);
            curl_easy_setopt(easyhandle, CURLOPT_URL,       sources[isrc]);
            
-           if ((common_data->downgrade >= (long long) 0) &&
+           if ((common_data->gridhttp) &&
                (strncmp(sources[isrc], "https://", 8) == 0))
              {
                if (common_data->verbose > 0)
-                 fprintf(stderr, "Add  HTTP-Downgrade-Size: %lld  header\n",
-                         common_data->downgrade);
+                 fprintf(stderr, "Add  Upgrade: GridHTTP/1.0\n");
                  
-               curl_easy_setopt(easyhandle,CURLOPT_HTTPHEADER,dgheader_slist);
+               curl_easy_setopt(easyhandle,CURLOPT_HTTPHEADER,gh_header_slist);
              }
            else 
-             curl_easy_setopt(easyhandle,CURLOPT_HTTPHEADER,nodgheader_slist);
+             curl_easy_setopt(easyhandle,CURLOPT_HTTPHEADER,nogh_header_slist);
          }
        else if (common_data->method == HTCP_PUT)
          {
@@ -320,30 +321,30 @@ int do_copies(char *sources[], char *destination,
            curl_easy_setopt(easyhandle, CURLOPT_INFILESIZE, statbuf.st_size);
            curl_easy_setopt(easyhandle, CURLOPT_UPLOAD,   1);
 
-           if (((long long) statbuf.st_size >= common_data->downgrade) &&
+           if ((common_data->gridhttp) &&
                (strncmp(thisdestination, "https://", 8) == 0))
-               curl_easy_setopt(easyhandle,CURLOPT_HTTPHEADER,dgheader_slist);
+               curl_easy_setopt(easyhandle,CURLOPT_HTTPHEADER,gh_header_slist);
            else 
-             curl_easy_setopt(easyhandle,CURLOPT_HTTPHEADER,nodgheader_slist);
+             curl_easy_setopt(easyhandle,CURLOPT_HTTPHEADER,nogh_header_slist);
          }
 
        header_data.retcode  = 0;
        header_data.location = NULL;
-       header_data.gridauthonetime = NULL;
+       header_data.gridhttponetime = NULL;
        header_data.common_data = common_data;
        thiserror = curl_easy_perform(easyhandle);
        
        fclose(common_data->fp);
 
-       if ((common_data->downgrade >= (long long) 0) &&
+       if ((common_data->gridhttp) &&
            (thiserror == 0) &&
            (header_data.retcode == 302) &&
            (header_data.location != NULL) &&
            (strncmp(header_data.location, "http://", 7) == 0) &&
-           (header_data.gridauthonetime != NULL))
+           (header_data.gridhttponetime != NULL))
          {
            if (common_data->verbose > 0)
-             fprintf(stderr, "... Found (%d)\nHTTP-Downgrade to %s\n", 
+             fprintf(stderr, "... Found (%d)\nGridHTTP redirect to %s\n",
                      header_data.retcode, header_data.location);
 
            /* try again with new URL and all the previous CURL options */
@@ -375,9 +376,9 @@ int do_copies(char *sources[], char *destination,
 
            header_data.retcode  = 0;           
            curl_easy_setopt(easyhandle, CURLOPT_URL, header_data.location);
-           curl_easy_setopt(easyhandle, CURLOPT_HTTPHEADER, nodgheader_slist);
+           curl_easy_setopt(easyhandle, CURLOPT_HTTPHEADER, nogh_header_slist);
            curl_easy_setopt(easyhandle, CURLOPT_COOKIE, 
-                                                  header_data.gridauthonetime);
+                                                  header_data.gridhttponetime);
            thiserror = curl_easy_perform(easyhandle);
 
            fclose(common_data->fp);
@@ -842,7 +843,7 @@ int do_listings(char *sources[], struct grst_stream_data *common_data,
            curl_easy_setopt(easyhandle, CURLOPT_NOBODY, 1);
          }
 
-       header_data.gridauthonetime = NULL;
+       header_data.gridhttponetime = NULL;
        header_data.length_set   = 0;
        header_data.modified_set = 0;
        header_data.retcode      = 0;
@@ -891,7 +892,7 @@ int do_listings(char *sources[], struct grst_stream_data *common_data,
                         asprintf(&s, "%s%s", sources[isrc], list[i].filename);                        
                         curl_easy_setopt(easyhandle, CURLOPT_URL, s);
 
-                        header_data.gridauthonetime = NULL;
+                        header_data.gridhttponetime = NULL;
                         header_data.length_set   = 0;
                         header_data.modified_set = 0;
                         header_data.retcode = 0;
@@ -1053,7 +1054,7 @@ int main(int argc, char *argv[])
                 			{"mkdir",		0, 0, 0},
                 			{"no-verify",		0, 0, 0},
                 			{"anon",		0, 0, 0},
-                			{"downgrade-size",	1, 0, 0},
+                			{"grid-http",		0, 0, 0},
                 			{"move",		0, 0, 0},
 //					{"streams",		1, 0, 0},
 //              			{"blocksize",		1, 0, 0},
@@ -1080,7 +1081,7 @@ int main(int argc, char *argv[])
   common_data.verbose   = 0;
   common_data.noverify  = 0;
   common_data.anonymous = 0;
-  common_data.downgrade = (long long) -1;
+  common_data.gridhttp  = 0;
   
   while (1)
        {
@@ -1100,7 +1101,7 @@ int main(int argc, char *argv[])
              else if (option_index == 7) common_data.method    = HTCP_MKDIR;
              else if (option_index == 8) common_data.noverify  = 1;
              else if (option_index == 9) common_data.anonymous = 1;
-             else if (option_index ==10) common_data.downgrade = atoll(optarg);
+             else if (option_index ==10) common_data.gridhttp  = 1;
              else if (option_index ==11) common_data.method    = HTCP_MOVE;
            }
          else if (c == 'v') ++(common_data.verbose);

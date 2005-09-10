@@ -1080,6 +1080,7 @@ static int mod_gridsite_nondir_handler(request_rec *r, mod_gridsite_dir_cfg *con
 */
 {
     char *upgradeheader, *upgradespaced, *p;
+    const char *https_env;
 
     /* *** is this a write method or GridHTTP HTTPS->HTTP redirection? 
            only possible if  GridSiteAuth on *** */
@@ -1092,7 +1093,8 @@ static int mod_gridsite_nondir_handler(request_rec *r, mod_gridsite_dir_cfg *con
               (strstr(conf->methods, " PUT ") != NULL))) &&
             ((upgradeheader = (char *) apr_table_get(r->headers_in,
                                                      "Upgrade")) != NULL) &&
-            (strcasecmp(apr_table_get(r->subprocess_env, "HTTPS"), "on") == 0))
+            ((https_env=apr_table_get(r->subprocess_env,"HTTPS")) != NULL) &&
+            (strcasecmp(https_env, "on") == 0))
           {
             upgradespaced = apr_psprintf(r->pool, " %s ", upgradeheader);
 
@@ -1100,7 +1102,7 @@ static int mod_gridsite_nondir_handler(request_rec *r, mod_gridsite_dir_cfg *con
              if ((*p == ',') || (*p == '\t')) *p = ' ';
 
 // TODO: what if we're pointing at a CGI or some dynamic content???
-
+ 
             if (strstr(upgradespaced, " GridHTTP/1.0 ") != NULL)
                                             return http_gridhttp(r, conf);
           }

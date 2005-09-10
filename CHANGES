@@ -1,3 +1,6 @@
+* Sat Sep 10 2005 Andrew McNab <Andrew.McNab@man.ac.uk>
+- Fix problem with attempted upgrades to GridHTTP when
+  already on the HTTP virtual server.
 * Fri Sep 9 2005 Andrew McNab <Andrew.McNab@man.ac.uk>
 - GRST_DESTINATION_TRANSLATED and GRST_DESTINATION_PERM
   environment variables, for use with CGI-based COPY.

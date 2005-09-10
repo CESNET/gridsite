@@ -1495,7 +1495,7 @@ static void *create_gridsite_srv_config(apr_pool_t *p, server_rec *s)
 {
     mod_gridsite_srv_cfg *srv_conf = apr_palloc(p, sizeof(*srv_conf));
 
-    srv_conf->onetimesdir = apr_pstrdup(p, "onetimes");
+    srv_conf->onetimesdir = apr_pstrdup(p, "/var/www/onetimes");
                                      /* GridSiteOnetimesDir dir-path */
     return srv_conf;
 }
@@ -1546,8 +1546,6 @@ static void *create_gridsite_dir_config(apr_pool_t *p, char *path)
                /* GridSiteHeadFile and GridSiteFootFile  file name */
 
         conf->gridhttp       = 0;     /* GridSiteGridHTTP     on/off       */
-//        conf->onetimesdir = apr_pstrdup(p, "onetimes");
-//                                     /* GridSiteOnetimesDir dir-path     */
         conf->soap2cgi      = 0;     /* GridSiteSoap2cgi      on/off       */
 	conf->aclformat     = apr_pstrdup(p, "GACL");
                                      /* GridSiteACLFormat     gacl/xacml */
@@ -1583,7 +1581,6 @@ static void *create_gridsite_dir_config(apr_pool_t *p, char *path)
         conf->headfile      = NULL;  /* GridSiteHeadFile      file name    */
         conf->footfile      = NULL;  /* GridSiteFootFile      file name    */
         conf->gridhttp      = UNSET; /* GridSiteGridHTTP      on/off       */
-//        conf->onetimesdir   = NULL;  /* GridSiteOnetimesDir   dir-path     */
         conf->soap2cgi      = UNSET; /* GridSiteSoap2cgi      on/off       */
 	conf->aclformat     = NULL;  /* GridSiteACLFormat     gacl/xacml   */
 	conf->execmethod    = NULL;  /* GridSiteExecMethod */
@@ -1663,10 +1660,6 @@ static void *merge_gridsite_dir_config(apr_pool_t *p, void *vserver,
 
     if (direct->gridhttp != UNSET) conf->gridhttp = direct->gridhttp;
     else                           conf->gridhttp = server->gridhttp;
-        
-//    if (direct->onetimesdir != NULL)
-//                                conf->onetimesdir = direct->onetimesdir;
-//    else                        conf->onetimesdir = server->onetimesdir;
         
     if (direct->soap2cgi != UNSET) conf->soap2cgi = direct->soap2cgi;
     else                           conf->soap2cgi = server->soap2cgi;

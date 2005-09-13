@@ -646,17 +646,25 @@ GRSTgaclAcl *GRSTgaclAclLoadFile(char *filename)
   if (doc == NULL) return NULL;
 
   cur = xmlDocGetRootElement(doc);
-  if (cur == NULL) return NULL;
-
-  if (!xmlStrcmp(cur->name, (const xmlChar *) "Policy")) { acl=GRSTxacmlAclParse(doc, cur, acl);}
-  else if (!xmlStrcmp(cur->name, (const xmlChar *) "gacl")) {acl=GRSTgaclAclParse(doc, cur, acl);}
-  else /* ACL format not recognised */
+  if (cur == NULL) 
     {
-      free(doc);
-      free(cur);
+      xmlFreeDoc(doc);      
       return NULL;
     }
 
+  if (!xmlStrcmp(cur->name, (const xmlChar *) "Policy")) 
+    { 
+      acl=GRSTxacmlAclParse(doc, cur, acl);
+    }
+  else if (!xmlStrcmp(cur->name, (const xmlChar *) "gacl")) 
+    {
+      acl=GRSTgaclAclParse(doc, cur, acl);
+    }
+  else /* ACL format not recognised */
+    {
+      xmlFreeDoc(doc);
+      return NULL;
+    }
     
   xmlFreeDoc(doc);
   return acl;

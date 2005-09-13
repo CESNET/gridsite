@@ -2003,8 +2003,8 @@ static int mod_gridsite_perm_handler(request_rec *r)
                  destination_is_acl = 0;
     char        *dn, *p, envname[14], *grst_cred_0 = NULL, *dir_path, 
                 *remotehost, s[99], *grst_cred_i, *cookies, *file,
-                *gridauthonetime, *cookiefile, oneline[1025], *key_i,
-                *destination = NULL, *destination_uri = NULL, 
+                *gridauthonetime = NULL, *cookiefile, oneline[1025], *key_i,
+                *destination = NULL, *destination_uri = NULL, *querytmp, 
                 *destination_prefix = NULL, *destination_translated = NULL;
     const char  *content_type;
     time_t       now, notbefore, notafter;
@@ -2158,6 +2158,8 @@ static int mod_gridsite_perm_handler(request_rec *r)
           }
       }
       
+    /* first look for GRIDHTTP_ONETIME cookie */
+      
     if ((p = (char *) apr_table_get(r->headers_in, "Cookie")) != NULL)
       {
         cookies = apr_pstrcat(r->pool, " ", p, NULL);
@@ -2165,23 +2167,47 @@ static int mod_gridsite_perm_handler(request_rec *r)
                 
         if (gridauthonetime != NULL)
           {
-            for (p = &gridauthonetime[18]; (*p != '\0') && (*p != ';'); ++p)
-                                                if (!isalnum(*p)) *p = '_';
-        
-            cookiefile = apr_psprintf(r->pool, "%s/%s",
+            for (p = &gridauthonetime[18]; 
+                 (*p != '\0') && (*p != ';'); ++p)
+                                      if (!isalnum(*p)) *p = '\0';
+          }
+      }
+
+    /* then look for GRIDHTTP_ONETIME in QUERY_STRING ie after ? */
+      
+    if (gridauthonetime == NULL)
+      {
+        if ((r->parsed_uri.query != NULL) && (r->parsed_uri.query[0] != '\0'))
+          {
+            querytmp = apr_pstrcat(r->pool,"&",r->parsed_uri.query,"&",NULL);
+            
+            gridauthonetime = strstr(querytmp, "&GRIDHTTP_ONETIME=");
+            
+            if (gridauthonetime != NULL)
+              {
+                for (p = &gridauthonetime[18]; 
+                     (*p != '\0') && (*p != '&'); ++p)
+                                          if (!isalnum(*p)) *p = '\0';
+              }            
+          }
+      }
+
+    if ((gridauthonetime != NULL) && (gridauthonetime[0] != '\0')) 
+      {
+        cookiefile = apr_psprintf(r->pool, "%s/%s",
                  ap_server_root_relative(r->pool,
                    ((mod_gridsite_srv_cfg *) 
                     ap_get_module_config(r->server->module_config, 
                                     &gridsite_module))->onetimesdir),
                  &gridauthonetime[18]);
                                       
-            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
                              "Opening GridHTTP onetime file %s", cookiefile);
               
-            if ((apr_stat(&cookiefile_info, cookiefile, 
+        if ((apr_stat(&cookiefile_info, cookiefile, 
                           APR_FINFO_TYPE, r->pool) == APR_SUCCESS) &&
-                (cookiefile_info.filetype == APR_REG) &&
-                (apr_file_open(&fp, cookiefile, APR_READ, 0, r->pool)
+            (cookiefile_info.filetype == APR_REG) &&
+            (apr_file_open(&fp, cookiefile, APR_READ, 0, r->pool)
                                                          == APR_SUCCESS))
               {
                 ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
@@ -2215,8 +2241,7 @@ static int mod_gridsite_perm_handler(request_rec *r)
                      }
 
                 apr_file_close(fp);
-              }            
-          }
+              }
       }
     
     ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,

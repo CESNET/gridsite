@@ -1,3 +1,11 @@
+* Thu Sep 29 2005 Andrew McNab <Andrew.McNab@man.ac.uk>
+- Add SiteCast support to mod_gridsite (file location
+  discovery via UDP multicast of HTCP messages.)
+* Wed Sep 21 2005 Andrew McNab <Andrew.McNab@man.ac.uk>
+- Add ports 777 and 488 to example httpd.conf files in
+  docs. See http://www.gridsite.org/wiki/IP_Ports
+* Tue Sep 13 2005 Andrew McNab <Andrew.McNab@man.ac.uk>
+- ==== GridSite version 1.1.12 ====
 * Tue Sep 13 2005 Andrew McNab <Andrew.McNab@man.ac.uk>
 - Fix bug #10031 submitted by Fabrizio Pacini 
   <fabrizio.pacini@cern.ch> (invalid free in 

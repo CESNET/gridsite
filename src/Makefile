@@ -64,32 +64,36 @@ build: libgridsite_globus.so.$(VERSION) libgridsite_globus.a
 
 # First, normal versions using system OpenSSL rather than Globus OpenSSL
 
-libgridsite.so.$(VERSION): grst_x509.o grst_gacl.o grst_xacml.o grst_http.o grst_asn1.o
+libgridsite.so.$(VERSION): grst_x509.o grst_gacl.o grst_xacml.o grst_http.o grst_asn1.o grst_htcp.o
 	gcc -shared -Wl,-soname,libgridsite.so.$(MINOR_VERSION) \
-         -o libgridsite.so.$(PATCH_VERSION) grst_x509.o grst_gacl.o grst_xacml.o grst_http.o grst_asn1.o
+         -o libgridsite.so.$(PATCH_VERSION) grst_x509.o grst_gacl.o grst_xacml.o grst_http.o grst_asn1.o grst_htcp.o
 
-libgridsite.a: grst_x509.o grst_gacl.o grst_xacml.o grst_http.o grst_asn1.o
-	ar src libgridsite.a grst_x509.o grst_gacl.o grst_xacml.o grst_http.o grst_asn1.o
+libgridsite.a: grst_x509.o grst_gacl.o grst_xacml.o grst_http.o grst_asn1.o grst_htcp.o
+	ar src libgridsite.a grst_x509.o grst_gacl.o grst_xacml.o grst_http.o grst_asn1.o grst_htcp.o
 
 grst_x509.o: grst_x509.c ../interface/gridsite.h
-	gcc $(MYCFLAGS) \
+	gcc -g $(MYCFLAGS) \
             -I/usr/kerberos/include -c grst_x509.c
 
 grst_gacl.o: grst_gacl.c ../interface/gridsite.h
-	gcc $(MYCFLAGS) \
+	gcc -g $(MYCFLAGS) \
             -I/usr/kerberos/include `xml2-config --cflags` -c grst_gacl.c
 
 grst_xacml.o: grst_xacml.c ../interface/gridsite.h
-	gcc $(MYCFLAGS) \
+	gcc -g $(MYCFLAGS) \
             -I/usr/kerberos/include `xml2-config --cflags` -c grst_xacml.c
 
 grst_http.o: grst_http.c ../interface/gridsite.h
-	gcc $(MYCFLAGS) \
+	gcc -g $(MYCFLAGS) \
                         -I/usr/kerberos/include -c grst_http.c
 
 grst_asn1.o: grst_asn1.c ../interface/gridsite.h
-	gcc $(MYCFLAGS) \
+	gcc -g $(MYCFLAGS) \
             -I/usr/kerberos/include -c grst_asn1.c
+
+grst_htcp.o: grst_htcp.c ../interface/gridsite.h
+	gcc -g $(MYCFLAGS) \
+            -I/usr/kerberos/include -c grst_htcp.c
 
 # Then build versions using Globus OpenSSL if configured
 
@@ -97,7 +101,7 @@ ifdef OPENSSL_GLOBUS_LIBS
 
 libgridsite_globus.so.$(VERSION): \
                grst_x509_globus.o grst_gacl_globus.o grst_http_globus.o \
-               grst_asn1_globus.o grst_xacml_globus.o
+               grst_asn1_globus.o grst_xacml_globus.o grst_htcp_globus.o
 	gcc -shared -Wl,-soname,libgridsite_globus.so.$(MINOR_VERSION) \
          -o libgridsite_globus.so.$(PATCH_VERSION) \
          grst_x509_globus.o grst_gacl_globus.o grst_xacml_globus.o grst_http_globus.o grst_asn1_globus.o
@@ -107,29 +111,34 @@ libgridsite_globus.a: grst_x509_globus.o grst_gacl_globus.o grst_http_globus.o g
                grst_x509_globus.o grst_gacl_globus.o grst_http_globus.o grst_asn1_globus.o
 
 grst_x509_globus.o: grst_x509.c ../interface/gridsite.h
-	gcc $(MYCFLAGS) $(OPENSSL_GLOBUS_FLAGS) \
+	gcc -g $(MYCFLAGS) $(OPENSSL_GLOBUS_FLAGS) \
             -I/usr/kerberos/include -c grst_x509.c \
             -o grst_x509_globus.o
 
 grst_gacl_globus.o: grst_gacl.c ../interface/gridsite.h
-	gcc $(MYCFLAGS) $(OPENSSL_GLOBUS_FLAGS) \
+	gcc -g $(MYCFLAGS) $(OPENSSL_GLOBUS_FLAGS) \
             -I/usr/kerberos/include `xml2-config --cflags` -c grst_gacl.c \
             -o grst_gacl_globus.o
 
 grst_xacml_globus.o: grst_xacml.c ../interface/gridsite.h
-	gcc $(MYCFLAGS) $(OPENSSL_GLOBUS_FLAGS) \
+	gcc -g $(MYCFLAGS) $(OPENSSL_GLOBUS_FLAGS) \
             -I/usr/kerberos/include `xml2-config --cflags` -c grst_xacml.c \
             -o grst_xacml_globus.o
 
 grst_http_globus.o: grst_http.c ../interface/gridsite.h
-	gcc $(MYCFLAGS) $(OPENSSL_GLOBUS_FLAGS) \
+	gcc -g $(MYCFLAGS) $(OPENSSL_GLOBUS_FLAGS) \
             -I/usr/kerberos/include -c grst_http.c \
             -o grst_http_globus.o
 
 grst_asn1_globus.o: grst_asn1.c ../interface/gridsite.h
-	gcc $(MYCFLAGS) $(OPENSSL_GLOBUS_FLAGS) \
+	gcc -g $(MYCFLAGS) $(OPENSSL_GLOBUS_FLAGS) \
             -I/usr/kerberos/include -c grst_asn1.c \
             -o grst_asn1_globus.o
+
+grst_htcp_globus.o: grst_htcp.c ../interface/gridsite.h
+	gcc -g $(MYCFLAGS) $(OPENSSL_GLOBUS_FLAGS) \
+            -I/usr/kerberos/include -c grst_htcp.c \
+            -o grst_htcp_globus.o
 
 else
 
@@ -142,21 +151,21 @@ libgridsite_globus.a: libgridsite.a
 endif
 
 gsexec:	gsexec.c gsexec.h
-	gcc -DVERSION=\"$(PATCH_VERSION)\" -I/usr/include/httpd \
+	gcc -g -DVERSION=\"$(PATCH_VERSION)\" -I/usr/include/httpd \
 	    -I/usr/include/apr-0 \
 	    -o gsexec gsexec.c
 
 urlencode: urlencode.c libgridsite.a
-	gcc -DVERSION=\"$(PATCH_VERSION)\" $(MYCFLAGS) \
+	gcc -g -DVERSION=\"$(PATCH_VERSION)\" $(MYCFLAGS) \
             -o urlencode urlencode.c -L. \
              -I/usr/kerberos/include -lgridsite
 
 htcp: htcp.c
-	gcc -DVERSION=\"$(PATCH_VERSION)\" -I. -o htcp htcp.c \
+	gcc -g -DVERSION=\"$(PATCH_VERSION)\" -I. -o htcp htcp.c \
           `curl-config --cflags` `curl-config --libs` 
 
 mod_gridsite.so: mod_gridsite.c mod_ssl-private.h libgridsite.a
-	gcc $(MYCFLAGS) -shared -Wl,-soname=gridsite_module \
+	gcc -g $(MYCFLAGS) -shared -Wl,-soname=gridsite_module \
            -I/usr/kerberos/include \
            -I/usr/include/libxml2 \
            -DVERSION=\"$(VERSION)\" -o mod_gridsite.so \
@@ -164,7 +173,7 @@ mod_gridsite.so: mod_gridsite.c mod_ssl-private.h libgridsite.a
 
 real-gridsite-admin.cgi: grst_admin_main.c grst_admin_gacl.c \
                          grst_admin_file.c grst_admin.h
-	gcc $(MYCFLAGS) $(MYLDFLAGS) -o real-gridsite-admin.cgi \
+	gcc -g $(MYCFLAGS) $(MYLDFLAGS) -o real-gridsite-admin.cgi \
             grst_admin_main.c \
             grst_admin_gacl.c \
             grst_admin_file.c \
@@ -172,13 +181,13 @@ real-gridsite-admin.cgi: grst_admin_main.c grst_admin_gacl.c \
             -DVERSION=\"$(VERSION)\" -lgridsite -lssl -lcrypto -lxml2 -lz -lm
 
 findproxyfile: findproxyfile.c libgridsite.a
-	gcc -DVERSION=\"$(PATCH_VERSION)\" $(MYCFLAGS) $(MYLDFLAGS) \
+	gcc -g -DVERSION=\"$(PATCH_VERSION)\" $(MYCFLAGS) $(MYLDFLAGS) \
             -o findproxyfile findproxyfile.c -L. \
             -I/usr/kerberos/include -lgridsite \
             -lssl -lcrypto -lxml2 -lz -lm
 
 showx509exts: showx509exts.c libgridsite.a
-	gcc -DVERSION=\"$(PATCH_VERSION)\" $(MYCFLAGS) $(MYLDFLAGS) \
+	gcc -g -DVERSION=\"$(PATCH_VERSION)\" $(MYCFLAGS) $(MYLDFLAGS) \
             -o showx509exts showx509exts.c -L. \
             -I/usr/kerberos/include \
             -lgridsite \
@@ -188,12 +197,12 @@ apidoc:
 	doxygen Doxyfile
 
 gaclexample: gaclexample.c libgridsite.a
-	gcc -o gaclexample gaclexample.c -I. -L. \
+	gcc -g -o gaclexample gaclexample.c -I. -L. \
             -I/usr/kerberos/include -lgridsite \
             -lssl -lcrypto -lxml2 -lz -lm
 	    
 xacmlexample: xacmlexample.c libgridsite.a
-	gcc -o xacmlexample xacmlexample.c -I. -L. \
+	gcc -g -o xacmlexample xacmlexample.c -I. -L. \
             -I/usr/kerberos/include -lgridsite \
             -lssl -lcrypto -lxml2 -lz -lm
 
@@ -212,12 +221,12 @@ delegation.wsdl: delegation.h
 	$(GSOAPDIR)/bin/soapcpp2 -c delegation.h
 
 libstdsoap2.a: $(GSOAPDIR)/stdsoap2.c
-	gcc -c -DWITH_OPENSSL $(GSOAPDIR)/stdsoap2.c
+	gcc -g -c -DWITH_OPENSSL $(GSOAPDIR)/stdsoap2.c
 	ar src libstdsoap2.a stdsoap2.o
 
 gridsite-delegation.cgi: grst-delegation.c delegation.h delegation.wsdl \
                          soapC.c soapServer.c
-	gcc $(MYCFLAGS) $(MYLDFLAGS) -o gridsite-delegation.cgi \
+	gcc -g $(MYCFLAGS) $(MYLDFLAGS) -o gridsite-delegation.cgi \
             grst-delegation.c \
             -I/usr/kerberos/include -I$(GSOAPDIR)/include \
             -DVERSION=\"$(VERSION)\" -L$(GSOAPDIR)/lib \
@@ -226,7 +235,7 @@ gridsite-delegation.cgi: grst-delegation.c delegation.h delegation.wsdl \
 
 htproxyput: htproxyput.c delegation.h delegation.wsdl \
             soapC.c soapServer.c
-	gcc $(MYCFLAGS) $(MYLDFLAGS) -o htproxyput \
+	gcc -g $(MYCFLAGS) $(MYLDFLAGS) -o htproxyput \
             htproxyput.c \
             -I/usr/kerberos/include \
             -g -DVERSION=\"$(VERSION)\" \
@@ -236,7 +245,7 @@ htproxyput: htproxyput.c delegation.h delegation.wsdl \
 
 proxyput-example: proxyput-example.c delegation.h delegation.wsdl \
             soapC.c soapServer.c
-	gcc $(MYCFLAGS) $(MYLDFLAGS) -o proxyput-example \
+	gcc -g $(MYCFLAGS) $(MYLDFLAGS) -o proxyput-example \
             proxyput-example.c \
             -I/usr/kerberos/include \
             -g -DVERSION=\"$(VERSION)\" \

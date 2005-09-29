@@ -42,6 +42,7 @@
 #endif
 
 #include <apr_strings.h>
+#include <apr_tables.h>
 
 #include <ap_config.h>
 #include <httpd.h>
@@ -56,12 +57,18 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>              
+#include <netdb.h>
 #include <malloc.h>
 #include <stdlib.h>
 #include <string.h>
 #include <dirent.h>
 #include <ctype.h>
 #include <time.h>
+
+#include <sys/select.h> 
+#include <sys/socket.h> 
+#include <netinet/in.h> 
+#include <arpa/inet.h> 
 
 #include <libxml/parser.h>
 #include <libxml/tree.h>
@@ -77,10 +84,24 @@
 
 module AP_MODULE_DECLARE_DATA gridsite_module;
 
-typedef struct
-{
-   char			*onetimesdir;
-}  mod_gridsite_srv_cfg; /* per-server config choices */
+#define GRST_SITECAST_GROUPS 32
+
+struct sitecast_group
+   { int socket; int quad1; int quad2; int quad3; int quad4; int port; };
+
+#define GRST_SITECAST_ALIASES 32
+   
+struct sitecast_alias
+   { const char *sitecast_url; const char *local_path; server_rec *server; };
+
+/* Globals, defined by main server directives in httpd.conf  
+   These are assigned default values in create_gridsite_srv_config() */
+
+int			gridhttpport = 0;
+char                    *onetimesdir = NULL;
+char			*sitecastdnlists = NULL;
+struct sitecast_group	sitecastgroups[GRST_SITECAST_GROUPS+1];
+struct sitecast_alias	sitecastaliases[GRST_SITECAST_ALIASES];
 
 typedef struct
 {
@@ -890,9 +911,7 @@ int http_gridhttp(request_rec *r, mod_gridsite_dir_cfg *conf)
 
     filetemplate = apr_psprintf(r->pool, "%s/%016llxXXXXXX", 
      ap_server_root_relative(r->pool,
-      ((mod_gridsite_srv_cfg *) 
-       ap_get_module_config(r->server->module_config, 
-                                    &gridsite_module))->onetimesdir),
+     onetimesdir),
      gridauthcookie);
 
     if (apr_file_mktemp(&fp, 
@@ -946,9 +965,13 @@ int http_gridhttp(request_rec *r, mod_gridsite_dir_cfg *conf)
                   "domain=%s; "
                   "path=%s",
                   cookievalue, expires_str, r->hostname, r->uri));
-    
-    httpurl = apr_pstrcat(r->pool, "http://", r->hostname,
-                        ap_escape_uri(r->pool, r->uri), NULL);
+
+    if (gridhttpport != DEFAULT_HTTP_PORT)
+         httpurl = apr_psprintf(r->pool, "http://%s:%d%s", r->hostname,
+                                gridhttpport, ap_escape_uri(r->pool, r->uri));
+    else httpurl = apr_pstrcat(r->pool, "http://", r->hostname,
+                                ap_escape_uri(r->pool, r->uri), NULL);
+
     apr_table_setn(r->headers_out, apr_pstrdup(r->pool, "Location"), httpurl);
 
     r->status = HTTP_MOVED_TEMPORARILY;  
@@ -1495,24 +1518,37 @@ static int mod_gridsite_dnlistsuri_handler(request_rec *r,
 
 static void *create_gridsite_srv_config(apr_pool_t *p, server_rec *s)
 {
-    mod_gridsite_srv_cfg *srv_conf = apr_palloc(p, sizeof(*srv_conf));
+    int i;
 
-    srv_conf->onetimesdir = apr_pstrdup(p, "/var/www/onetimes");
-                                     /* GridSiteOnetimesDir dir-path */
-    return srv_conf;
-}
+    if (!(s->is_virtual))
+      {
+        gridhttpport = GRST_HTTP_PORT;
+      
+        onetimesdir = apr_pstrdup(p, "/var/www/onetimes");
+                                      /* GridSiteOnetimesDir dir-path   */
 
-static void *merge_gridsite_srv_config(apr_pool_t *p, void *srvroot,
-                                                      void *vhost)
-/* merge virtual host with server-wide configs */
-{
-    mod_gridsite_srv_cfg *conf;;
+        sitecastdnlists = NULL;
 
-    conf = apr_palloc(p, sizeof(*conf));
+        sitecastgroups[0].quad1 = 0;
+        sitecastgroups[0].quad2 = 0;
+        sitecastgroups[0].quad3 = 0;
+        sitecastgroups[0].quad4 = 0;
+        sitecastgroups[0].port  = GRST_HTCP_PORT;
+                                      /* GridSiteCastUniPort udp-port */
 
-    conf->onetimesdir = ((mod_gridsite_srv_cfg *) srvroot)->onetimesdir;
-                
-    return conf;
+        for (i=1; i <= GRST_SITECAST_GROUPS; ++i)
+                   sitecastgroups[i].port = 0;
+                                      /* GridSiteCastGroup mcast-list */
+
+        for (i=1; i <= GRST_SITECAST_ALIASES; ++i)
+           {
+             sitecastaliases[i].sitecast_url = NULL;
+             sitecastaliases[i].local_path   = NULL;
+             sitecastaliases[i].server       = NULL;                   
+           }                              /* GridSiteCastAlias url path */
+      }
+
+    return NULL;
 }
 
 static void *create_gridsite_dir_config(apr_pool_t *p, char *path)
@@ -1547,7 +1583,7 @@ static void *create_gridsite_dir_config(apr_pool_t *p, char *path)
         conf->footfile = apr_pstrdup(p, GRST_FOOTFILE);
                /* GridSiteHeadFile and GridSiteFootFile  file name */
 
-        conf->gridhttp       = 0;     /* GridSiteGridHTTP     on/off       */
+        conf->gridhttp      = 0;     /* GridSiteGridHTTP      on/off       */
         conf->soap2cgi      = 0;     /* GridSiteSoap2cgi      on/off       */
 	conf->aclformat     = apr_pstrdup(p, "GACL");
                                      /* GridSiteACLFormat     gacl/xacml */
@@ -1690,18 +1726,60 @@ static void *merge_gridsite_dir_config(apr_pool_t *p, void *vserver,
 static const char *mod_gridsite_take1_cmds(cmd_parms *a, void *cfg,
                                            const char *parm)
 {
-    int   n;
+    int   n, i;
     char *p;
-    mod_gridsite_srv_cfg *srv_cfg = 
-     (mod_gridsite_srv_cfg *) ap_get_module_config(a->server->module_config, 
-     &gridsite_module);
   
     if (strcasecmp(a->cmd->name, "GridSiteOnetimesDir") == 0)
     {
       if (a->server->is_virtual)
        return "GridSiteOnetimesDir cannot be used inside a virtual server";
     
-      srv_cfg->onetimesdir = apr_pstrdup(a->pool, parm);
+      onetimesdir = apr_pstrdup(a->pool, parm);
+    }
+    else if (strcasecmp(a->cmd->name, "GridSiteGridHTTPport") == 0)
+    {
+      gridhttpport = atoi(parm);
+    }
+    else if (strcasecmp(a->cmd->name, "GridSiteCastDNlists") == 0)
+    {
+      if (a->server->is_virtual)
+       return "GridSiteDNlists cannot be used inside a virtual server";
+    
+      sitecastdnlists = apr_pstrdup(a->pool, parm);
+    }
+    else if (strcasecmp(a->cmd->name, "GridSiteCastUniPort") == 0)
+    {
+      if (a->server->is_virtual)
+       return "GridSiteCastUniPort cannot be used inside a virtual server";
+
+      if (sscanf(parm, "%d", &(sitecastgroups[0].port)) != 1)
+        return "Failed parsing GridSiteCastUniPort numeric value";
+    }
+    else if (strcasecmp(a->cmd->name, "GridSiteCastGroup") == 0)
+    {
+      if (a->server->is_virtual)
+       return "GridSiteCastGroup cannot be used inside a virtual server";
+
+      for (i=1; i <= GRST_SITECAST_GROUPS; ++i)
+         {
+           if (sitecastgroups[i].port == 0) /* a free slot */
+             {
+               sitecastgroups[i].port = GRST_HTCP_PORT;
+             
+               if (sscanf(parm, "%d.%d.%d.%d:%d",
+                          &(sitecastgroups[i].quad1), 
+                          &(sitecastgroups[i].quad2), 
+                          &(sitecastgroups[i].quad3), 
+                          &(sitecastgroups[i].quad4), 
+                          &(sitecastgroups[i].port)) < 4)
+                 return "Failed parsing GridSiteCastGroup nnn.nnn.nnn.nnn[:port]";
+                 
+               break;
+             }
+         }
+         
+      if (i > GRST_SITECAST_GROUPS)
+                     return "Maximum GridSiteCastGroup groups reached";
     }
     else if (strcasecmp(a->cmd->name, "GridSiteAdminFile") == 0)
     {
@@ -1827,6 +1905,8 @@ static const char *mod_gridsite_take1_cmds(cmd_parms *a, void *cfg,
 static const char *mod_gridsite_take2_cmds(cmd_parms *a, void *cfg,
                                        const char *parm1, const char *parm2)
 {
+    int i;
+    
     if (strcasecmp(a->cmd->name, "GridSiteUserGroup") == 0)
     {
       if (!(unixd_config.suexec_enabled))
@@ -1858,6 +1938,27 @@ static const char *mod_gridsite_take2_cmds(cmd_parms *a, void *cfg,
        | ( APR_GREAD               * (strcasecmp(parm1, "GroupRead") == 0))
        | ((APR_GREAD | APR_GWRITE) * (strcasecmp(parm1, "GroupWrite") == 0))
        | ((APR_GREAD | APR_WREAD)  * (strcasecmp(parm2, "WorldRead") == 0));
+    }
+    else if (strcasecmp(a->cmd->name, "GridSiteCastAlias") == 0)
+    {
+      for (i=0; i < GRST_SITECAST_ALIASES; ++i) /* look for free slot */
+         {
+           if (
+//               srv_cfg->
+                        sitecastaliases[i].sitecast_url == NULL)
+             {
+/*
+               srv_cfg->sitecastaliases[i].sitecast_url  = parm1;
+               srv_cfg->sitecastaliases[i].local_path    = parm2;
+               srv_cfg->sitecastaliases[i].server        = a->server;
+*/                       
+               sitecastaliases[i].sitecast_url  = parm1;
+               sitecastaliases[i].local_path    = parm2;
+               sitecastaliases[i].server        = a->server;
+               
+               break;
+             }
+         }
     }
     
     return NULL;
@@ -1945,9 +2046,20 @@ static const command_rec mod_gridsite_cmds[] =
     
     AP_INIT_FLAG("GridSiteGridHTTP", mod_gridsite_flag_cmds,
                  NULL, OR_FILEINFO, "on or off"),
+    AP_INIT_TAKE1("GridSiteGridHTTPport", mod_gridsite_take1_cmds,
+                   NULL, RSRC_CONF, "GridHTTP port"),
     AP_INIT_TAKE1("GridSiteOnetimesDir", mod_gridsite_take1_cmds,
                  NULL, RSRC_CONF, "directory with GridHTTP onetime passcodes"),
-    
+
+    AP_INIT_TAKE1("GridSiteCastDNlists", mod_gridsite_take1_cmds,
+                 NULL, RSRC_CONF, "DN Lists directories search path for SiteCast"),
+    AP_INIT_TAKE1("GridSiteCastUniPort", mod_gridsite_take1_cmds,
+                 NULL, RSRC_CONF, "UDP port for unicast/replies"),
+    AP_INIT_TAKE1("GridSiteCastGroup", mod_gridsite_take1_cmds,
+                 NULL, RSRC_CONF, "multicast group[:port] to listen for HTCP on"),
+    AP_INIT_TAKE2("GridSiteCastAlias", mod_gridsite_take2_cmds,
+                 NULL, RSRC_CONF, "URL and local path mapping"),
+
     AP_INIT_FLAG("GridSiteSoap2cgi", mod_gridsite_flag_cmds,
                  NULL, OR_FILEINFO, "on or off"),
 
@@ -2196,9 +2308,7 @@ static int mod_gridsite_perm_handler(request_rec *r)
       {
         cookiefile = apr_psprintf(r->pool, "%s/%s",
                  ap_server_root_relative(r->pool,
-                   ((mod_gridsite_srv_cfg *) 
-                    ap_get_module_config(r->server->module_config, 
-                                    &gridsite_module))->onetimesdir),
+                 onetimesdir),
                  &gridauthonetime[18]);
                                       
         ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
@@ -2551,12 +2661,390 @@ int GRST_callback_SSLVerify_wrapper(int ok, X509_STORE_CTX *ctx)
    return returned_ok;
 }
 
+void sitecast_handle_NOP_request(server_rec *main_server, 
+                                 GRSThtcpMessage *htcp_mesg, int igroup,
+                                 struct sockaddr_in *client_addr_ptr)
+{
+  int  outbuf_len;
+  char *outbuf;
+  
+  if (GRSThtcpNOPresponseMake(&outbuf, &outbuf_len,
+                              htcp_mesg->trans_id) == GRST_RET_OK)
+    {
+      ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, main_server,
+            "SiteCast sends NOP response from port %d to %s:%d",
+            sitecastgroups[0].port, inet_ntoa(client_addr_ptr->sin_addr),
+            ntohs(client_addr_ptr->sin_port));
+
+      sendto(sitecastgroups[0].socket, outbuf, outbuf_len, 0,
+                 client_addr_ptr, sizeof(struct sockaddr_in));
+                 
+      free(outbuf);
+    }
+}
+
+void sitecast_handle_TST_GET(server_rec *main_server, 
+                             GRSThtcpMessage *htcp_mesg, int igroup,
+                             struct sockaddr_in *client_addr_ptr)
+{
+  int             i, outbuf_len, ialias, port;
+  char            *filename, *outbuf, *location, *local_uri = NULL;
+  struct stat     statbuf;
+  SSLSrvConfigRec *ssl_srv;
+  
+  /* check sanity of requested uri */
+
+  if (strncmp(htcp_mesg->uri->text, "http://", 7) == 0)
+    {
+      for (i=7; i < GRSThtcpCountstrLen(htcp_mesg->uri); ++i)
+         if (htcp_mesg->uri->text[i] == '/') 
+           {
+             local_uri = &(htcp_mesg->uri->text[i]);
+             break;
+           }
+    }
+  else if (strncmp(htcp_mesg->uri->text, "https://", 8) == 0)
+    {
+      for (i=8; i < GRSThtcpCountstrLen(htcp_mesg->uri); ++i)
+         if (htcp_mesg->uri->text[i] == '/') 
+           {
+             local_uri = &(htcp_mesg->uri->text[i]);
+             break;
+           }
+    }
+
+  if (local_uri == NULL)
+    {
+      ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, main_server,
+              "SiteCast responder only handles http(s):// (%*s requested by %s:%d)",
+                        GRSThtcpCountstrLen(htcp_mesg->uri),
+                        htcp_mesg->uri->text,
+                        inet_ntoa(client_addr_ptr->sin_addr),
+                        ntohs(client_addr_ptr->sin_port));      
+      return;
+    }
+
+  /* find if any GridSiteCastAlias lines match */
+
+  for (ialias=0; ialias < GRST_SITECAST_ALIASES ; ++ialias)
+     {
+       if (sitecastaliases[ialias].sitecast_url == NULL) return; /* no match */
+                             
+       if ((strlen(sitecastaliases[ialias].sitecast_url)
+                                <= GRSThtcpCountstrLen(htcp_mesg->uri)) &&
+           (strncmp(sitecastaliases[ialias].sitecast_url,
+                    htcp_mesg->uri->text,
+                    strlen(sitecastaliases[ialias].sitecast_url))==0)) break;
+     }
+
+  if (ialias == GRST_SITECAST_ALIASES) 
+    {
+      ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, main_server,
+              "SiteCast responder does not handle %*s requested by %s:%d",
+                        GRSThtcpCountstrLen(htcp_mesg->uri),
+                        htcp_mesg->uri->text,
+                        inet_ntoa(client_addr_ptr->sin_addr),
+                        ntohs(client_addr_ptr->sin_port));
+      
+      return; /* no match */
+    }
+
+  /* convert URL to filename, using alias mapping */
+  
+  asprintf(&filename, "%s%*s", 
+           sitecastaliases[ialias].local_path,
+           GRSThtcpCountstrLen(htcp_mesg->uri) 
+                        - strlen(sitecastaliases[ialias].sitecast_url),
+           &(htcp_mesg->uri->text[strlen(sitecastaliases[ialias].sitecast_url)]) );
+
+  if (stat(filename, &statbuf) == 0) /* found file */
+    { 
+      ssl_srv = (SSLSrvConfigRec *)
+       ap_get_module_config(sitecastaliases[ialias].server->module_config,
+                                                             &ssl_module);
+
+      port = sitecastaliases[ialias].server->addrs->host_port;
+      if (port == 0) port = ((ssl_srv != NULL) && (ssl_srv->enabled))
+                                 ? GRST_HTTPS_PORT : GRST_HTTP_PORT;
+                
+      asprintf(&location, "Location: http%s://%s:%d%s\r\n",
+                  ((ssl_srv != NULL) && (ssl_srv->enabled)) ? "s" : "",
+                  sitecastaliases[ialias].server->server_hostname, port,
+                  local_uri);
+
+      ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, main_server,
+            "SiteCast finds %*s at %s, redirects with %s",
+            GRSThtcpCountstrLen(htcp_mesg->uri),
+            htcp_mesg->uri->text, filename, location);
+
+      if (GRSThtcpTSTresponseMake(&outbuf, &outbuf_len,
+                                  htcp_mesg->trans_id,
+                                  location, "", "") == GRST_RET_OK)
+        {
+          ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, main_server,
+            "SiteCast sends TST response from port %d to %s:%d",
+            sitecastgroups[0].port, inet_ntoa(client_addr_ptr->sin_addr),
+            ntohs(client_addr_ptr->sin_port));
+
+          sendto(sitecastgroups[0].socket, outbuf, outbuf_len, 0,
+                 client_addr_ptr, sizeof(struct sockaddr_in));
+                 
+          free(outbuf);
+        }
+
+      free(location);
+    }
+
+  free(filename);                      
+}
+
+void sitecast_handle_request(server_rec *main_server, 
+                             char *reqbuf, int reqbuf_len, int igroup,
+                             struct sockaddr_in *client_addr_ptr)
+{
+  GRSThtcpMessage htcp_mesg;
+
+  if (GRSThtcpMessageParse(&htcp_mesg,reqbuf,reqbuf_len) != GRST_RET_OK)
+    {
+      ap_log_error(APLOG_MARK, APLOG_ERR, 0, main_server,
+              "SiteCast responder rejects format of UDP message from %s:%d",
+                        inet_ntoa(client_addr_ptr->sin_addr),
+                        ntohs(client_addr_ptr->sin_port));
+      return;
+    }
+
+  if (htcp_mesg.rr != 0) /* ignore HTCP responses: we just do requests */
+    {
+      ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, main_server,
+              "SiteCast responder ignores HTCP response from %s:%d",
+                        inet_ntoa(client_addr_ptr->sin_addr),
+                        ntohs(client_addr_ptr->sin_port));
+      return;
+    }
+
+  if (htcp_mesg.opcode == GRSThtcpNOPop)
+    {
+      sitecast_handle_NOP_request(main_server, &htcp_mesg, 
+                                  igroup, client_addr_ptr);
+      return;
+    }
+
+  if (htcp_mesg.opcode == GRSThtcpTSTop)
+    {
+      if (((GRSThtcpCountstrLen(htcp_mesg.method) == 3) &&
+           (strncmp(htcp_mesg.method->text, "GET", 3) == 0)) ||
+          ((GRSThtcpCountstrLen(htcp_mesg.method) == 4) &&
+           (strncmp(htcp_mesg.method->text, "HEAD", 4) == 0)))
+        {
+          sitecast_handle_TST_GET(main_server, &htcp_mesg, 
+                                  igroup, client_addr_ptr);
+          return;
+        }
+        
+      ap_log_error(APLOG_MARK, APLOG_ERR, 0, main_server,
+          "SiteCast responder rejects method %*s in TST message from %s:%d",
+          GRSThtcpCountstrLen(htcp_mesg.method), htcp_mesg.method->text,
+          inet_ntoa(client_addr_ptr->sin_addr),
+          ntohs(client_addr_ptr->sin_port));
+      return;
+    }
+
+  ap_log_error(APLOG_MARK, APLOG_ERR, 0, main_server,
+          "SiteCast does not implement HTCP op-code %d in message from %s:%d",
+          htcp_mesg.opcode,
+          inet_ntoa(client_addr_ptr->sin_addr),
+          ntohs(client_addr_ptr->sin_port));
+}
+
+void sitecast_responder(server_rec *main_server)
+{
+#define GRST_SITECAST_MAXBUF 8192
+  char   reqbuf[GRST_SITECAST_MAXBUF], *p;
+  int    n, reqbuf_len, i, j, igroup,
+         quad1, quad2, quad3, quad4, port, retval, client_addr_len;
+  struct sockaddr_in srv, client_addr;
+  struct ip_mreq mreq;
+  fd_set readsckts;
+  struct hostent *server_hostent;
+
+  strcpy((char *) main_server->process->argv[0], "GridSiteCast UDP responder");
+
+  /* initialise unicast/replies socket first */
+
+  bzero(&srv, sizeof(srv));
+  srv.sin_family = AF_INET;
+  srv.sin_port = htons(sitecastgroups[0].port);
+
+  if ((server_hostent = gethostbyname(main_server->server_hostname)) == NULL)
+    {
+      ap_log_error(APLOG_MARK, APLOG_ERR, 0, main_server,
+              "SiteCast UDP Responder fails to look up servername %s",
+              main_server->server_hostname);
+      return;
+    }
+
+  srv.sin_addr.s_addr = (u_int32_t) (server_hostent->h_addr_list[0][0]);
+  
+  if (((sitecastgroups[0].socket 
+                                = socket(AF_INET, SOCK_DGRAM, 0)) < 0) ||
+       (bind(sitecastgroups[0].socket, 
+                                (struct sockaddr *) &srv, sizeof(srv)) < 0))
+    {
+      ap_log_error(APLOG_MARK, APLOG_ERR, 0, main_server,
+              "mod_gridsite: sitecast responder fails on unicast bind (%s)",
+              strerror(errno));
+      return;
+    }
+
+  ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, main_server,
+                "SiteCast UDP unicast/replies on %d.%d.%d.%d:%d",
+                   server_hostent->h_addr_list[0][0],
+                   server_hostent->h_addr_list[0][1],
+                   server_hostent->h_addr_list[0][2],
+                   server_hostent->h_addr_list[0][3],
+                   sitecastgroups[0].port);
+
+  /* initialise multicast listener sockets next */
+
+  for (i=1; (i <= GRST_SITECAST_GROUPS) && 
+            (sitecastgroups[i].port != 0); ++i)
+     {
+       bzero(&srv, sizeof(srv));
+       srv.sin_family = AF_INET;
+       srv.sin_port = htons(sitecastgroups[i].port);
+       srv.sin_addr.s_addr = htonl(sitecastgroups[i].quad1*0x1000000
+                                 + sitecastgroups[i].quad2*0x10000
+                                 + sitecastgroups[i].quad3*0x100 
+                                 + sitecastgroups[i].quad4);
+
+       if (((sitecastgroups[i].socket 
+                                     = socket(AF_INET, SOCK_DGRAM, 0)) < 0) ||
+               (bind(sitecastgroups[i].socket, 
+                                  (struct sockaddr *) &srv, sizeof(srv)) < 0))
+         {
+           ap_log_error(APLOG_MARK, APLOG_ERR, 0, main_server,
+                "SiteCast UDP Responder fails on multicast bind (%s)",
+                strerror(errno));
+           return;
+         }
+     
+       bzero(&mreq, sizeof(mreq));
+       mreq.imr_multiaddr.s_addr = srv.sin_addr.s_addr;
+       mreq.imr_interface.s_addr = htonl(INADDR_ANY);
+
+       if (setsockopt(sitecastgroups[i].socket, IPPROTO_IP,
+                      IP_ADD_MEMBERSHIP, &mreq, sizeof(mreq)) < 0) 
+         { 
+           ap_log_error(APLOG_MARK, APLOG_ERR, 0, main_server,
+                "SiteCast UDP Responder fails on setting multicast");
+           return; 
+         }
+         
+       ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, main_server,
+        "SiteCast UDP Responder listening on %d.%d.%d.%d:%d",
+        sitecastgroups[i].quad1, sitecastgroups[i].quad2,
+        sitecastgroups[i].quad3, sitecastgroups[i].quad4, sitecastgroups[i].port);
+     }
+
+  while (1) /* **** main listening loop **** */
+       {
+         /* set up bitmasks for select */
+       
+         FD_ZERO(&readsckts);
+         
+         n = 0;
+         for (i=0; (i <= GRST_SITECAST_GROUPS) && 
+                   (sitecastgroups[i].port != 0); ++i) /* reset bitmask */
+            {
+              FD_SET(sitecastgroups[i].socket, &readsckts);
+              if (sitecastgroups[i].socket > n) n = sitecastgroups[i].socket;
+            }
+
+         ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, main_server,
+                      "SiteCast UDP Responder waiting for requests");
+
+         if ((retval = select(n + 1, &readsckts, NULL, NULL, NULL)) < 1)
+                                   continue; /* < 1 on timeout or error */
+
+         for (igroup=0; (igroup <= GRST_SITECAST_GROUPS) && 
+                   (sitecastgroups[igroup].port != 0); ++igroup)
+            {
+              if (FD_ISSET(sitecastgroups[igroup].socket, &readsckts))
+                {
+                  client_addr_len = sizeof(client_addr);
+
+                  if ((reqbuf_len = recvfrom(sitecastgroups[igroup].socket, 
+                                             reqbuf, GRST_SITECAST_MAXBUF, 0,
+                      (struct sockaddr *) &client_addr, &client_addr_len)) >= 0)
+                    {
+                      ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, main_server,
+                        "SiteCast receives UDP message from %s:%d "
+                        "to %d.%d.%d.%d:%d",
+                        inet_ntoa(client_addr.sin_addr),
+                        ntohs(client_addr.sin_port),
+                        sitecastgroups[igroup].quad1,
+                        sitecastgroups[igroup].quad2,
+                        sitecastgroups[igroup].quad3,
+                        sitecastgroups[igroup].quad4,
+                        sitecastgroups[igroup].port);
+
+                      sitecast_handle_request(main_server, reqbuf, 
+                                              reqbuf_len, igroup,
+                                              &client_addr);
+                    }
+                }
+            }
+            
+       } /* **** end of main listening loop **** */
+}
+
 static int mod_gridsite_server_post_config(apr_pool_t *pPool,
                   apr_pool_t *pLog, apr_pool_t *pTemp, server_rec *main_server)
 {
    SSL_CTX         *ctx;
    SSLSrvConfigRec *sc;
    server_rec      *this_server;
+   apr_proc_t      *procnew = NULL;
+   apr_status_t     status;
+   const char *userdata_key = "sitecast_init";
+
+   apr_pool_userdata_get((void **) &procnew, userdata_key, 
+                         main_server->process->pool);
+
+   /* we only fork responder if one not already forked and we have at
+      least one GridSiteCastAlias defined. This means it is possible
+      to run a responder with no groups - listening on unicast only! */
+
+   if ((procnew == NULL) &&
+       (sitecastaliases[0].sitecast_url != NULL))
+     {
+       /* UDP multicast responder required but not yet started */
+
+       procnew = apr_pcalloc(main_server->process->pool, sizeof(*procnew));
+       apr_pool_userdata_set((const void *) procnew, userdata_key,
+                     apr_pool_cleanup_null, main_server->process->pool);
+
+       status = apr_proc_fork(procnew, pPool);
+
+       if (status < 0)
+         {
+           ap_log_error(APLOG_MARK, APLOG_CRIT, status, main_server,
+              "mod_gridsite: Failed to spawn SiteCast responder process");
+           return HTTP_INTERNAL_SERVER_ERROR;
+         }
+       else if (status == APR_INCHILD)
+         {
+           ap_log_error(APLOG_MARK, APLOG_NOTICE, status, main_server,
+              "mod_gridsite: Spawning SiteCast responder process");
+           sitecast_responder(main_server);
+           exit(-1);
+         }
+
+       apr_pool_note_subprocess(main_server->process->pool,
+                                procnew, APR_KILL_AFTER_TIMEOUT);
+     }
+
+   /* continue with normal HTTP/HTTPS servers */
 
    ap_add_version_component(pPool,
                             apr_psprintf(pPool, "mod_gridsite/%s", VERSION));
@@ -2565,6 +3053,8 @@ static int mod_gridsite_server_post_config(apr_pool_t *pPool,
         this_server != NULL; 
         this_server = this_server->next)
       {
+        /* we do some GridSite OpenSSL magic for HTTPS servers */
+      
         sc = ap_get_module_config(this_server->module_config, &ssl_module);
 
         if ((sc                  != NULL)  &&
@@ -2676,7 +3166,7 @@ module AP_MODULE_DECLARE_DATA gridsite_module =
     create_gridsite_dir_config, /* dir config creater */
     merge_gridsite_dir_config,  /* dir merger */
     create_gridsite_srv_config, /* create server config */
-    merge_gridsite_srv_config,  /* merge server config */
+    NULL,			/* merge server config */
     mod_gridsite_cmds,          /* command apr_table_t */
     register_hooks              /* register hooks */
 };

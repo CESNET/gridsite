@@ -1,5 +1,5 @@
 /*
-   Copyright (c) 2002-3, Andrew McNab, University of Manchester
+   Copyright (c) 2002-5, Andrew McNab, University of Manchester
    All rights reserved.
 
    Redistribution and use in source and binary forms, with or
@@ -123,6 +123,39 @@ struct GRSTasn1TagList { char treecoords[GRST_ASN1_MAXCOORDLEN+1];
                          int  headerlength;
                          int  length;
                          int  tag; } ;
+
+#define GRST_HTTP_PORT		777
+#define GRST_HTTPS_PORT		488
+#define GRST_HTCP_PORT		777
+                         
+#define GRSThtcpNOPop 0
+#define GRSThtcpTSTop 1
+
+typedef struct { unsigned char length_msb;
+                 unsigned char length_lsb;
+                 char text[1]; } GRSThtcpCountstr;
+
+#define GRSThtcpCountstrLen(string) (256*((string)->length_msb) + (string)->length_lsb)
+
+typedef struct { unsigned char total_length_msb;
+                 unsigned char total_length_lsb;
+                 unsigned char version_msb;
+                 unsigned char version_lsb;
+                 unsigned char data_length_msb;
+                 unsigned char data_length_lsb;
+                 unsigned int  response : 4;
+                 unsigned int  opcode   : 4;
+                 unsigned int  rr       : 1;                 
+                 unsigned int  f1       : 1;
+                 unsigned int  reserved : 6;
+                 unsigned int  trans_id;	/* must be 4 bytes */
+                 GRSThtcpCountstr *method;
+                 GRSThtcpCountstr *uri;
+                 GRSThtcpCountstr *version;
+                 GRSThtcpCountstr *req_hdrs;
+                 GRSThtcpCountstr *resp_hdrs;
+                 GRSThtcpCountstr *entity_hdrs;
+                 GRSThtcpCountstr *cache_hdrs;   } GRSThtcpMessage;
 
 int GRSTgaclInit(void);
 
@@ -285,3 +318,9 @@ int    GRSTasn1ParseDump(BIO *, unsigned char *, long,
                          struct GRSTasn1TagList taglist[], int, int *);
 int    GRSTasn1GetX509Name(char *, int, char *, char *,
                            struct GRSTasn1TagList taglist[], int);
+
+int    GRSThtcpNOPrequestMake(char **, int *, unsigned int);
+int    GRSThtcpNOPresponseMake(char **, int *, unsigned int);
+int    GRSThtcpTSTrequestMake(char **, int *, unsigned int, char *, char *, char *);
+int    GRSThtcpTSTresponseMake(char **, int *, unsigned int, char *, char *, char *);
+int    GRSThtcpMessageParse(GRSThtcpMessage *, char *, int);

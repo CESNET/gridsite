@@ -151,18 +151,18 @@ libgridsite_globus.a: libgridsite.a
 endif
 
 gsexec:	gsexec.c gsexec.h
-	gcc -g -DVERSION=\"$(PATCH_VERSION)\" -I/usr/include/httpd \
-	    -I/usr/include/apr-0 \
+	gcc -g -DVERSION=\"$(PATCH_VERSION)\" $(MYCFLAGS) \
 	    -o gsexec gsexec.c
 
 urlencode: urlencode.c libgridsite.a
 	gcc -g -DVERSION=\"$(PATCH_VERSION)\" $(MYCFLAGS) \
             -o urlencode urlencode.c -L. \
-             -I/usr/kerberos/include -lgridsite
+            -I/usr/kerberos/include -lgridsite
 
-htcp: htcp.c
-	gcc -g -DVERSION=\"$(PATCH_VERSION)\" -I. -o htcp htcp.c \
-          `curl-config --cflags` `curl-config --libs` 
+htcp: htcp.c libgridsite.a
+	gcc -g -DVERSION=\"$(PATCH_VERSION)\" $(MYCFLAGS) \
+	    -o htcp htcp.c -L. \
+            `curl-config --cflags` `curl-config --libs` -lgridsite
 
 mod_gridsite.so: mod_gridsite.c mod_ssl-private.h libgridsite.a
 	gcc -g $(MYCFLAGS) -shared -Wl,-soname=gridsite_module \
@@ -295,7 +295,7 @@ install: apidoc
 	cp -f ../CHANGES ../README ../INSTALL ../LICENSE ../VERSION \
                $(prefix)/share/doc/gridsite-$(PATCH_VERSION)
 	cp -f ../doc/*.html ../doc/*.conf ../doc/*.1 ../doc/*.8 ../doc/*.sh \
-               $(prefix)/share/doc/gridsite-$(VERSION)
+               ../doc/*.wsdl $(prefix)/share/doc/gridsite-$(VERSION)
 	cp -f ../doc/*.1 $(prefix)/share/man/man1
 	cp -f ../doc/*.8 $(prefix)/share/man/man8
 	gzip -f $(prefix)/share/man/man1/*.1
@@ -308,6 +308,7 @@ install: apidoc
 	ln -sf htcp $(prefix)/bin/htrm
 	ln -sf htcp $(prefix)/bin/htmkdir
 	ln -sf htcp $(prefix)/bin/htmv
+	ln -sf htcp $(prefix)/bin/htping
 	cp -f gsexec $(prefix)/sbin
 	cp -f mod_gridsite.so $(prefix)/lib/httpd/modules
 
@@ -330,7 +331,7 @@ dist:
                  Doxyfile doxygen.css doxyheader.html \
                  ../gridsite-$(PATCH_VERSION)/src
 	cp -f ../doc/*.html ../doc/*.1 ../doc/*.8 ../doc/*.conf ../doc/*.sh \
-                 ../gridsite-$(PATCH_VERSION)/doc
+              ../doc/*.wsdl ../gridsite-$(PATCH_VERSION)/doc
 	cp -f ../interface/*.h \
                  ../gridsite-$(PATCH_VERSION)/interface
 	cd .. ; tar zcvf gridsite-$(PATCH_VERSION).src.tar.gz \
@@ -345,13 +346,14 @@ htcp-bin: htcp
 	cp -f ../doc/README.htcp-bin ../htcp-bin-$(PATCH_VERSION)
 	cp -f htcp ../htcp-bin-$(PATCH_VERSION)/bin
 	cp -f ../doc/htcp.1 ../doc/htrm.1 ../doc/htls.1 ../doc/htll.1 \
-              ../doc/htmkdir.1 ../doc/htmv.1 \
+              ../doc/htmkdir.1 ../doc/htmv.1 ../doc/htping.1 \
               ../htcp-bin-$(PATCH_VERSION)/man/man1
 	ln -sf htcp ../htcp-bin-$(PATCH_VERSION)/bin/htls
 	ln -sf htcp ../htcp-bin-$(PATCH_VERSION)/bin/htll
 	ln -sf htcp ../htcp-bin-$(PATCH_VERSION)/bin/htrm
 	ln -sf htcp ../htcp-bin-$(PATCH_VERSION)/bin/htmkdir
 	ln -sf htcp ../htcp-bin-$(PATCH_VERSION)/bin/htmv
+	ln -sf htcp ../htcp-bin-$(PATCH_VERSION)/bin/htping
 	cd ../htcp-bin-$(VERSION) ; tar zcvf ../htcp-$(VERSION).bin.tar.gz .
 	rm -Rf ../htcp-bin-$(PATCH_VERSION)
 

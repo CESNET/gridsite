@@ -1,16 +1,23 @@
 .TH htcp 1 "September 2005" htcp "HTCP Manual"
 .SH NAME
-.B htcp, htrm, htls, htll, htmkdir, htmv
-\- get, put, delete, list or move HTTP/HTTPS files or directories
+.B htcp, htmv, htrm, htls, htll, htmkdir, htping
+\- file transfers and queries via HTTP/HTTPS/SiteCast
 .SH SYNOPSIS
-.B htcp [options]
-.I Source-URL[s] [Destination URL]
+.B htcp, htmv
+[\fIoptions\fR] \fISource-URL\fR[\fIs\fR] \fIDestination-URL\fR
+.br
+.B htrm, htls, htll, htmkir
+[\fIoptions\fR] \fITarget-URL\fR[\fIs\fR]
+.br
+.B htping
+[\fIoptions\fR]
 .SH DESCRIPTION
 .B htcp
 is a client to fetch files or directory listings from remote servers using
 HTTP or HTTPS, or to put or delete files or directories onto remote servers
 using HTTPS. htcp is similar to scp(1), but uses HTTP/HTTPS rather than ssh
-as its transfer protocol.
+as its transfer protocol. htcp can also use the HTCP protocol to query
+GridSite via SiteCast. 
 
 When talking to an HTTPS server, htcp can run "anonymously", with a
 standard X.509 user certificate and key, or with a GSI Proxy. This makes
@@ -42,21 +49,32 @@ Instead of copying files, output lists of files located in the URL-directories
 given on the command line. Calling the program as htls has the same effect.
 
 .IP "--long-list"
+.br
 Instead of copying files, output long listings of files located in the
 URL-directories given on the command line. If available, the size in bytes
 and modification time of each file is given. Calling the program as 
 htll has the same effect.
 
 .IP "--mkdir"
+.br
 Instead of copying files, attempt to create a directory on a remote server
 with HTTP PUT. The server must support the convention that PUT to a URL with
 a trailing slash means create a directory. No file body is sent. Calling the
 program as htmkdir has the same effect.
 
 .IP "--move"
+.br
 Move/rename files on a single remote server, given the two, absolute URLs
 of the remote file names. Server must support HTTP/WebDAV MOVE. Calling the
 program as htmv has the same effect.
+
+.IP "--ping"
+.br
+Query specified multicast groups with the HTCP NOP code. SiteCast enabled
+servers will respond immediately with a NOP reply, and all of the responses
+will be listed, with the round trip time in milliseconds. Any waiting times
+specified in the --groups option will be ignored. Calling the program as
+htping has the same effect.
 
 .IP "--anon"
 .br
@@ -96,6 +114,17 @@ to HTTP for the GET or PUT file transfer. htcp makes the HTTP request using
 the GRID_AUTH_ONETIME single-use passcode obtained via HTTPS. The --grid-http
 option will be ignored for directory operations or HTTP URLs. If a redirected
 transfer isn't possible, a normal HTTPS data transfer will be attempted.
+
+.IP "--groups <IP Groups>"
+IP multicast groups to use for SiteCast queries. IP Groups is a comma
+separated list of groups, in the format: 
+nnn.nnn.nnn.nnn[:port[:ttl[:seconds]]] The IP number must be
+specified. If the UDP port isn't given, the default 777 will be used.
+The IP time-to-live, ttl, controls how many networks the multicast packets may
+pass through - the default, 1, limits packets to the local network. Multiple
+groups may be specified, separated by commas.
+If multiple groups are specified, then seconds is the time to wait before
+making the next multicast - 1 second is the default.
 
 .SH FILES
 .IP /tmp/x509up_uID

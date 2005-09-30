@@ -90,6 +90,7 @@ rm -f %(echo ${MYPREFIX:-/usr})/share/doc/gridsite
 %attr(-, root, root) %(echo ${MYPREFIX:-/usr})/bin/htrm
 %attr(-, root, root) %(echo ${MYPREFIX:-/usr})/bin/htmkdir
 %attr(-, root, root) %(echo ${MYPREFIX:-/usr})/bin/htmv
+%attr(-, root, root) %(echo ${MYPREFIX:-/usr})/bin/htping
 %attr(-, root, root) %(echo ${MYPREFIX:-/usr})/share/man/man1/htcp.1.gz
 %attr(-, root, root) %(echo ${MYPREFIX:-/usr})/share/man/man1/htrm.1.gz
 %attr(-, root, root) %(echo ${MYPREFIX:-/usr})/share/man/man1/htls.1.gz

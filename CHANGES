@@ -1,3 +1,5 @@
+* Fri Sep 30 2005 Andrew McNab <Andrew.McNab@man.ac.uk>
+- Add SiteCast ping (NOP) support to htcp
 * Thu Sep 29 2005 Andrew McNab <Andrew.McNab@man.ac.uk>
 - Add SiteCast support to mod_gridsite (file location
   discovery via UDP multicast of HTCP messages.)

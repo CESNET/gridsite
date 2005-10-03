@@ -1,16 +1,16 @@
-.TH htcp 1 "September 2005" htcp "HTCP Manual"
+.TH htcp 1 "September 2005" "htcp" "HTCP Manual"
 .SH NAME
 .B htcp, htmv, htrm, htls, htll, htmkdir, htfind, htping
 \- file transfers and queries via HTTP/HTTPS/SiteCast
 .SH SYNOPSIS
 .B htcp, htmv
-[\fIoptions\fR] \fISource-URL\fR[\fIs\fR] \fIDestination-URL\fR
-.br
+[options] Source-URL[s] Destination-URL
+
 .B htrm, htls, htll, htmkir, htfind
-[\fIoptions\fR] \fITarget-URL\fR[\fIs\fR]
-.br
+[options] Target-URL[s]
+
 .B htping
-[\fIoptions\fR]
+[options]
 .SH DESCRIPTION
 .B htcp
 is a client to fetch files or directory listings from remote servers using
@@ -44,32 +44,27 @@ Instead of copying files, delete all the URLs given on the command line.
 Calling the program as htrm has the same effect.
 
 .IP "--list"
-.br
 Instead of copying files, output lists of files located in the URL-directories
 given on the command line. Calling the program as htls has the same effect.
 
 .IP "--long-list"
-.br
 Instead of copying files, output long listings of files located in the
 URL-directories given on the command line. If available, the size in bytes
 and modification time of each file is given. Calling the program as 
 htll has the same effect.
 
 .IP "--mkdir"
-.br
 Instead of copying files, attempt to create a directory on a remote server
 with HTTP PUT. The server must support the convention that PUT to a URL with
 a trailing slash means create a directory. No file body is sent. Calling the
 program as htmkdir has the same effect.
 
 .IP "--move"
-.br
 Move/rename files on a single remote server, given the two, absolute URLs
 of the remote file names. Server must support HTTP/WebDAV MOVE. Calling the
 program as htmv has the same effect.
 
 .IP "--ping"
-.br
 Query specified multicast groups with the HTCP NOP ("No Operation") code.
 SiteCast enabled servers will respond immediately with a NOP reply, and all
 of the responses will be listed, with the round trip time in milliseconds. 
@@ -77,7 +72,6 @@ Any waiting times specified in the --groups option will be ignored. Calling
 the program as htping has the same effect.
 
 .IP "--find"
-.br
 Query specified multicast groups with the HTCP TST code. SiteCast enabled
 servers will respond with TST replies if they have the files corresponding
 to the given SiteCast target URL(s). All of the transfer URLs returned
@@ -86,7 +80,6 @@ to space out the multicast queries, but the program listens for responses
 continuously. Calling the program as htfind has the same effect.
 
 .IP "--anon"
-.br
 Do not attempt to use X.509 user certificates or GSI proxies to authenticate
 to the remote HTTPS server. This means you are "anonymous", but the server's
 identity may still be verified and the connection is still encrypted.

@@ -162,6 +162,7 @@ urlencode: urlencode.c libgridsite.a
 htcp: htcp.c libgridsite.a
 	gcc -g -DVERSION=\"$(PATCH_VERSION)\" $(MYCFLAGS) \
 	    -o htcp htcp.c -L. \
+	    -I/usr/kerberos/include \
             `curl-config --cflags` `curl-config --libs` -lgridsite
 
 mod_gridsite.so: mod_gridsite.c mod_ssl-private.h libgridsite.a

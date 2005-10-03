@@ -1,3 +1,6 @@
+* Mon Oct 3 2005 Andrew McNab <Andrew.McNab@man.ac.uk>
+- Fix to gsexec GRST_CRED_0/SSL_CLIENT_S_DN bug found
+  by Ian Stokes-Rees <i.stokes-rees1@PHYSICS.OX.AC.UK>
 * Fri Sep 30 2005 Andrew McNab <Andrew.McNab@man.ac.uk>
 - Add SiteCast ping (NOP) support to htcp
 * Thu Sep 29 2005 Andrew McNab <Andrew.McNab@man.ac.uk>

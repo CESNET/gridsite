@@ -80,6 +80,7 @@
 #define HTCP_MKDIR	6
 #define HTCP_MOVE	7
 #define HTCP_PING	8
+#define HTCP_FIND	9
 
 #define HTCP_SITECAST_GROUPS 32
 
@@ -98,7 +99,9 @@ struct grst_stream_data { char *source;
                           int   gridhttp;
                           int   verbose;	
                           int   timeout;
-                          char *groups;    } ;
+                          char *groups;
+                          int   sitecast;
+                          char *domain;    } ;
                           
 struct grst_index_blob { char   *text;
                          size_t  used;
@@ -611,12 +614,12 @@ int do_ping(struct grst_stream_data *common_data_ptr)
                  &(sitecast_groups[igroup+1].quad3),
                  &(sitecast_groups[igroup+1].quad4),    
                  &(sitecast_groups[igroup+1].port),
-                 &(sitecast_groups[igroup+1].timewait), 
-                 &(sitecast_groups[igroup+1].ttl));
+                 &(sitecast_groups[igroup+1].ttl),
+                 &(sitecast_groups[igroup+1].timewait));
 
        if (ret == 0) break; /* end of list ? */
          
-       if (ret < 4)
+       if (ret < 5)
          {
            fprintf(stderr, "Failed to parse multicast group "
                      "parameter %s\n", p);
@@ -683,7 +686,7 @@ int do_ping(struct grst_stream_data *common_data_ptr)
   
              if ((GRSThtcpMessageParse(&msg, response, response_length) 
                                                       == GRST_RET_OK) &&
-                 (msg.opcode == 0) && (msg.rr == 1) && 
+                 (msg.opcode == GRSThtcpNOPop) && (msg.rr == 1) && 
                  (msg.trans_id >= (int) start_timeval.tv_usec) &&
                  (msg.trans_id <= (int) (start_timeval.tv_usec + igroup)))
                {
@@ -697,6 +700,144 @@ int do_ping(struct grst_stream_data *common_data_ptr)
                }
            }
        }
+       
+   return GRST_RET_OK;
+}
+
+int do_finds(char *sources[], 
+             struct grst_stream_data *common_data_ptr, int num)
+{
+  int          isrc;
+
+  int request_length, response_length, i, ret, s, igroup;
+  struct sockaddr_in srv, from;
+  socklen_t fromlen;
+#define MAXBUF 8192  
+  char *request, response[MAXBUF], *p;
+  GRSThtcpMessage msg;
+  struct timeval start_timeval, wait_timeval;
+  struct grst_sitecast_group sitecast_groups[HTCP_SITECAST_GROUPS];
+  fd_set readsckts;
+
+  /* parse common_data_ptr->groups */ 
+
+  p = common_data_ptr->groups;
+  igroup = -1;
+
+  for (igroup=-1; igroup+1 < HTCP_SITECAST_GROUPS; ++igroup)
+     {  
+       sitecast_groups[igroup+1].port     = GRST_HTCP_PORT;
+       sitecast_groups[igroup+1].timewait = 1;
+       sitecast_groups[igroup+1].ttl      = 1;
+       
+       ret = sscanf(p, "%d.%d.%d.%d:%d:%d:%d", 
+                 &(sitecast_groups[igroup+1].quad1),
+                 &(sitecast_groups[igroup+1].quad2),    
+                 &(sitecast_groups[igroup+1].quad3),
+                 &(sitecast_groups[igroup+1].quad4),    
+                 &(sitecast_groups[igroup+1].port),
+                 &(sitecast_groups[igroup+1].ttl),
+                 &(sitecast_groups[igroup+1].timewait));
+
+       if (ret == 0) break; /* end of list ? */
+         
+       if (ret < 5)
+         {
+           fprintf(stderr, "Failed to parse multicast group "
+                     "parameter %s\n", p);
+           return CURLE_FAILED_INIT;
+         }
+           
+       ++igroup;
+       
+       if ((p = index(p, ',')) == NULL) break;       
+       ++p;
+     }
+
+  if (igroup == -1)
+    {
+      fprintf(stderr, "Failed to parse multicast group parameter %s\n", p);
+      return CURLE_FAILED_INIT;
+    }
+
+  if ((s = socket(AF_INET, SOCK_DGRAM, 0)) < 0) 
+    {
+      fprintf(stderr, "Failed to open UDP socket\n");
+      return CURLE_FAILED_INIT;
+    }
+
+  /* loop through multicast groups since we need to take each 
+     ones timewait into account */
+
+  gettimeofday(&start_timeval, NULL);
+
+  for (i=0; i <= igroup; ++i)
+     {
+       if (common_data_ptr->verbose)
+        fprintf(stderr, "Querying multicast group %d.%d.%d.%d:%d:%d:%d\n",
+                sitecast_groups[i].quad1, sitecast_groups[i].quad2,
+                sitecast_groups[i].quad3, sitecast_groups[i].quad4,
+                sitecast_groups[i].port, sitecast_groups[i].ttl,
+                sitecast_groups[i].timewait);
+        
+       bzero(&srv, sizeof(srv));
+       srv.sin_family = AF_INET;
+       srv.sin_port = htons(sitecast_groups[i].port);
+       srv.sin_addr.s_addr = htonl(sitecast_groups[i].quad1*0x1000000
+                                 + sitecast_groups[i].quad2*0x10000
+                                 + sitecast_groups[i].quad3*0x100
+                                 + sitecast_groups[i].quad4);
+
+       /* send off queries, one for each source file */
+
+       for (isrc=0; sources[isrc] != NULL; ++isrc)
+          {
+            GRSThtcpTSTrequestMake(&request, &request_length, 
+                                   (int) (start_timeval.tv_usec + isrc),
+                                   "GET", sources[isrc], "");
+
+            sendto(s, request, request_length, 0, 
+                       (struct sockaddr *) &srv, sizeof(srv));
+
+            free(request);
+          }
+          
+       /* reusing wait_timeval is a Linux-specific feature of select() */
+       wait_timeval.tv_usec = 0;
+       wait_timeval.tv_sec  = sitecast_groups[i].timewait;
+
+       while ((wait_timeval.tv_sec > 0) || (wait_timeval.tv_usec > 0))
+            {
+              FD_ZERO(&readsckts);
+              FD_SET(s, &readsckts);
+  
+              ret = select(s + 1, &readsckts, NULL, NULL, &wait_timeval);
+
+              if (ret > 0)
+                {
+                  response_length = recvfrom(s, response, MAXBUF,
+                                             0, &from, &fromlen);
+  
+                  if ((GRSThtcpMessageParse(&msg, response, response_length) 
+                                                      == GRST_RET_OK) &&
+                      (msg.opcode == GRSThtcpTSTop) && (msg.rr == 1) && 
+                      (msg.trans_id >= (int) start_timeval.tv_usec) &&
+                      (msg.trans_id < (int) (start_timeval.tv_usec + num)) &&
+                      (msg.resp_hdrs != NULL) &&
+                      (GRSThtcpCountstrLen(msg.resp_hdrs) > 12))
+                    {                      
+                      if (num > 1) printf("%s -> %.*s\n",
+                          sources[msg.trans_id - (int) start_timeval.tv_usec],
+                          GRSThtcpCountstrLen(msg.resp_hdrs) - 12, 
+                          &(msg.resp_hdrs->text[10]));
+                      else printf("%.*s\n",
+                          GRSThtcpCountstrLen(msg.resp_hdrs) - 12, 
+                          &(msg.resp_hdrs->text[10]));
+                    }
+                }
+            }
+
+     }
 
    return GRST_RET_OK;
 }
@@ -1194,6 +1335,9 @@ int main(int argc, char *argv[])
                 			{"ping",		0, 0, 0},
                 			{"groups",		1, 0, 0},
                 			{"timeout",		1, 0, 0},
+                			{"sitecast",		0, 0, 0},
+                			{"domain",		1, 0, 0},
+                			{"find",                0, 0, 0},
                 			{0, 0, 0, 0}  };
 
 #if (LIBCURL_VERSION_NUM < 0x070908)
@@ -1220,6 +1364,8 @@ int main(int argc, char *argv[])
   
   common_data.groups    = NULL;
   common_data.timeout   = 0;
+  common_data.sitecast  = 0;
+  common_data.domain    = NULL;
     
   while (1)
        {
@@ -1230,20 +1376,24 @@ int main(int argc, char *argv[])
          if      (c == -1) break;
          else if (c == 0)
            {
-             if      (option_index == 1) common_data.cert      = optarg;
-             else if (option_index == 2) common_data.key       = optarg; 
-             else if (option_index == 3) common_data.capath    = optarg;
-             else if (option_index == 4) common_data.method    = HTCP_DELETE;
-             else if (option_index == 5) common_data.method    = HTCP_LIST;
-             else if (option_index == 6) common_data.method    = HTCP_LONGLIST;
-             else if (option_index == 7) common_data.method    = HTCP_MKDIR;
-             else if (option_index == 8) common_data.noverify  = 1;
-             else if (option_index == 9) common_data.anonymous = 1;
-             else if (option_index ==10) common_data.gridhttp  = 1;
-             else if (option_index ==11) common_data.method    = HTCP_MOVE;
-             else if (option_index ==12) common_data.method    = HTCP_PING;
-             else if (option_index ==13) common_data.groups    = optarg;
-             else if (option_index ==14) common_data.timeout   = atoi(optarg);
+             if      (option_index == 1) common_data.cert       = optarg;
+             else if (option_index == 2) common_data.key        = optarg; 
+             else if (option_index == 3) common_data.capath     = optarg;
+             else if (option_index == 4) common_data.method     = HTCP_DELETE;
+             else if (option_index == 5) common_data.method     = HTCP_LIST;
+             else if (option_index == 6) common_data.method     = HTCP_LONGLIST;
+             else if (option_index == 7) common_data.method     = HTCP_MKDIR;
+             else if (option_index == 8) common_data.noverify   = 1;
+             else if (option_index == 9) common_data.anonymous  = 1;
+             else if (option_index ==10) common_data.gridhttp   = 1;
+             else if (option_index ==11) common_data.method     = HTCP_MOVE;
+             else if (option_index ==12) common_data.method     = HTCP_PING;
+             else if (option_index ==13) common_data.groups     = optarg;
+             else if (option_index ==14) common_data.timeout    = atoi(optarg);
+             else if (option_index ==15) common_data.sitecast   = 1;
+             else if (option_index ==16) { common_data.sitecast = 1;
+                                           common_data.domain   = optarg; }
+             else if (option_index ==17) common_data.method     = HTCP_FIND;
            }
          else if (c == 'v') ++(common_data.verbose);
        }
@@ -1327,6 +1477,7 @@ int main(int argc, char *argv[])
       else if (strcmp(executable,"htmkdir")==0) common_data.method=HTCP_MKDIR;
       else if (strcmp(executable,"htmv")==0) common_data.method=HTCP_MOVE;
       else if (strcmp(executable,"htping")==0) common_data.method=HTCP_PING;
+      else if (strcmp(executable,"htfind")==0) common_data.method=HTCP_FIND;
     }
     
   if (common_data.method == HTCP_PING)
@@ -1340,6 +1491,7 @@ int main(int argc, char *argv[])
 
   if ((common_data.method == HTCP_DELETE) || 
       (common_data.method == HTCP_LIST)   ||
+      (common_data.method == HTCP_FIND)   ||
       (common_data.method == HTCP_MKDIR)  ||
       (common_data.method == HTCP_LONGLIST))
     {
@@ -1349,7 +1501,7 @@ int main(int argc, char *argv[])
             printsyntax(argv[0]);
             return CURLE_URL_MALFORMAT;
           }
-          
+
       sources = (char **) malloc(sizeof(char *) * (1 + argc - optind));  
       for (i=0; i < argc - optind; ++i) 
          {
@@ -1371,6 +1523,8 @@ int main(int argc, char *argv[])
                             anyerror = do_deletes(sources, &common_data);
       else if (common_data.method == HTCP_MKDIR) 
                             anyerror = do_mkdirs(sources, &common_data);
+      else if (common_data.method == HTCP_FIND) 
+                   anyerror = do_finds(sources, &common_data, argc - optind);
       else if (common_data.method == HTCP_LONGLIST) 
                             anyerror = do_listings(sources, &common_data, 1);
       else anyerror = do_listings(sources, &common_data, 0);
@@ -1456,14 +1610,25 @@ int main(int argc, char *argv[])
                return CURLE_URL_MALFORMAT;
              }
          
-           if ((common_data.method == HTCP_GET) && 
-               ((strncmp(sources[i], "http://",  7) != 0) &&
-                (strncmp(sources[i], "https://", 8) != 0)))
+           if (common_data.method == HTCP_GET)
              {
-               fputs("Cannot have both source and "
+               if ((strncmp(sources[i], "http://",  7) != 0) &&
+                   (strncmp(sources[i], "https://", 8) != 0))
+                 {
+                   fputs("Cannot have both source and "
                      "destination local (for now)\n\n",stderr);
-               printsyntax(argv[0]);
-               return CURLE_URL_MALFORMAT;
+                   printsyntax(argv[0]);
+                   return CURLE_URL_MALFORMAT;
+                 }
+
+/* NEED TO CHECK common_data.domain MATCHES IF IT IS SET */
+/*
+               if (common_data.sitecast) 
+                 {
+                   translate_sitecast_url(&sources[i], 
+                                          sources[i], &common_data);
+                 }
+*/
              }
          }
          

@@ -91,12 +91,15 @@ rm -f %(echo ${MYPREFIX:-/usr})/share/doc/gridsite
 %attr(-, root, root) %(echo ${MYPREFIX:-/usr})/bin/htmkdir
 %attr(-, root, root) %(echo ${MYPREFIX:-/usr})/bin/htmv
 %attr(-, root, root) %(echo ${MYPREFIX:-/usr})/bin/htping
+%attr(-, root, root) %(echo ${MYPREFIX:-/usr})/bin/htfind
 %attr(-, root, root) %(echo ${MYPREFIX:-/usr})/share/man/man1/htcp.1.gz
 %attr(-, root, root) %(echo ${MYPREFIX:-/usr})/share/man/man1/htrm.1.gz
 %attr(-, root, root) %(echo ${MYPREFIX:-/usr})/share/man/man1/htls.1.gz
 %attr(-, root, root) %(echo ${MYPREFIX:-/usr})/share/man/man1/htll.1.gz
 %attr(-, root, root) %(echo ${MYPREFIX:-/usr})/share/man/man1/htmkdir.1.gz
 %attr(-, root, root) %(echo ${MYPREFIX:-/usr})/share/man/man1/htmv.1.gz
+%attr(-, root, root) %(echo ${MYPREFIX:-/usr})/share/man/man1/htping.1.gz
+%attr(-, root, root) %(echo ${MYPREFIX:-/usr})/share/man/man1/htfind.1.gz
 
 %files gsexec
 %attr(4510, root, apache) %(echo ${MYPREFIX:-/usr})/sbin/gsexec

@@ -530,6 +530,7 @@ int main(int argc, char *argv[])
     uid_t httpd_uid;	    /* uid for AP_HTTPD_USER     */
     gid_t httpd_gid;	    /* uid for AP_HTTPD_GROUP    */
     char *mapping_type;	    /* suexec / X509DN / directory */
+    char *grst_cred_0;	    /* GRST_CRED_0 */
     char *map_x509dn;	    /* DN to use as pool acct. key */
     char *map_directory;    /* directory as pool acct. key */
 
@@ -640,8 +641,9 @@ int main(int argc, char *argv[])
     else if (strcasecmp(mapping_type, "X509DN") == 0)
       {
 // log_err("X509DN mapping type\n");
-        if ((map_x509dn = getenv("GRST_CRED_0")) == NULL)
+        if ((grst_cred_0 = getenv("GRST_CRED_0")) == NULL)
                             map_x509dn = getenv("SSL_CLIENT_S_DN");
+        else map_x509dn = index(grst_cred_0, '/');
 
         if ((map_x509dn == NULL) || (map_x509dn[0] == '\0'))
           {
@@ -650,8 +652,8 @@ int main(int argc, char *argv[])
             exit(151);
           }
 
-        if (GRSTexecGetMapping(&target_uname, &target_gname, 
-                               GRST_EXECMAPDIR, map_x509dn) 
+        if (GRSTexecGetMapping(&target_uname, &target_gname,
+                               GRST_EXECMAPDIR, map_x509dn)
             != 0)
           {
             log_err("GRSTexecGetMapping() failed mapping \"%s\"\n", 

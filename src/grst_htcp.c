@@ -240,6 +240,8 @@ int GRSThtcpMessageParse(GRSThtcpMessage *parsed, char *raw, int length)
 
    if ((parsed->opcode == GRSThtcpTSTop) && (parsed->rr == 0))
      {
+       /* a TST request */
+
        /* point to start of data/auth in raw */
        s = (GRSThtcpCountstr *) &(((GRSThtcpMessage *) raw)->method); 
 
@@ -276,6 +278,8 @@ int GRSThtcpMessageParse(GRSThtcpMessage *parsed, char *raw, int length)
 
    if ((parsed->opcode == GRSThtcpTSTop) && (parsed->rr == 1))
      {
+       /* a TST response */
+
        /* point to start of data/auth in raw */
        s = (GRSThtcpCountstr *) &(((GRSThtcpMessage *) raw)->method); 
 

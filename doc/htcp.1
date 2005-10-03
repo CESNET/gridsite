@@ -1,12 +1,12 @@
 .TH htcp 1 "September 2005" htcp "HTCP Manual"
 .SH NAME
-.B htcp, htmv, htrm, htls, htll, htmkdir, htping
+.B htcp, htmv, htrm, htls, htll, htmkdir, htfind, htping
 \- file transfers and queries via HTTP/HTTPS/SiteCast
 .SH SYNOPSIS
 .B htcp, htmv
 [\fIoptions\fR] \fISource-URL\fR[\fIs\fR] \fIDestination-URL\fR
 .br
-.B htrm, htls, htll, htmkir
+.B htrm, htls, htll, htmkir, htfind
 [\fIoptions\fR] \fITarget-URL\fR[\fIs\fR]
 .br
 .B htping
@@ -17,9 +17,9 @@ is a client to fetch files or directory listings from remote servers using
 HTTP or HTTPS, or to put or delete files or directories onto remote servers
 using HTTPS. htcp is similar to scp(1), but uses HTTP/HTTPS rather than ssh
 as its transfer protocol. htcp can also use the HTCP protocol to query
-GridSite via SiteCast. 
+HTTP(S) fileservers via SiteCast. 
 
-When talking to an HTTPS server, htcp can run "anonymously", with a
+When talking to a fileserver with HTTPS, htcp can run "anonymously", with a
 standard X.509 user certificate and key, or with a GSI Proxy. This makes
 htcp very useful in Grid environments where many users have certificates
 and where jobs and users have access to GSI proxies.
@@ -29,9 +29,9 @@ htcp supports the file:, http: and https: URL schemes as sources and
 destinations. If no scheme is given, the URL scheme is assumed to be file:
 and relative to the current directory if not an absolute path.
 
-If multiple sources are given, they will be used in turn and the destination
-must be a directory (directories are indicated by a trailing /) However,
-source and destination cannot both refer to remote servers.
+If multiple sources are given during a copy, they will be used in turn and
+the destination must be a directory (directories are indicated by a trailing
+/) However, source and destination cannot both refer to remote servers.
 
 .SH OPTIONS
 .IP "-v/--verbose"
@@ -70,11 +70,20 @@ program as htmv has the same effect.
 
 .IP "--ping"
 .br
-Query specified multicast groups with the HTCP NOP code. SiteCast enabled
-servers will respond immediately with a NOP reply, and all of the responses
-will be listed, with the round trip time in milliseconds. Any waiting times
-specified in the --groups option will be ignored. Calling the program as
-htping has the same effect.
+Query specified multicast groups with the HTCP NOP ("No Operation") code.
+SiteCast enabled servers will respond immediately with a NOP reply, and all
+of the responses will be listed, with the round trip time in milliseconds. 
+Any waiting times specified in the --groups option will be ignored. Calling
+the program as htping has the same effect.
+
+.IP "--find"
+.br
+Query specified multicast groups with the HTCP TST code. SiteCast enabled
+servers will respond with TST replies if they have the files corresponding
+to the given SiteCast target URL(s). All of the transfer URLs returned
+will be listed. Waiting times specified in the --groups option will be used
+to space out the multicast queries, but the program listens for responses
+continuously. Calling the program as htfind has the same effect.
 
 .IP "--anon"
 .br
@@ -117,14 +126,12 @@ transfer isn't possible, a normal HTTPS data transfer will be attempted.
 
 .IP "--groups <IP Groups>"
 IP multicast groups to use for SiteCast queries. IP Groups is a comma
-separated list of groups, in the format: 
-nnn.nnn.nnn.nnn[:port[:ttl[:seconds]]] The IP number must be
-specified. If the UDP port isn't given, the default 777 will be used.
-The IP time-to-live, ttl, controls how many networks the multicast packets may
-pass through - the default, 1, limits packets to the local network. Multiple
-groups may be specified, separated by commas.
-If multiple groups are specified, then seconds is the time to wait before
-making the next multicast - 1 second is the default.
+separated list of groups, in the format: nnn.nnn.nnn.nnn:port[:ttl[:seconds]]
+The IP number and port must be specified. The IP time-to-live, ttl, controls 
+how many networks the multicast packets may pass through - the default, 1, 
+limits packets to the local network. Multiple groups may be specified, 
+separated by commas. If multiple groups are specified, then seconds is the 
+time to wait before making the next multicast - 1 second is the default.
 
 .SH FILES
 .IP /tmp/x509up_uID

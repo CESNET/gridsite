@@ -79,6 +79,15 @@ will be listed. Waiting times specified in the --groups option will be used
 to space out the multicast queries, but the program listens for responses
 continuously. Calling the program as htfind has the same effect.
 
+.IP "--groups <IP Groups>"
+IP multicast groups to use for SiteCast queries. IP Groups is a comma
+separated list of groups, in the format: nnn.nnn.nnn.nnn:port[:ttl[:seconds]]
+The IP number and port must be specified. The IP time-to-live, ttl, controls 
+how many networks the multicast packets may pass through - the default, 1, 
+limits packets to the local network. Multiple groups may be specified, 
+separated by commas. If multiple groups are specified, then seconds is the 
+time to wait before making the next multicast - 1 second is the default.
+
 .IP "--anon"
 Do not attempt to use X.509 user certificates or GSI proxies to authenticate
 to the remote HTTPS server. This means you are "anonymous", but the server's
@@ -116,15 +125,6 @@ to HTTP for the GET or PUT file transfer. htcp makes the HTTP request using
 the GRID_AUTH_ONETIME single-use passcode obtained via HTTPS. The --grid-http
 option will be ignored for directory operations or HTTP URLs. If a redirected
 transfer isn't possible, a normal HTTPS data transfer will be attempted.
-
-.IP "--groups <IP Groups>"
-IP multicast groups to use for SiteCast queries. IP Groups is a comma
-separated list of groups, in the format: nnn.nnn.nnn.nnn:port[:ttl[:seconds]]
-The IP number and port must be specified. The IP time-to-live, ttl, controls 
-how many networks the multicast packets may pass through - the default, 1, 
-limits packets to the local network. Multiple groups may be specified, 
-separated by commas. If multiple groups are specified, then seconds is the 
-time to wait before making the next multicast - 1 second is the default.
 
 .SH FILES
 .IP /tmp/x509up_uID

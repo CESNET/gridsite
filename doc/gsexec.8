@@ -1,52 +1,106 @@
-.de Sh \" Subsection
-.br
-.if t .Sp
-.ne 5
-.PP
-\fB\\$1\fR
-.PP
-..
-.de Sp \" Vertical space (when we can't use .PP)
-.if t .sp .5v
-.if n .sp
-..
-.de Ip \" List item
-.br
-.ie \\n(.$>=3 .ne \\$3
-.el .ne 3
-.IP "\\$1" \\$2
-..
-.TH "GSEXEC" 8 "2005-05-27" "GridSite Apache Extensions" "gsexec"
-
+.TH GSEXEC 8 "October 2005" "gsexec" "GridSite Manual"
 .SH NAME
-gsexec \- Switch user before executing external programs
+.B gsexec 
+\- Switch user before executing external programs
 
 .SH "SYNOPSIS"
  
-.PP
-\fBgsexec\fR -\fBV\fR
+.BR gsexec 
+[-V]
  
-
 .SH "SUMMARY"
- 
-.PP
+
 gsexec is used by the Apache HTTP Server to switch to another user before 
 executing CGI programs\&. In order to achieve this, it must run as root\&. 
 Since the HTTP daemon normally doesn't run as root, the gsexec executable 
 needs the setuid bit set and must be owned by root\&. It should never be 
 writable for any other person than root\&.
  
-.PP
-gsexec is based on Apache's suexec.
-For further information about the concepts and the security model of 
-the original suexec 
-please refer to the suexec documentation: 
+gsexec is based on Apache's suexec, and its behaviour is controlled with
+the Apache configuration file directives 
+.BR GridSiteExecMethod 
+and 
+.BR GridSiteUserGroup
+added to Apache by 
+.BR mod_gridsite(8)
+Four execution methods are supported: nosetuid, suexec, X509DN and directory,
+and these may be set on a per-directory basis within the Apache configuration
+file.
 
-(http://httpd\&.apache\&.org/docs-2\&.0/suexec\&.html)\&.
- 
+.SH "NOSETUID METHOD"
+
+This is the default behaviour, but can also be produced by giving
+.BR "GridSiteExecMethod nosetuid"
+
+CGI programs will then be executed without using gsexec, and will
+run as the Unix user given by the User and Group Apache directives (normally
+apache.apache on Red Hat derived systems.)
+
+.SH "SUEXEC METHOD"
+
+If
+.BR "GridSiteExecMethod suexec"
+is given for this virtual host or directory, then CGI programs will be 
+executed using the user and group given by the
+.BR "GridSiteUserGroup user group"
+directive, which may also be set on a per-directory basis (unlike suexec's
+.BR SuexecUserGroup 
+which is per-server only.) The CGI program must either be owned by root,
+the Apache user
+and group specified at gsexec build-time (normally apache.apache) or by
+the user and group given with the 
+.BR GridSiteUserGroup
+directive.
+
+.SH "X509DN METHOD"
+
+If
+.BR "GridSiteExecMethod X509DN"
+is given, then the CGI program runs as a pool user, detemined using lock
+files in the exec mapping directory chosen as build time of gsexec.
+The pool user is chosen according
+to the client's full certificate X.509 DN (ie with any trailing GSI proxy
+name components stripped off.) Subsequent requests by the same X.509
+identity will be mapped to the same pool user. The CGI program must either be
+owned by root, the Apache user
+and group specified at gsexec build-time (normally apache.apache) or by
+the pool user selected.
+
+.SH "DIRECTORY METHOD"
+
+If
+.BR "GridSiteExecMethod directory"
+is given, then the CGI program runs as a pool user chosen according
+to the directory in which the CGI is located: all CGIs in that directory
+run as the same pool user. The CGI program must either be
+owned by root, the Apache user
+and group specified at gsexec build-time (normally apache.apache) or by
+the pool user selected.
+
+
+.SH "EXECMAPDIR"
+
+The default exec mapping directory is /var/www/execmapdir and this is fixed
+when the gsexec executable is built. The exec mapping directory and all
+of its lock files must be owned and only writable by root. To initialise the
+lock files, create an empty lock file for each pool user, with the pool
+username as the filename (eg user0001, user0002, ...) As the pool users are
+leased to X.509 identities or directories, they will become hard linked to
+lock files with the URL-encoded X.509 DN or full directory path. 
+
+You can recycle pool users by removing the corresponding URL-encoded
+hard link. 
+.BR stat(1)
+and
+.BR "ls(1)"
+with option 
+.BR "-i"
+can be used to print the inodes of lock files to match up the hard links.
+
+.BR "However, you must ensure that all files and processes owned by the pool"
+.BR "user are deleted before recycling!"
 
 .SH "OPTIONS"
- 
  
 .TP
 -V
@@ -54,3 +108,27 @@ If you are root, this option displays the compile options of gsexec\&.
 For security reasons all configuration options are changeable only at 
 compile time\&.  
  
+.SH "MORE INFORMATION"
+For further information about the concepts and the security model of 
+the original Apache suexec 
+please refer to the suexec documentation: 
+
+http://httpd\&.apache\&.org/docs-2\&.0/suexec\&.html
+
+For examples using the gsexec extensions, please see the GridSite gsexec
+page:
+
+http://www.gridsite.org/wiki/Gsexec
+
+.SH AUTHORS
+
+Apache project, for original suexec
+
+Andrew McNab <Andrew.McNab@manchester.ac.uk> for gsexec modifications.
+
+gsexec is part of GridSite: http://www.gridsite.org/
+
+.SH "SEE ALSO"
+.BR httpd(8),
+.BR suexec(8),
+.BR mod_gridsite(8)

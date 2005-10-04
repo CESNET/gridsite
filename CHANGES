@@ -1,3 +1,8 @@
+* Tue Oct 4 2005 Andrew McNab <Andrew.McNab@man.ac.uk>
+- Move User, Config, Admin and Install guides from 
+  doc directory into GridSite Wiki.
+- Create/update man pages for htcp, mod_gridsite and
+  gsexec to be distributed with source/binaries.
 * Mon Oct 3 2005 Andrew McNab <Andrew.McNab@man.ac.uk>
 - Fix to gsexec GRST_CRED_0/SSL_CLIENT_S_DN bug found
   by Ian Stokes-Rees <i.stokes-rees1@PHYSICS.OX.AC.UK>

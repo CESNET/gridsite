@@ -56,7 +56,8 @@ endif
 # Build
 #
 
-build: libgridsite.so.$(VERSION) libgridsite.a htcp mod_gridsite.so \
+build: apidoc \
+       libgridsite.so.$(VERSION) libgridsite.a htcp mod_gridsite.so \
        urlencode findproxyfile real-gridsite-admin.cgi gsexec \
        # gridsite-delegation.cgi # htproxyput 
 
@@ -196,6 +197,10 @@ showx509exts: showx509exts.c libgridsite.a
  
 apidoc:
 	doxygen Doxyfile
+	mkdir -p ../doc/doxygen
+	cp -f doxygen/*.html doxygen/*.css doxygen/*.png ../doc/doxygen
+	cd ../doc ; for i in *.1 *.8 ; do ../src/roffit < $$i \
+          > $$i.html ; done
 
 gaclexample: gaclexample.c libgridsite.a
 	gcc -g -o gaclexample gaclexample.c -I. -L. \
@@ -290,9 +295,6 @@ install: apidoc
                                  $(prefix)/lib/libgridsite_globus.so.$(MAJOR_VERSION)
 	ln -sf libgridsite_globus.so.$(PATCH_VERSION) \
                                  $(prefix)/lib/libgridsite_globus.so.$(MINOR_VERSION)
-	cp -f doxygen/index.html \
-              $(prefix)/share/doc/gridsite-$(PATCH_VERSION)/doxygen-index.html
-	cp -f doxygen/* $(prefix)/share/doc/gridsite-$(PATCH_VERSION)
 	cp -f ../CHANGES ../README ../INSTALL ../LICENSE ../VERSION \
                $(prefix)/share/doc/gridsite-$(PATCH_VERSION)
 	cp -f ../doc/*.html ../doc/*.conf ../doc/*.1 ../doc/*.8 ../doc/*.sh \
@@ -301,8 +303,6 @@ install: apidoc
 	cp -f ../doc/*.8 $(prefix)/share/man/man8
 	gzip -f $(prefix)/share/man/man1/*.1
 	gzip -f $(prefix)/share/man/man8/*.8
-	cd ../doc ; for i in *.1 *.8 ; do ../src/roffit < $$i \
-          > $(prefix)/share/doc/gridsite-$(VERSION)/$$i.html ; done
 	cp -f htcp $(prefix)/bin
 	ln -sf htcp $(prefix)/bin/htls
 	ln -sf htcp $(prefix)/bin/htll

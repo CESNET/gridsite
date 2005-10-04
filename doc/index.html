@@ -11,29 +11,35 @@ the associated verified credentials are available to all technologies
 supported by Apache, including static file serving, SSI, CGI, PHP, JSP and 
 mod_perl.
 
-<h2>Guides</h2>
+<p>
+The <a href="http://www.gridsite.org/wiki/">GridSite Wiki</a> includes
+guides and cookbook examples about using GridSite, along with up to date
+information about the APIs.
+
+<h2>Reference</h2>
+
+<p>
+The following reference documents and man pages are put in
+/usr/share/doc/gridsite-VERSION when GridSite is installed.
 
 <p>
 <dl>
-<dt><b><a href="user.html">User Guide</a></b>
-<dd>End-user documentation for people managing webpages and files on
-    GridSite servers, either through the web interface or with command
-    line clients like htcp.
+
+<dt><b><a href="htcp.1.html">htcp(1)</a></b>
+<dd>A command line tool for copying files to or from HTTP(S) servers.
 <p>
 
-<dt><b><a href="admin.html">Admin Guide</a></b>
-<dd>For people administering areas of GridSite websites or fileservers, or
-    managing GridSite's support for DN List groups.
+<dt><b><a href="mod_gridsite.8.html">mod_gridsite(8)</a></b>
+<dd>An Apache 2.0 module which enforces access control via Grid Access
+    Control Lists, and X.509, GSI or VOMS credentials. mod_gridsite also
+    gives Apache built-in support for the HTTP PUT and DELETE methods, and
+    formatting of HTML pages with standard headers and footers. 
 <p>
 
-<dt><b><a href="install.html">Building and Installation</a></b>
-<dd>Instructions for building GridSite from source, and installing from
-    binaries or RPMs.
-<p>
-
-<dt><b><a href="config.html">Config Guide</a></b>
-<dd>For webmasters setting up Apache 2.0 and GridSite, and writing the
-    Apache httpd.conf file.
+<dt><b><a href="gsexec.8.html">gsexec(8)</a></b>
+<dd>A modified version of suexec(8), for use with mod_gridsite(8). gsexec
+    allows CGI programs to be run as pool users, depending on the client's
+    X.509 identity or the directory in which the CGI is located.
 <p>
 
 <dt><b><a href="httpd-fileserver.conf">httpd-fileserver.conf</a></b> and
@@ -42,22 +48,21 @@ mod_perl.
     webservers, with explanatory comments.
 <p>
 
-</dl>
-
-<h2>Reference</h2>
-
-<p>
-<dl>
-<dt><b><a href="gacl.html">Grid Access Control Lists</a></b>
-<dd>Syntax and usage of the XML Grid Access Control Lists used by GridSite.
+<dt><b><a href="urlencode.1.html">urlencode(1)</a></b>
+<dd>A command for URL-encoding strings. 
 <p>
 
-<dt><b><a href="htcp.1.html">htcp</a></b> and
-    <b><a href="urlencode.1.html">urlencode</a></b> man pages
-<dd>Command line tools for copying files to or from HTTP(S) servers, and
-    for URL-encoding strings. 
+<dt><b><a href="findproxyfile.1.html">findproxyfile(1)</a></b>
+<dd>The finxproxyfile command returns full path to a GSI Proxy  file,
+    either in the proxy cache maintained by the GridSite G-HTTPS and
+    delegation portType functions, or in other standard places.       
 <p>
 
+<dt><b><a href="delegation-1.wsdl">delegation-1.wsdl</a></b>
+<dd>A WSDL description of a delegation Web Service including the Delegation
+    portType.
+<p>
+    
 <!--
 <dt><b><a href="gridsite-admin.html">gridsite-admin.cgi</a></b>
 <dd>A CGI program providing site administration functions for users with
@@ -67,22 +72,7 @@ mod_perl.
 <p>
 -->
 
-<dt><b><a href="module.html">mod_gridsite</a></b>
-<dd>An Apache 2.0 module which enforces access control via Grid Access
-    Control Lists, and X.509, GSI or VOMS credentials. mod_gridsite also
-    gives Apache built-in support for the HTTP PUT and DELETE methods, and
-    formatting of HTML pages with standard headers and footers. 
-<p>
-
-<!--
-<dt><b><a href="library.html">libgridsite</a></b>
-<dd>The GridSite library provides common functions for other components of
-    the GridSite system, and utilities for programs using CGI, X.509, GSI,
-    VOMS and HTTP. 
-<p>
--->
-
-<dt><b><a href="gridsite_8h.html">gridsite.h API reference</a></b>
+<dt><b><a href="doxygen/gridsite_8h.html">gridsite.h API reference</a></b>
 <dd>A detailed description of the C API provided by libgridsite, generated
     from the sources by doxygen.
 <p>

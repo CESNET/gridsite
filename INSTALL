@@ -1,10 +1,8 @@
 BUILDING/INSTALLING GRIDSITE
 ============================
 
-For more detailed instructions, see the install.html file, either
-in the ./doc subdirectory in the sources, in the directory
-gridsite-VERSION/html of the docs directory when GridSite is
-installed, or http://www.gridsite.org/1.1.x/install.html
+For more detailed instructions, see the Installation and Build 
+pages in the GridSite Wiki http://www.gridsite.org/wiki/
 
 GridSite is currently only supported on Linux, but should be
 trivially portable to other Unix platforms where the GNU build

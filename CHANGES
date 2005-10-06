@@ -1,3 +1,7 @@
+* Thu Oct 6 2005 Andrew McNab <Andrew.McNab@man.ac.uk>
+- Fix session reuse with Shared-Memory SSL Session
+  Cache bug #8856 in mod_gridsite.
+- Add SiteCast support to file copying in htcp.
 * Tue Oct 4 2005 Andrew McNab <Andrew.McNab@man.ac.uk>
 - Move User, Config, Admin and Install guides from 
   doc directory into GridSite Wiki.

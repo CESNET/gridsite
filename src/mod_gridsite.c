@@ -2103,6 +2103,41 @@ static int mod_gridsite_first_fixups(request_rec *r)
     return DECLINED;
 }  
 
+void GRST_creds_to_conn(conn_rec *conn, 
+                        STACK_OF(X509) *certstack, X509 *peercert)
+{
+   int i, lastcred;
+   const int maxcreds = 99;
+   const size_t credlen = 1024;
+   char creds[maxcreds][credlen+1], envname[14];
+
+   if ((certstack != NULL) && (conn->notes != NULL) &&
+       (apr_table_get(conn->notes, "GRST_creds_to_conn") != NULL)) return;
+
+   /* Put result of GRSTx509CompactCreds() into connection notes */
+
+   apr_table_set(conn->notes, "GRST_creds_to_conn", "yes");
+   ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, conn->base_server,
+                                            "set GRST_creds_to_conn");
+
+   if (GRSTx509CompactCreds(&lastcred, maxcreds, credlen, (char *) creds,
+                          certstack, GRST_VOMS_DIR, peercert) == GRST_RET_OK)
+     {
+       for (i=0; i <= lastcred; ++i)
+          {
+            apr_table_setn(conn->notes,
+                                 apr_psprintf(conn->pool, "GRST_CRED_%d", i),
+                                 apr_pstrdup(conn->pool, creds[i]));
+
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, conn->base_server,
+                                      "store GRST_CRED_%d=%s", i, creds[i]);
+
+          }
+                                   
+       /* free remaining dup'd certs? */
+     }     
+}
+
 static int mod_gridsite_perm_handler(request_rec *r)
 /*
     Do authentication/authorization here rather than in the normal module
@@ -2129,6 +2164,9 @@ static int mod_gridsite_perm_handler(request_rec *r)
     GRSTgaclPerm     perm = GRST_PERM_NONE, destination_perm = GRST_PERM_NONE;
     GRSTgaclAcl     *acl = NULL;
     mod_gridsite_dir_cfg *cfg;
+    SSLConnRec      *sslconn;
+    STACK_OF(X509)  *certstack;
+    X509	    *peercert;
 
     cfg = (mod_gridsite_dir_cfg *)
                     ap_get_module_config(r->per_dir_config, &gridsite_module);
@@ -2142,6 +2180,19 @@ static int mod_gridsite_perm_handler(request_rec *r)
     env = r->subprocess_env;
 
     /* do we need/have per-connection (SSL) cred variable(s)? */
+    
+    sslconn = (SSLConnRec *) ap_get_module_config(r->connection->conn_config, 
+                                                  &ssl_module);
+
+    if ((sslconn != NULL) && (sslconn->ssl != NULL) &&
+        (r->connection->notes != NULL) &&
+        (apr_table_get(r->connection->notes, "GRST_creds_to_conn") == NULL))
+      {
+        certstack = SSL_get_peer_cert_chain(sslconn->ssl);
+        peercert  = SSL_get_peer_certificate(sslconn->ssl);
+      
+        GRST_creds_to_conn(r->connection, certstack, peercert);
+      }
 
     if ((user == NULL) && 
         (r->connection->notes != NULL) &&
@@ -2561,6 +2612,7 @@ int GRST_callback_SSLVerify_wrapper(int ok, X509_STORE_CTX *ctx)
    int errdepth        = X509_STORE_CTX_get_error_depth(ctx);
    int returned_ok;
    int first_non_ca;
+   STACK_OF(X509) *certstack;
 
    /*
     * GSI Proxy user-cert-as-CA handling:
@@ -2626,35 +2678,13 @@ int GRST_callback_SSLVerify_wrapper(int ok, X509_STORE_CTX *ctx)
           }
         else 
           {
-            int i, lastcred;
-            STACK_OF(X509) *peer_certs;
-            const int maxcreds = 99;
-            const size_t credlen = 1024;
-            char creds[maxcreds][credlen+1], envname[14];
-
             ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, "Valid certificate"
                                    " chain reported by GRSTx509CheckChain()");
 
-            /*
-             * Always put result of GRSTx509CompactCreds() into environment
-             */
-            if (peer_certs = (STACK_OF(X509) *) X509_STORE_CTX_get_chain(ctx))
-              {    
-                if (GRSTx509CompactCreds(&lastcred, maxcreds, credlen,
-                    (char *) creds, peer_certs, GRST_VOMS_DIR) == GRST_RET_OK)
-                  {
-                    for (i=0; i <= lastcred; ++i)
-                       {
-                         apr_table_setn(conn->notes,
-                                 apr_psprintf(conn->pool, "GRST_CRED_%d", i),
-                                 apr_pstrdup(conn->pool, creds[i]));
-
-                         ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                                      "store GRST_CRED_%d=%s", i, creds[i]);
-                       }
-                  }
-            /* free remaining dup'd certs? */
-              }                                   
+            /* Put result of GRSTx509CompactCreds() into connection notes */
+            if ((certstack = 
+                  (STACK_OF(X509) *) X509_STORE_CTX_get_chain(ctx)) != NULL)
+             GRST_creds_to_conn(conn, certstack, NULL);
           }
      }
 

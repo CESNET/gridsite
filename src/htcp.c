@@ -84,6 +84,9 @@
 
 #define HTCP_SITECAST_GROUPS 32
 
+#define HTCP_HOST_CONF       "/etc/htcp.conf"
+#define HTCP_USER_CONF       ".htcp.conf"
+
 struct grst_stream_data { char *source;
                           char *destination;
                           int   ishttps;
@@ -286,7 +289,7 @@ int do_copies(char *sources[], char *destination,
          }
  
        if (common_data->verbose > 0)
-            fprintf(stderr, "%s -> %s\n", sources[isrc], thisdestination);
+            fprintf(stderr, "Copy %s -> %s\n", sources[isrc], thisdestination);
 
        if (common_data->method == HTCP_GET)
          {
@@ -721,10 +724,16 @@ int do_finds(char *sources[],
 
   /* parse common_data_ptr->groups */ 
 
+  if (common_data_ptr->groups == NULL)
+    {
+      fprintf(stderr, "No multicast groups given\n");
+      return CURLE_FAILED_INIT;
+    }
+
   p = common_data_ptr->groups;
   igroup = -1;
 
-  for (igroup=-1; igroup+1 < HTCP_SITECAST_GROUPS; ++igroup)
+  for (igroup=-1; igroup+1 < HTCP_SITECAST_GROUPS;)
      {  
        sitecast_groups[igroup+1].port     = GRST_HTCP_PORT;
        sitecast_groups[igroup+1].timewait = 1;
@@ -840,6 +849,152 @@ int do_finds(char *sources[],
      }
 
    return GRST_RET_OK;
+}
+
+int translate_sitecast_url(char **source_ptr,
+                           struct grst_stream_data *common_data_ptr)
+{
+  int request_length, response_length, i, ret, s, igroup;
+  struct sockaddr_in srv, from;
+  socklen_t fromlen;
+#define MAXBUF 8192  
+  char *request, response[MAXBUF], *p;
+  GRSThtcpMessage msg;
+  struct timeval start_timeval, wait_timeval;
+  struct grst_sitecast_group sitecast_groups[HTCP_SITECAST_GROUPS];
+  fd_set readsckts;
+
+  /* parse common_data_ptr->groups */ 
+
+  if (common_data_ptr->groups == NULL)
+    {
+      fprintf(stderr, "No multicast groups given\n");
+      return CURLE_FAILED_INIT;
+    }
+
+  p = common_data_ptr->groups;
+  igroup = -1;
+  
+  for (igroup=-1; igroup+1 < HTCP_SITECAST_GROUPS;)
+     {  
+       sitecast_groups[igroup+1].port     = GRST_HTCP_PORT;
+       sitecast_groups[igroup+1].timewait = 1;
+       sitecast_groups[igroup+1].ttl      = 1;
+       
+       ret = sscanf(p, "%d.%d.%d.%d:%d:%d:%d", 
+                 &(sitecast_groups[igroup+1].quad1),
+                 &(sitecast_groups[igroup+1].quad2),    
+                 &(sitecast_groups[igroup+1].quad3),
+                 &(sitecast_groups[igroup+1].quad4),    
+                 &(sitecast_groups[igroup+1].port),
+                 &(sitecast_groups[igroup+1].ttl),
+                 &(sitecast_groups[igroup+1].timewait));
+
+       if (ret == 0) break; /* end of list ? */
+         
+       if (ret < 5)
+         {
+           fprintf(stderr, "Failed to parse multicast group "
+                     "parameter %s\n", p);
+           return CURLE_FAILED_INIT;
+         }
+         
+       ++igroup;  
+       
+       if ((p = index(p, ',')) == NULL) break;       
+       ++p;
+     }
+
+  if (igroup == -1)
+    {
+      fprintf(stderr, "Failed to parse multicast group parameter %s\n", p);
+      return CURLE_FAILED_INIT;
+    }
+
+  if ((s = socket(AF_INET, SOCK_DGRAM, 0)) < 0) 
+    {
+      fprintf(stderr, "Failed to open UDP socket\n");
+      return CURLE_FAILED_INIT;
+    }
+
+  /* loop through multicast groups since we need to take each 
+     ones timewait into account */
+
+  gettimeofday(&start_timeval, NULL);
+
+  for (i=0; i <= igroup; ++i)
+     {
+       if (common_data_ptr->verbose)
+        fprintf(stderr, "Querying multicast group %d.%d.%d.%d:%d:%d:%d\n",
+                sitecast_groups[i].quad1, sitecast_groups[i].quad2,
+                sitecast_groups[i].quad3, sitecast_groups[i].quad4,
+                sitecast_groups[i].port, sitecast_groups[i].ttl,
+                sitecast_groups[i].timewait);
+        
+       bzero(&srv, sizeof(srv));
+       srv.sin_family = AF_INET;
+       srv.sin_port = htons(sitecast_groups[i].port);
+       srv.sin_addr.s_addr = htonl(sitecast_groups[i].quad1*0x1000000
+                                 + sitecast_groups[i].quad2*0x10000
+                                 + sitecast_groups[i].quad3*0x100
+                                 + sitecast_groups[i].quad4);
+
+       /* send off queries, one for each source file */
+
+       GRSThtcpTSTrequestMake(&request, &request_length, 
+                                   (int) (start_timeval.tv_usec),
+                                   "GET", *source_ptr, "");
+
+       sendto(s, request, request_length, 0, 
+                       (struct sockaddr *) &srv, sizeof(srv));
+
+       free(request);
+          
+       /* reusing wait_timeval is a Linux-specific feature of select() */
+       wait_timeval.tv_usec = 0;
+       wait_timeval.tv_sec  = sitecast_groups[i].timewait;
+
+       while ((wait_timeval.tv_sec > 0) || (wait_timeval.tv_usec > 0))
+            {
+              FD_ZERO(&readsckts);
+              FD_SET(s, &readsckts);
+  
+              ret = select(s + 1, &readsckts, NULL, NULL, &wait_timeval);
+
+              if (ret > 0)
+                {
+                  response_length = recvfrom(s, response, MAXBUF,
+                                             0, &from, &fromlen);
+  
+                  if ((GRSThtcpMessageParse(&msg, response, response_length) 
+                                                      == GRST_RET_OK) &&
+                      (msg.opcode == GRSThtcpTSTop) && (msg.rr == 1) && 
+                      (msg.trans_id == (int) start_timeval.tv_usec) &&
+                      (msg.resp_hdrs != NULL) &&
+                      (GRSThtcpCountstrLen(msg.resp_hdrs) > 12))
+                    { 
+                      /* found one */ 
+
+                      if (common_data_ptr->verbose > 0)
+                        fprintf(stderr, "Sitecast %s -> %.*s\n",
+                                *source_ptr, 
+                                GRSThtcpCountstrLen(msg.resp_hdrs) - 12,
+                                &(msg.resp_hdrs->text[10]));
+
+                      free(*source_ptr);
+                      
+                      asprintf(source_ptr, "%.*s",
+                          GRSThtcpCountstrLen(msg.resp_hdrs) - 12, 
+                          &(msg.resp_hdrs->text[10]));
+                          
+                      return GRST_RET_OK;
+                    }
+                }
+            }
+
+     }
+     
+  return GRST_RET_OK;
 }
 
 size_t rawindex_callback(void *ptr, size_t size, size_t nmemb, void *data)
@@ -1312,15 +1467,7 @@ void printsyntax(char *argv0)
 "(Version: %s)\n", p, p, VERSION);
 }
 
-int main(int argc, char *argv[])
-{
-  char **sources, *destination = NULL, *executable, *p;
-  int    c, i, option_index, anyerror;
-  struct stat statbuf;
-  struct grst_stream_data common_data;
-  struct grst_sitecast_group sitecast_groups[HTCP_SITECAST_GROUPS];
-  struct passwd *userpasswd;
-  struct option long_options[] = {	{"verbose",		0, 0, 'v'},
+struct option long_options[] = {	{"verbose",		0, 0, 'v'},
                 			{"cert",		1, 0, 0},
 			                {"key",			1, 0, 0},
              				{"capath",		1, 0, 0},
@@ -1338,7 +1485,92 @@ int main(int argc, char *argv[])
                 			{"sitecast",		0, 0, 0},
                 			{"domain",		1, 0, 0},
                 			{"find",                0, 0, 0},
+                			{"conf",                1, 0, 0},
                 			{0, 0, 0, 0}  };
+
+int update_common_data(struct grst_stream_data *, int, char *);
+
+void parse_conf(struct grst_stream_data *common_data_ptr, char *conf_file)
+{
+  int   option_index;
+  char  line[1001], *p;
+  FILE *fp;
+  
+  fp = fopen(conf_file, "r");
+  if (fp == NULL)
+    {
+      if (common_data_ptr->verbose)
+        fprintf(stderr, "Failed to open configuration file %s\n", conf_file);
+      return;
+    }
+    
+  if (common_data_ptr->verbose)
+      fprintf(stderr, "Opened configuration file %s\n", conf_file);
+
+  while (fgets(line, sizeof(line), fp) != NULL)
+       {
+         if ((p = index(line, '\n')) != NULL) *p = '\0';
+       
+         for (option_index=0; 
+              long_options[option_index].name != NULL; ++option_index)
+            {
+              if (long_options[option_index].has_arg &&
+                  (strncmp(line, long_options[option_index].name, 
+                          strlen(long_options[option_index].name)) == 0) &&
+                  (line[strlen(long_options[option_index].name)] == '='))
+                {
+                  update_common_data(common_data_ptr, option_index,
+                   strdup(&line[strlen(long_options[option_index].name) + 1]));
+                  break;
+                }              
+
+              if (!long_options[option_index].has_arg &&
+                  (strcmp(line, long_options[option_index].name) == 0))
+                {
+                  update_common_data(common_data_ptr, option_index, "");
+                  break;
+                }              
+            }
+       }  
+    
+  fclose(fp);
+}
+
+int update_common_data(struct grst_stream_data *common_data_ptr,
+                        int option_index, char *optarg)
+{
+  if      (option_index == 1) common_data_ptr->cert       = optarg;
+  else if (option_index == 2) common_data_ptr->key        = optarg; 
+  else if (option_index == 3) common_data_ptr->capath     = optarg;
+  else if (option_index == 4) common_data_ptr->method     = HTCP_DELETE;
+  else if (option_index == 5) common_data_ptr->method     = HTCP_LIST;
+  else if (option_index == 6) common_data_ptr->method     = HTCP_LONGLIST;
+  else if (option_index == 7) common_data_ptr->method     = HTCP_MKDIR;
+  else if (option_index == 8) common_data_ptr->noverify   = 1;
+  else if (option_index == 9) common_data_ptr->anonymous  = 1;
+  else if (option_index ==10) common_data_ptr->gridhttp   = 1;
+  else if (option_index ==11) common_data_ptr->method     = HTCP_MOVE;
+  else if (option_index ==12) common_data_ptr->method     = HTCP_PING;
+  else if (option_index ==13) common_data_ptr->groups     = optarg;
+  else if (option_index ==14) common_data_ptr->timeout    = atoi(optarg);
+  else if (option_index ==15) common_data_ptr->sitecast   = 1;
+  else if (option_index ==16) { common_data_ptr->sitecast = 1;
+                                common_data_ptr->domain   = optarg; }
+  else if (option_index ==17) common_data_ptr->method     = HTCP_FIND;
+  /* option_index == 18 is used by the --conf command line-only option */
+  else return GRST_RET_FAILED;
+  
+  return GRST_RET_OK;
+}
+
+int main(int argc, char *argv[])
+{
+  char **sources, *destination = NULL, *executable, *p, *htcp_conf;
+  int    c, i, option_index, anyerror;
+  struct stat statbuf;
+  struct grst_stream_data common_data;
+  struct grst_sitecast_group sitecast_groups[HTCP_SITECAST_GROUPS];
+  struct passwd *userpasswd;
 
 #if (LIBCURL_VERSION_NUM < 0x070908)
   char *tmp_ca_roots = NULL;
@@ -1366,6 +1598,23 @@ int main(int argc, char *argv[])
   common_data.timeout   = 0;
   common_data.sitecast  = 0;
   common_data.domain    = NULL;
+
+  if ((argc > 1) && ((strcmp(argv[1], "--verbose") == 0) || 
+                     (strcmp(argv[1], "-v") == 0))) common_data.verbose = 1;
+    
+  /* examine any configuration files */
+    
+  parse_conf(&common_data, HTCP_HOST_CONF);  
+  
+  userpasswd = getpwuid(geteuid());
+  asprintf(&htcp_conf, "%s/%s", userpasswd->pw_dir, HTCP_USER_CONF);
+  parse_conf(&common_data, htcp_conf);
+  free(htcp_conf);
+
+  htcp_conf = getenv("HTCP_CONF");
+  if (htcp_conf != NULL) parse_conf(&common_data, htcp_conf);
+
+  common_data.verbose = 0;
     
   while (1)
        {
@@ -1376,24 +1625,8 @@ int main(int argc, char *argv[])
          if      (c == -1) break;
          else if (c == 0)
            {
-             if      (option_index == 1) common_data.cert       = optarg;
-             else if (option_index == 2) common_data.key        = optarg; 
-             else if (option_index == 3) common_data.capath     = optarg;
-             else if (option_index == 4) common_data.method     = HTCP_DELETE;
-             else if (option_index == 5) common_data.method     = HTCP_LIST;
-             else if (option_index == 6) common_data.method     = HTCP_LONGLIST;
-             else if (option_index == 7) common_data.method     = HTCP_MKDIR;
-             else if (option_index == 8) common_data.noverify   = 1;
-             else if (option_index == 9) common_data.anonymous  = 1;
-             else if (option_index ==10) common_data.gridhttp   = 1;
-             else if (option_index ==11) common_data.method     = HTCP_MOVE;
-             else if (option_index ==12) common_data.method     = HTCP_PING;
-             else if (option_index ==13) common_data.groups     = optarg;
-             else if (option_index ==14) common_data.timeout    = atoi(optarg);
-             else if (option_index ==15) common_data.sitecast   = 1;
-             else if (option_index ==16) { common_data.sitecast = 1;
-                                           common_data.domain   = optarg; }
-             else if (option_index ==17) common_data.method     = HTCP_FIND;
+             if (option_index == 18) parse_conf(&common_data, optarg);
+             else update_common_data(&common_data, option_index, optarg);
            }
          else if (c == 'v') ++(common_data.verbose);
        }
@@ -1431,8 +1664,6 @@ int main(int argc, char *argv[])
             {
               common_data.cert = getenv("X509_USER_CERT");
               common_data.key  = getenv("X509_USER_KEY");
-              
-              userpasswd = getpwuid(geteuid());
               
               if ((common_data.cert == NULL) &&
                   (userpasswd != NULL) &&
@@ -1562,8 +1793,8 @@ int main(int argc, char *argv[])
   for (i=0; i < (argc - optind - 1); ++i) 
      {
        if (strncmp(argv[optind + i], "file:", 5) == 0)
-            sources[i] = &argv[optind + i][5];
-       else sources[i] =  argv[optind + i];
+            sources[i] = strdup(&argv[optind + i][5]);
+       else sources[i] = strdup(argv[optind + i]);
        
        if (sources[i][0] == '\0') 
          {
@@ -1575,9 +1806,24 @@ int main(int argc, char *argv[])
   
   sources[i]  = NULL;  
 
-  if (strncmp(argv[optind + i], "file:", 5) == 0)
-       destination = &argv[optind + i][5];
-  else destination =  argv[optind + i];
+  if (strncmp(argv[optind+i], "file:", 5) == 0)
+    {
+      if ((argv[optind+i][strlen(argv[optind+i]) - 1] != '/') &&
+          (stat(&argv[optind + i][5], &statbuf) == 0) &&
+          S_ISDIR(statbuf.st_mode))
+                         asprintf(&destination, "%s/", &argv[optind + i][5]);
+      else destination = strdup(&argv[optind + i][5]);
+    }
+  else if ((strncmp(argv[optind+i], "http://",  7) != 0) &&
+           (strncmp(argv[optind+i], "https://", 8) != 0)) 
+    {
+      if ((argv[optind+i][strlen(argv[optind+i]) - 1] != '/') &&
+          (stat(argv[optind+i], &statbuf) == 0) &&
+          S_ISDIR(statbuf.st_mode))
+                         asprintf(&destination, "%s/", argv[optind+i]);
+      else destination = strdup(argv[optind+i]);
+    }
+  else destination = strdup(argv[optind+i]);
   
   if (destination[0] == '\0')
     {
@@ -1621,14 +1867,23 @@ int main(int argc, char *argv[])
                    return CURLE_URL_MALFORMAT;
                  }
 
-/* NEED TO CHECK common_data.domain MATCHES IF IT IS SET */
-/*
-               if (common_data.sitecast) 
+               if ((common_data.sitecast) && 
+                   ((common_data.domain == NULL) ||
+
+                    ((strncmp(sources[i], "http://", 7) == 0) &&
+                     (strncmp(&sources[i][7], common_data.domain, 
+                                 strlen(common_data.domain)) == 0) &&
+                     ((sources[i][7+strlen(common_data.domain)] == ':') ||
+                      (sources[i][7+strlen(common_data.domain)] == '/'))) ||
+
+                    ((strncmp(sources[i], "https://", 8) == 0) &&
+                     (strncmp(&sources[i][8], common_data.domain, 
+                                 strlen(common_data.domain)) == 0) &&
+                     ((sources[i][8+strlen(common_data.domain)] == ':') ||
+                      (sources[i][8+strlen(common_data.domain)] == '/')))))
                  {
-                   translate_sitecast_url(&sources[i], 
-                                          sources[i], &common_data);
+                   translate_sitecast_url(&sources[i], &common_data);
                  }
-*/
              }
          }
          

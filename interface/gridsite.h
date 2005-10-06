@@ -284,7 +284,7 @@ int GRSTx509VerifyCallback(int, X509_STORE_CTX *);
 
 int GRSTx509GetVomsCreds(int *, int, size_t, char *, X509 *, STACK_OF(X509) *, char *);
 GRSTgaclCred *GRSTx509CompactToCred(char *);
-int GRSTx509CompactCreds(int *, int, size_t, char *, STACK_OF(X509) *, char *);
+int GRSTx509CompactCreds(int *, int, size_t, char *, STACK_OF(X509) *, char *, X509 *);
 char *GRSTx509CachedProxyFind(char *, char *, char *);
 char *GRSTx509FindProxyFileName(void);
 int GRSTx509MakeProxyCert(char **, FILE *, char *, char *, char *, int);

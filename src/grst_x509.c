@@ -680,7 +680,8 @@ GRSTgaclCred *GRSTx509CompactToCred(char *grst_cred)
  */
  
 int GRSTx509CompactCreds(int *lastcred, int maxcreds, size_t credlen, 
-                         char *creds, STACK_OF(X509) *certstack, char *vomsdir)
+                         char *creds, STACK_OF(X509) *certstack, char *vomsdir, 
+                         X509 *peercert)
 {   
    int   i, j, delegation = 0;
    char  credtemp[credlen+1];
@@ -703,6 +704,19 @@ int GRSTx509CompactCreds(int *lastcred, int maxcreds, size_t credlen,
              (GRSTx509IsCA(cert) != GRST_RET_OK)) usercert = cert;
                                           /* found the 1st non-CA cert */
       }
+
+   if (peercert != NULL)
+     {
+       if (usercert != NULL) /* found a (GSI proxy) cert after user cert */
+         {
+           gsiproxycert = peercert;
+           ++delegation;
+         }
+
+       if ((usercert == NULL) && 
+           (GRSTx509IsCA(peercert) != GRST_RET_OK)) usercert = peercert;
+                                          /* found the 1st non-CA cert */
+     }
 
    if ((usercert == NULL) /* if no usercert ("EEC"), we're not interested */
        ||

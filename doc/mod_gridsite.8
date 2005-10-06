@@ -162,8 +162,14 @@ to the location of the unzip binary. (Default: none)
 
 .IP "GridSiteGridHTTP on|off"
 Enable GridHTTP for this server, virtual server or directory:
-HTTPS requests made with the header Upgrade: GridHTTP/1.0 
+HTTPS requests made with the header 
+.BR "Upgrade: GridHTTP/1.0"
 will be redirected to an HTTP version of the file. (Default: off)
+
+.IP "GridSiteGridHTTPport port"
+Sets the port to use for the unencrypted HTTP component of GridHTTP 
+HTTPS->HTTP transfers. The same setting will be used for all virtual hosts
+which support GridHTTP. (Default: 777)
 
 .IP "GridSiteOnetimesDir path"
 Location of authentication cookies directory, relative to ServerRoot.
@@ -192,6 +198,31 @@ The file creation permissions mode, taking two arguments to specify
 the group and other permissions. The mode always includes read and write
 permission for the CGI user itself.
 (Default: GroupNone WorldNone)
+
+.IP "GridSiteCastUniPort port"
+The 
+.BR UDP 
+unicast port to listen on for HTCP queries, and from which to 
+send replies to HTCP unicast and multicast queries. Ideally, this should be
+a privileged port below 1024. This directive may not appear within a virtual
+server. (Default: 777)
+
+.IP "GridSiteCastGroup group[:port]"
+A UDP multicast group on which to listen for HTCP queries, plus an optional
+port. If no port is given, then 777 is used. Multiple GridSiteCastGroup 
+directives can be given to cause the UDP responder to listen to more than
+one multicast group. This directive may not appear within a virtual server.
+
+.IP "GridSiteCastAlias URL-prefix path-prefix"
+Maps SiteCast generic URLs to the local filesystem. When processing
+HTCP queries, matching SiteCast URLs will have URL-prefix stripped off
+and the remaining portion of the URL added to path-prefix to construct a
+local path and filename. If a file is found with that name, a SiteCast HTCP
+response will be returned to the querying host. Otherwise the queries are
+ignored.
+This directive may appear within virtual servers, and the virtual server's
+servername and first port will determine the host and port name used to
+construct the transfer URL.
 
 .SH ENVIRONMENT
 

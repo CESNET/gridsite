@@ -1943,19 +1943,11 @@ static const char *mod_gridsite_take2_cmds(cmd_parms *a, void *cfg,
     {
       for (i=0; i < GRST_SITECAST_ALIASES; ++i) /* look for free slot */
          {
-           if (
-//               srv_cfg->
-                        sitecastaliases[i].sitecast_url == NULL)
+           if (sitecastaliases[i].sitecast_url == NULL)
              {
-/*
-               srv_cfg->sitecastaliases[i].sitecast_url  = parm1;
-               srv_cfg->sitecastaliases[i].local_path    = parm2;
-               srv_cfg->sitecastaliases[i].server        = a->server;
-*/                       
                sitecastaliases[i].sitecast_url  = parm1;
                sitecastaliases[i].local_path    = parm2;
-               sitecastaliases[i].server        = a->server;
-               
+               sitecastaliases[i].server        = a->server;              
                break;
              }
          }

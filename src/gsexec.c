@@ -444,6 +444,8 @@ void mapdir_newlease(char *mapdir, char *encodedkey)
 }
      
 /******************************************************************************
+Based on gridmapdir_userid:
+
 Function:   gridmapdir_userid
 Description:
         This is equivalent to globus_gss_assist_gridmap but for the dynamic
@@ -470,14 +472,13 @@ Returns:
 int GRSTexecGetMapping(char **target_uname, char **target_gname, 
                        char *mapdir, char *key) 
 {
-    char *encodedkey;
+    char          *encodedkey;
+    struct passwd *pw = NULL;
     
     if (key[0] != '/') return 1; /* must be a proper X.509 DN or path */
      
     encodedkey = mapdir_urlencode(key);
-log_err("encodedkey=%s\n", encodedkey);
     *target_uname = mapdir_otherlink(mapdir, encodedkey);
-log_err("*target_uname=%s\n", *target_uname);
 
     if (*target_uname == NULL) /* maybe no lease yet */
       {
@@ -496,9 +497,56 @@ log_err("*target_uname=%s\n", *target_uname);
 
     free(encodedkey);
     
-// nasty hack for now
-*target_gname = strdup(*target_uname);
-    
+    /*
+     *  Get the group name of target user. 
+        (Contributed by Gerben Venekamp venekamp@nikhef.nl )
+     */
+ 
+    if ((pw = getpwnam(*target_uname)) != NULL) 
+      {
+        struct group grp = { NULL, NULL, -1, NULL };
+        struct group *tst = NULL;
+        char tmp_buf[100];
+
+    /*
+     *  NOTE: Do not use the getgrgid() function call! Calling this function
+     *  will overwrite the contents of the internal buffer associated with
+     *  this call. Hence, further down the execution path we will run into
+     *  a wall, head first; simply because the guid has changed to that of
+     *  the targer uid. The only solution out of the situation is avoiding
+     *  the function call and manage the needed buffers ourselves.
+     */
+
+        switch (getgrgid_r(pw->pw_gid, &grp, tmp_buf, sizeof(tmp_buf), &tst)) 
+              {
+                case 0:      /*  no error  */
+                  *target_gname = strdup(grp.gr_name);
+                  break;
+                case ERANGE:
+                  log_err("The buffer for holding strings is too small "
+                          "(%d byte now)\n", sizeof(tmp_buf));
+                  break;
+                default:
+                  log_err("Could not get group name for user (%s)\n", 
+                          *target_uname);
+              }
+
+        /*  Test if all was well.  */
+
+        if (target_gname == NULL) 
+          {
+            exit(102);
+          }
+      } 
+    else 
+      {
+        log_err("Could not get info for the target user (%s)\n",*target_uname);
+        exit(102);
+      }
+ 
+    log_no_err("target group name determined (%s -> %s)\n",
+               *target_uname, *target_gname);
+
     return 0;
 }
 
@@ -629,7 +677,6 @@ int main(int argc, char *argv[])
     }
     
     mapping_type = getenv("GRST_EXEC_METHOD");
-// log_err("mapping_type from GRST_EXEC_METHOD=%s\n",mapping_type);
     if ((mapping_type    == NULL) ||
         (mapping_type[0] == '\0') ||
         (strcasecmp(mapping_type, "suexec") == 0))
@@ -640,7 +687,6 @@ int main(int argc, char *argv[])
       }
     else if (strcasecmp(mapping_type, "X509DN") == 0)
       {
-// log_err("X509DN mapping type\n");
         if ((grst_cred_0 = getenv("GRST_CRED_0")) == NULL)
                             map_x509dn = getenv("SSL_CLIENT_S_DN");
         else map_x509dn = index(grst_cred_0, '/');

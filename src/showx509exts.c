@@ -53,7 +53,7 @@ main()
         lasttag=-1;
       
         ex = X509_get_ext(cert, i);
-                          
+
         OBJ_obj2txt(s, sizeof(s), X509_EXTENSION_get_object(ex), 1);        
         printf("%d OID=%s\n", i, s);
         
@@ -73,8 +73,10 @@ main()
         ASN1_OBJECT *obj = NULL;
         const EVP_MD *m;
         EVP_MD_CTX ctx;
+        char creds[501][101];
+        int lastcred = -1;
    
-        itag = GRSTasn1SearchTaglist(taglist, &lasttag, 
+        itag = GRSTasn1SearchTaglist(taglist, lasttag, 
                "-1-1-1-1-2-1-1-1-1-1-1-1");
                
         X509_NAME *xname;
@@ -91,10 +93,24 @@ main()
         
         printf("n=%d dn=%s obj2txt=%s\n", n, dn, OBJ_obj2txt(NULL,0,obj,1));
 
-        GRSTasn1GetX509Name(buf, 99, "-1-1-1-1-2-1-1-1-1-%d-1-%d", p1, taglist, &lasttag);
+        GRSTasn1GetX509Name(buf, 99, "-1-1-1-1-2-1-1-1-1-%d-1-%d", 
+                            p1, taglist, lasttag);
         printf("%s\n", buf);
-        GRSTasn1GetX509Name(buf, 99, "-1-1-1-1-3-1-1-1-%d-1-%d", p1, taglist, &lasttag);
+        GRSTasn1GetX509Name(buf, 99, "-1-1-1-1-3-1-1-1-%d-1-%d", 
+                            p1, taglist, lasttag);
         printf("%s\n", buf);
+
+        lastcred = -1;        
+        ret = GRSTx509ParseVomsExt(&lastcred, 500, 100, creds, 0, 2000040861,
+                             ex, 
+                  "/C=UK/O=eScience/OU=Manchester/L=HEP/CN=Andrew McNab",
+                  "/etc/grid-security/vomsdir");
+                  
+                  
+        printf("GRSTx509ParseVomsExt() returns %d, %d\n", ret, lastcred);
+                  
+        for (j=0; j <= lastcred;  ++j)
+         printf("cred=%d %s\n", j, creds[j]);
         
 /*        
         m = EVP_md5();

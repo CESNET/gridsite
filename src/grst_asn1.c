@@ -469,7 +469,7 @@ int GRSTasn1GetX509Name(char *x509name, int maxlength, char *coords,
    ASN1_OBJECT *obj = NULL;
    unsigned char coordstmp[81], *q;
    const unsigned char *shortname;
-   
+
    for (i=1; ; ++i)
       {
         sprintf(coordstmp, coords, i, 1);
@@ -502,5 +502,5 @@ int GRSTasn1GetX509Name(char *x509name, int maxlength, char *coords,
       
    x509name[len] = '\0';
    
-   return GRST_RET_OK;
+   return (x509name[0] != '\0') ? GRST_RET_OK : GRST_RET_FAILED;
 }

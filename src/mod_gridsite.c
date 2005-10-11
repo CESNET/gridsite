@@ -2139,7 +2139,7 @@ static int mod_gridsite_perm_handler(request_rec *r)
 */
 {
     int          retcode = DECLINED, i, n, file_is_acl = 0,
-                 destination_is_acl = 0;
+                 destination_is_acl = 0, proxylevel;
     char        *dn, *p, envname[14], *grst_cred_0 = NULL, *dir_path, 
                 *remotehost, s[99], *grst_cred_i, *cookies, *file,
                 *gridauthonetime = NULL, *cookiefile, oneline[1025], *key_i,
@@ -2186,18 +2186,19 @@ static int mod_gridsite_perm_handler(request_rec *r)
         GRST_creds_to_conn(r->connection, certstack, peercert);
       }
 
+    proxylevel = ((mod_gridsite_dir_cfg *) cfg)->gsiproxylimit + 1;
+    
     if ((user == NULL) && 
         (r->connection->notes != NULL) &&
         ((grst_cred_0 = (char *) 
-            apr_table_get(r->connection->notes, "GRST_CRED_0")) != NULL))
+            apr_table_get(r->connection->notes, "GRST_CRED_0")) != NULL) &&
+        (sscanf(grst_cred_0, "X509USER %*d %*d %d ", &proxylevel) == 1) &&
+        (proxylevel <= ((mod_gridsite_dir_cfg *) cfg)->gsiproxylimit))
       {
-        if (((mod_gridsite_dir_cfg *) cfg)->envs)
-                            apr_table_setn(env, "GRST_CRED_0", grst_cred_0);
+        apr_table_setn(env, "GRST_CRED_0", grst_cred_0);
                                     
         cred_0 = GRSTx509CompactToCred(grst_cred_0);
-        if ((cred_0 != NULL) &&
-            (GRSTgaclCredGetDelegation(cred_0) 
-                         <= ((mod_gridsite_dir_cfg *) cfg)->gsiproxylimit))
+        if (cred_0 != NULL)
           {
             ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
                          "Using identity %s from SSL/TLS", grst_cred_0);

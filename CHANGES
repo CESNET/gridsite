@@ -1,3 +1,6 @@
+* Tue Oct 11 2005 Andrew McNab <Andrew.McNab@man.ac.uk>
+- Modify VOMS AC parsing to handle multiple ACs inside
+  the same X.509 AC extension.
 * Mon Oct 10 2005 Andrew McNab <Andrew.McNab@man.ac.uk>
 - ==== GridSite version 1.1.13 ====
 * Mon Oct 10 2005 Andrew McNab <Andrew.McNab@man.ac.uk>

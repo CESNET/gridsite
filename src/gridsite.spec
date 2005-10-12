@@ -63,7 +63,7 @@ OPENSSL_LIBS=$OPENSSL_LIBS FLAVOR_EXT=$FLAVOR_EXT
 ln -sf %(echo ${MYPREFIX:-/usr})/share/doc/gridsite-%{version} \
  %(echo ${MYPREFIX:-/usr})/share/doc/gridsite
 
-%postun
+#%postun
 rm -f %(echo ${MYPREFIX:-/usr})/share/doc/gridsite
 
 %files

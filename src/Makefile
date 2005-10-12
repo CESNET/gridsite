@@ -193,7 +193,7 @@ showx509exts: showx509exts.c libgridsite.a
             -o showx509exts showx509exts.c -L. \
             -I/usr/kerberos/include \
             -lgridsite \
-            -lssl -lcrypto
+            -lssl -lcrypto -lxml2 -lz -lm
  
 apidoc:
 	doxygen Doxyfile

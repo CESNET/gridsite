@@ -374,13 +374,14 @@ static int GRSTx509VerifyVomsSig(time_t *time1_time, time_t *time2_time,
                                  unsigned char *asn1string, 
                                  struct GRSTasn1TagList taglist[], 
                                  int lasttag,
-                                 char *vomsdir)
+                                 char *vomsdir, int acnumber)
 {   
-#define GRST_ASN1_COORDS_VOMS_DN   "-1-1-1-1-3-1-1-1-%d-1-%d"
-#define GRST_ASN1_COORDS_VOMS_INFO "-1-1-1-1"
-#define GRST_ASN1_COORDS_VOMS_SIG  "-1-1-1-3"
+#define GRST_ASN1_COORDS_VOMS_DN   "-1-1-%d-1-3-1-1-1-%%d-1-%%d"
+#define GRST_ASN1_COORDS_VOMS_INFO "-1-1-%d-1"
+#define GRST_ASN1_COORDS_VOMS_SIG  "-1-1-%d-3"
    int            ret, isig, iinfo;
-   char          *certpath, acvomsdn[200];
+   char          *certpath, acvomsdn[200], dn_coords[200],
+                  info_coords[200], sig_coords[200];
    unsigned char *q;
    DIR           *vomsDIR;
    struct dirent *vomsdirent;
@@ -391,13 +392,20 @@ static int GRSTx509VerifyVomsSig(time_t *time1_time, time_t *time2_time,
    time_t         voms_service_time1, voms_service_time2;
 
    if ((vomsdir == NULL) || (vomsdir[0] == '\0')) return GRST_RET_FAILED;
+
+   snprintf(dn_coords, sizeof(dn_coords), 
+            GRST_ASN1_COORDS_VOMS_DN, acnumber);
    
-   if (GRSTasn1GetX509Name(acvomsdn, sizeof(acvomsdn), 
-                           GRST_ASN1_COORDS_VOMS_DN,
+   if (GRSTasn1GetX509Name(acvomsdn, sizeof(acvomsdn), dn_coords,
          asn1string, taglist, lasttag) != GRST_RET_OK) return GRST_RET_FAILED;
          
-   iinfo = GRSTasn1SearchTaglist(taglist, lasttag, GRST_ASN1_COORDS_VOMS_INFO);
-   isig  = GRSTasn1SearchTaglist(taglist, lasttag, GRST_ASN1_COORDS_VOMS_SIG);
+   snprintf(info_coords, sizeof(info_coords), 
+            GRST_ASN1_COORDS_VOMS_INFO, acnumber);
+   iinfo = GRSTasn1SearchTaglist(taglist, lasttag, info_coords);
+
+   snprintf(sig_coords, sizeof(sig_coords), 
+            GRST_ASN1_COORDS_VOMS_SIG, acnumber);
+   isig  = GRSTasn1SearchTaglist(taglist, lasttag, sig_coords);
 
    if ((iinfo < 0) || (isig < 0)) return GRST_RET_FAILED;
 
@@ -433,6 +441,8 @@ static int GRSTx509VerifyVomsSig(time_t *time1_time, time_t *time2_time,
 #if OPENSSL_VERSION_NUMBER >= 0x0090701fL
           EVP_MD_CTX_init(&ctx);
           EVP_VerifyInit_ex(&ctx, EVP_md5(), NULL);
+#else
+          EVP_VerifyInit(&ctx, EVP_md5());
 #endif
           
           EVP_VerifyUpdate(&ctx, 
@@ -448,7 +458,7 @@ static int GRSTx509VerifyVomsSig(time_t *time1_time, time_t *time2_time,
 
 #if OPENSSL_VERSION_NUMBER >= 0x0090701fL
           EVP_MD_CTX_cleanup(&ctx);      
-#endif                
+#endif
           EVP_PKEY_free(prvkey);
 
           if (ret != 1) /* signature doesnt match, look for more */
@@ -479,7 +489,8 @@ static int GRSTx509VerifyVomsSig(time_t *time1_time, time_t *time2_time,
 /// Get the VOMS attributes in the given extension
 /*
  *  Puts any VOMS credentials found into the Compact Creds string array
- *  starting at *creds. Always returns GRST_RET_OK.
+ *  starting at *creds. Always returns GRST_RET_OK - even for invalid
+ *  credentials, which are just ignored.
  */
 
 int GRSTx509ParseVomsExt(int *lastcred, int maxcreds, size_t credlen, 
@@ -487,14 +498,16 @@ int GRSTx509ParseVomsExt(int *lastcred, int maxcreds, size_t credlen,
                          X509_EXTENSION *ex, char *ucuserdn, char *vomsdir)
 {
 #define MAXTAG 500
-#define GRST_ASN1_COORDS_FQAN    "-1-1-1-1-7-1-2-1-2-%d"
-#define GRST_ASN1_COORDS_USER_DN "-1-1-1-1-2-1-1-1-1-%d-1-%d"
-#define GRST_ASN1_COORDS_TIME1   "-1-1-1-1-6-1"
-#define GRST_ASN1_COORDS_TIME2   "-1-1-1-1-6-2"
+#define GRST_ASN1_COORDS_FQAN    "-1-1-%d-1-7-1-2-1-2-%d"
+#define GRST_ASN1_COORDS_USER_DN "-1-1-%d-1-2-1-1-1-1-%%d-1-%%d"
+#define GRST_ASN1_COORDS_TIME1   "-1-1-%d-1-6-1"
+#define GRST_ASN1_COORDS_TIME2   "-1-1-%d-1-6-2"
    ASN1_OCTET_STRING *asn1data;
-   char              *asn1string, s[81], acuserdn[200], acvomsdn[200];
+   char              *asn1string, acuserdn[200], acvomsdn[200],
+                      dn_coords[200], fqan_coords[200], time1_coords[200],
+                      time2_coords[200];
    long               asn1length;
-   int                lasttag=-1, itag, i;
+   int                lasttag=-1, itag, i, acnumber = 1;
    struct GRSTasn1TagList taglist[MAXTAG+1];
    time_t             actime1, actime2, time_now;
 
@@ -504,52 +517,58 @@ int GRSTx509ParseVomsExt(int *lastcred, int maxcreds, size_t credlen,
 
    GRSTasn1ParseDump(NULL, asn1string, asn1length, taglist, MAXTAG, &lasttag);
 
-   GRSTasn1GetX509Name(acuserdn, sizeof(acuserdn), GRST_ASN1_COORDS_USER_DN,
-                       asn1string, taglist, lasttag);
-   if (GRSTx509NameCmp(ucuserdn, acuserdn) != 0) return GRST_RET_FAILED;
-
-   if (GRSTx509VerifyVomsSig(&time1_time, &time2_time,
-                             asn1string, taglist, lasttag, vomsdir)
-                             != GRST_RET_OK) return GRST_RET_FAILED;
-
-   itag = GRSTasn1SearchTaglist(taglist, lasttag, GRST_ASN1_COORDS_TIME1);
-   actime1 = GRSTasn1TimeToTimeT(&asn1string[taglist[itag].start+
-                                             taglist[itag].headerlength],
-                                 taglist[itag].length);
-   if (actime1 > time1_time) time1_time = actime1;
-
-   itag = GRSTasn1SearchTaglist(taglist, lasttag, GRST_ASN1_COORDS_TIME2);
-   actime2 = GRSTasn1TimeToTimeT(&asn1string[taglist[itag].start+
-                                             taglist[itag].headerlength],
-                                 taglist[itag].length);
-   if (actime2 < time2_time) time2_time = actime2;
-
-   time(&time_now);
-   if ((time1_time > time_now) || (time2_time < time_now)) 
-               return GRST_RET_OK; /* expiration isnt invalidity ...? */
-
-   for (i=1; ; ++i)
+   for (acnumber = 1; ; ++acnumber) /* go through ACs one by one */
       {
-        sprintf(s, GRST_ASN1_COORDS_FQAN, i);
-        itag = GRSTasn1SearchTaglist(taglist, lasttag, s);
+        snprintf(dn_coords, sizeof(dn_coords), GRST_ASN1_COORDS_USER_DN, acnumber);
+        if (GRSTasn1GetX509Name(acuserdn, sizeof(acuserdn), dn_coords,
+                       asn1string, taglist, lasttag) != GRST_RET_OK) break;
 
-        if (itag > -1)
-          {
-            if (*lastcred < maxcreds - 1)
-              {
-                ++(*lastcred);
+        if (GRSTx509NameCmp(ucuserdn, acuserdn) != 0) continue;
 
-                snprintf(&creds[*lastcred * (credlen + 1)], credlen+1,
+        if (GRSTx509VerifyVomsSig(&time1_time, &time2_time,
+                             asn1string, taglist, lasttag, vomsdir, acnumber)
+                             != GRST_RET_OK) continue;
+
+        snprintf(time1_coords, sizeof(time1_coords), GRST_ASN1_COORDS_TIME1, acnumber);
+        itag = GRSTasn1SearchTaglist(taglist, lasttag, time1_coords);
+        actime1 = GRSTasn1TimeToTimeT(&asn1string[taglist[itag].start+
+                                             taglist[itag].headerlength],
+                                 taglist[itag].length);
+        if (actime1 > time1_time) time1_time = actime1;
+
+        snprintf(time2_coords, sizeof(time2_coords), GRST_ASN1_COORDS_TIME2, acnumber);
+        itag = GRSTasn1SearchTaglist(taglist, lasttag, time2_coords);
+        actime2 = GRSTasn1TimeToTimeT(&asn1string[taglist[itag].start+
+                                             taglist[itag].headerlength],
+                                             taglist[itag].length);
+        if (actime2 < time2_time) time2_time = actime2;
+
+        time(&time_now);
+        if ((time1_time > time_now) || (time2_time < time_now)) 
+               continue; /* expiration isnt invalidity ...? */
+
+        for (i=1; ; ++i)
+           {
+             snprintf(fqan_coords, sizeof(fqan_coords), GRST_ASN1_COORDS_FQAN, acnumber, i);
+             itag = GRSTasn1SearchTaglist(taglist, lasttag, fqan_coords);
+
+             if (itag > -1)
+               {
+                 if (*lastcred < maxcreds - 1)
+                   {
+                     ++(*lastcred);
+                     snprintf(&creds[*lastcred * (credlen + 1)], credlen+1,
                            "VOMS %010lu %010lu 0 %.*s", 
                            time1_time, time2_time, 
                            taglist[itag].length,
                            &asn1string[taglist[itag].start+
                                        taglist[itag].headerlength]);
-              }            
-          }
-        else break;
+                   }            
+               }
+             else break;
+           }
       }
-
+      
    return GRST_RET_OK;
 }
 

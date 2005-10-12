@@ -441,6 +441,8 @@ static int GRSTx509VerifyVomsSig(time_t *time1_time, time_t *time2_time,
 #if OPENSSL_VERSION_NUMBER >= 0x0090701fL
           EVP_MD_CTX_init(&ctx);
           EVP_VerifyInit_ex(&ctx, EVP_md5(), NULL);
+#else
+          EVP_VerifyInit(&ctx, EVP_md5());
 #endif
           
           EVP_VerifyUpdate(&ctx, 
@@ -456,7 +458,7 @@ static int GRSTx509VerifyVomsSig(time_t *time1_time, time_t *time2_time,
 
 #if OPENSSL_VERSION_NUMBER >= 0x0090701fL
           EVP_MD_CTX_cleanup(&ctx);      
-#endif                
+#endif
           EVP_PKEY_free(prvkey);
 
           if (ret != 1) /* signature doesnt match, look for more */

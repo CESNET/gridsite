@@ -1,3 +1,8 @@
+* Wed Oct 12 2005 Andrew McNab <Andrew.McNab@man.ac.uk>
+- Fix for older OpenSSL to grst_x509.c from
+  Zoltan.Farkas <Zoltan.Farkas@cern.ch>
+* Wed Oct 12 2005 Andrew McNab <Andrew.McNab@man.ac.uk>
+- ==== GridSite version 1.1.14 ====
 * Tue Oct 11 2005 Andrew McNab <Andrew.McNab@man.ac.uk>
 - Modify VOMS AC parsing to handle multiple ACs inside
   the same X.509 AC extension.

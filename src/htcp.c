@@ -81,6 +81,7 @@
 #define HTCP_MOVE	7
 #define HTCP_PING	8
 #define HTCP_FIND	9
+#define HTCP_RMTCP	10
 
 #define HTCP_SITECAST_GROUPS 32
 
@@ -236,6 +237,125 @@ int set_std_opts(CURL *easyhandle, struct grst_stream_data *common_data)
     }
   
   return 1;
+}
+
+int do_rmtcp(char *sources[], char *destination,
+	     struct grst_stream_data *common_data)
+{
+  CURL *easyhandle;
+  char        *p, *thisdestination;
+  int          isrc, anyerror = 0, thiserror, isdirdest;
+  struct       grst_header_data header_data;
+  struct curl_slist *gh_header_slist=NULL, *nogh_header_slist=NULL;
+  char remoteserver[255];
+
+  easyhandle = curl_easy_init();
+  if( !easyhandle )
+    {
+      fprintf(stderr, "Cannot initialize CURL handle while preparing to copy file.\n");
+      exit(-1);
+    }
+
+  common_data->gridhttp = 1; // for debug purpose
+  if (common_data->gridhttp)
+    {               
+      asprintf(&p, "Upgrade: GridHTTP/1.0");
+      gh_header_slist = curl_slist_append(gh_header_slist, p);
+      free(p);
+      
+      nogh_header_slist = curl_slist_append(nogh_header_slist, "Upgrade:");
+    }
+  
+  //  common_data->verbose = 1;   //for debug purpose
+  curl_easy_setopt(easyhandle, CURLOPT_USERAGENT, common_data->useragent);
+  if (common_data->verbose > 1)
+                   curl_easy_setopt(easyhandle, CURLOPT_VERBOSE, 1);
+
+  curl_easy_setopt(easyhandle, CURLOPT_HEADERFUNCTION, headers_callback);
+  curl_easy_setopt(easyhandle, CURLOPT_WRITEHEADER,   &header_data);
+
+  set_std_opts(easyhandle, common_data);
+
+  curl_easy_setopt(easyhandle, CURLOPT_ERRORBUFFER, common_data->errorbuf);
+
+  if (destination[strlen(destination) - 1] != '/') 
+    {
+      isdirdest = 0;
+      thisdestination = destination;
+    }
+  else isdirdest = 1;
+
+  for (isrc=0; sources[isrc] != NULL; ++isrc)
+     {
+       if (isdirdest)
+         {
+           p = rindex(sources[isrc], '/');
+           if (p == NULL) p = sources[isrc];
+           else           p++;
+
+           asprintf(&thisdestination, "%s%s", destination, p);
+         }
+ 
+       if( strncmp(sources[isrc], "https://", 8) == 0 ){
+	 if (common_data->verbose > 0)
+	   fprintf(stderr, "%s -> %s\n", sources[isrc], thisdestination);
+
+	 curl_easy_setopt(easyhandle, CURLOPT_URL,       sources[isrc]);
+           
+	 if ((common_data->gridhttp) &&
+	     (strncmp(sources[isrc], "https://", 8) == 0))
+	   {
+             if (common_data->verbose > 0)
+	       fprintf(stderr, "Add  Upgrade: GridHTTP/1.0\n");
+             curl_easy_setopt(easyhandle,CURLOPT_HTTPHEADER,gh_header_slist);
+	   }
+	 else 
+	   curl_easy_setopt(easyhandle,CURLOPT_HTTPHEADER,nogh_header_slist);
+
+	 header_data.retcode  = 0;
+	 header_data.location = NULL;
+	 header_data.gridhttponetime = NULL;
+	 header_data.common_data = common_data;
+	 thiserror = curl_easy_perform(easyhandle);
+
+       }
+
+	 asprintf(&p, "Destination: %s", thisdestination);
+	 nogh_header_slist=NULL;
+	 nogh_header_slist = curl_slist_append(nogh_header_slist,p);
+	 //       fprintf(stdout, "complete destination file: %s\n", p);
+	 free(p);
+
+       // send request to destination server, 
+       // to ask it to download file from source server
+       strcpy( remoteserver, destination);
+       while( (p=strrchr(remoteserver, '/')) !=NULL)
+	 {
+	   if( *(p-1) == '/' )break;
+	   else *p = '\0';
+	 }
+
+       common_data->source = sources[isrc];
+       common_data->destination = remoteserver;
+       set_std_opts(easyhandle, common_data);
+       // send copy request to copy server (destination)
+       asprintf(&p, "COPY %s", sources[isrc]);
+       curl_easy_setopt(easyhandle, CURLOPT_CUSTOMREQUEST, p);//"COPY");//gh_header_slist);
+       curl_easy_setopt(easyhandle, CURLOPT_URL, remoteserver);
+       curl_easy_setopt(easyhandle, CURLOPT_COOKIE, header_data.gridhttponetime);
+
+       curl_easy_setopt(easyhandle, CURLOPT_USERAGENT, common_data->useragent);
+       curl_easy_setopt(easyhandle, CURLOPT_HTTPHEADER, nogh_header_slist);
+
+       curl_easy_setopt(easyhandle, CURLOPT_ERRORBUFFER, common_data->errorbuf);
+       thiserror = curl_easy_perform(easyhandle);
+       free(p);
+     }
+
+  curl_easy_cleanup(easyhandle);
+     
+  return anyerror;
+
 }
 
 int do_copies(char *sources[], char *destination,
@@ -1485,6 +1605,7 @@ struct option long_options[] = {	{"verbose",		0, 0, 'v'},
                 			{"sitecast",		0, 0, 0},
                 			{"domain",		1, 0, 0},
                 			{"find",                0, 0, 0},
+					{"rmtcp",		0, 0, 0},
                 			{"conf",                1, 0, 0},
                 			{0, 0, 0, 0}  };
 
@@ -1557,7 +1678,8 @@ int update_common_data(struct grst_stream_data *common_data_ptr,
   else if (option_index ==16) { common_data_ptr->sitecast = 1;
                                 common_data_ptr->domain   = optarg; }
   else if (option_index ==17) common_data_ptr->method     = HTCP_FIND;
-  /* option_index == 18 is used by the --conf command line-only option */
+  else if (option_index ==18) { printf("OK\n");common_data_ptr->method	  = HTCP_RMTCP;}
+  /* option_index == 19 is used by the --conf command line-only option */
   else return GRST_RET_FAILED;
   
   return GRST_RET_OK;
@@ -1625,7 +1747,7 @@ int main(int argc, char *argv[])
          if      (c == -1) break;
          else if (c == 0)
            {
-             if (option_index == 18) parse_conf(&common_data, optarg);
+             if (option_index == 19) parse_conf(&common_data, optarg);
              else update_common_data(&common_data, option_index, optarg);
            }
          else if (c == 'v') ++(common_data.verbose);
@@ -1709,8 +1831,10 @@ int main(int argc, char *argv[])
       else if (strcmp(executable,"htmv")==0) common_data.method=HTCP_MOVE;
       else if (strcmp(executable,"htping")==0) common_data.method=HTCP_PING;
       else if (strcmp(executable,"htfind")==0) common_data.method=HTCP_FIND;
+      else if (strcmp(executable,"htrmtcp")==0) common_data.method=HTCP_RMTCP;
     }
     
+printf("%d\n", common_data.method);
   if (common_data.method == HTCP_PING)
     {
       if (common_data.groups != NULL) return do_ping(&common_data);
@@ -1840,6 +1964,15 @@ int main(int argc, char *argv[])
       return CURLE_URL_MALFORMAT;
     }
   
+  // remote file copy  
+  if ( common_data.method == HTCP_RMTCP )
+    {
+      anyerror = do_rmtcp(sources, destination, &common_data);
+      fprintf(stdout, "The file has been moved!\n");
+      //      printsyntax(argv[0]);
+      return CURLE_URL_MALFORMAT;
+    }
+
   if ((strncmp(destination, "http://",  7) == 0) ||
       (strncmp(destination, "https://", 8) == 0)) 
        common_data.method = HTCP_PUT;

@@ -59,7 +59,7 @@ endif
 build: apidoc \
        libgridsite.so.$(VERSION) libgridsite.a htcp mod_gridsite.so \
        urlencode findproxyfile real-gridsite-admin.cgi gsexec \
-       # gridsite-delegation.cgi # htproxyput 
+       gridsite-copy.cgi # gridsite-delegation.cgi # htproxyput 
 
 build: libgridsite_globus.so.$(VERSION) libgridsite_globus.a
 
@@ -163,6 +163,12 @@ urlencode: urlencode.c libgridsite.a
 htcp: htcp.c libgridsite.a
 	gcc -g -DVERSION=\"$(PATCH_VERSION)\" $(MYCFLAGS) \
 	    -o htcp htcp.c -L. \
+	    -I/usr/kerberos/include \
+            `curl-config --cflags` `curl-config --libs` -lgridsite
+
+gridsite-copy.cgi: gridsite-copy.c libgridsite.a
+	gcc -g -DVERSION=\"$(PATCH_VERSION)\" $(MYCFLAGS) \
+	    -o gridsite-copy.cgi gridsite-copy.c -L. \
 	    -I/usr/kerberos/include \
             `curl-config --cflags` `curl-config --libs` -lgridsite
 
@@ -279,6 +285,7 @@ install: apidoc
 	cp -f urlencode $(prefix)/bin
 	cp -f findproxyfile $(prefix)/bin
 	cp -f real-gridsite-admin.cgi $(prefix)/sbin
+	cp -f gridsite-copy.cgi $(prefix)/sbin
 	cp -f  libgridsite.a $(prefix)/lib
 	cp -f  libgridsite.so.$(PATCH_VERSION) $(prefix)/lib
 	ln -sf libgridsite.so.$(PATCH_VERSION) \
@@ -328,7 +335,7 @@ dist:
 	cp -f Makefile grst*.c htproxyput.c proxyput-example.c htcp.c \
                  urlencode.c findproxyfile.c gaclexample.c mod_gridsite.c \
                  delegation.h grst_admin.h mod_ssl-private.h \
-                 gsexec.c gsexec.h \
+                 gsexec.c gsexec.h gridsite-copy.c \
                  roffit gridsite.spec \
                  Doxyfile doxygen.css doxyheader.html \
                  ../gridsite-$(PATCH_VERSION)/src

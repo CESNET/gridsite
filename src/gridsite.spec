@@ -83,6 +83,7 @@ rm -f %(echo ${MYPREFIX:-/usr})/share/doc/gridsite
 %attr(-, root, root) %(echo ${MYPREFIX:-/usr})/lib/libgridsite_globus.a
 %attr(-, root, root) %(echo ${MYPREFIX:-/usr})/lib/httpd/modules/mod_gridsite.so
 %attr(-, root, root) %(echo ${MYPREFIX:-/usr})/sbin/real-gridsite-admin.cgi
+%attr(-, root, root) %(echo ${MYPREFIX:-/usr})/sbin/gridsite-copy.cgi
 
 %files -n htcp
 %attr(-, root, root) %(echo ${MYPREFIX:-/usr})/bin/htcp

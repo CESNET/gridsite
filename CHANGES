@@ -1,3 +1,8 @@
+* Mon Dec 5 2005 Andrew McNab <Andrew.McNab@man.ac.uk>
+- Change GRIDHTTP_ONETIME to GRIDHTTP_PASSCODE 
+- Remove onetime=yes default from mod_gridsite
+* Wed Nov 16 2005 Andrew McNab <Andrew.McNab@man.ac.uk>
+- ==== GridSite version 1.1.16 ====
 * Wed Nov 16 2005 Andrew McNab <Andrew.McNab@man.ac.uk>
 - Add -fPIC option to Makefile for IA64, as suggested
   by Andreas Unterkircher.

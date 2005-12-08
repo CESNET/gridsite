@@ -98,7 +98,7 @@ struct sitecast_alias
    These are assigned default values in create_gridsite_srv_config() */
 
 int			gridhttpport = 0;
-char                    *onetimesdir = NULL;
+char                    *passcodesdir = NULL;
 char			*sitecastdnlists = NULL;
 struct sitecast_group	sitecastgroups[GRST_SITECAST_GROUPS+1];
 struct sitecast_alias	sitecastaliases[GRST_SITECAST_ALIASES];
@@ -907,11 +907,11 @@ int http_gridhttp(request_rec *r, mod_gridsite_dir_cfg *conf)
          != APR_SUCCESS) return HTTP_INTERNAL_SERVER_ERROR;
     
     ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-               "Generated GridHTTP onetime passcode %016llx", gridauthcookie);
+               "Generated GridHTTP passcode %016llx", gridauthcookie);
 
     filetemplate = apr_psprintf(r->pool, "%s/%016llxXXXXXX", 
      ap_server_root_relative(r->pool,
-     onetimesdir),
+     passcodesdir),
      gridauthcookie);
 
     if (apr_file_mktemp(&fp, 
@@ -923,11 +923,11 @@ int http_gridhttp(request_rec *r, mod_gridsite_dir_cfg *conf)
     ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
                "Created passcode file %s", filetemplate);
 
-    expires_time = apr_time_now() + apr_time_from_sec(300); 
-    /* onetime cookies are valid for only 5 mins! */
+    expires_time = apr_time_now() + apr_time_from_sec(3600);
+    /* passcode cookies are valid for only 60 mins! */
 
     apr_file_printf(fp, 
-                   "expires=%lu\ndomain=%s\npath=%s\nonetime=yes\nmethod=%s\n", 
+                   "expires=%lu\ndomain=%s\npath=%s\nmethod=%s\n", 
                    (time_t) apr_time_sec(expires_time),
                    r->hostname, r->uri, r->method);
     /* above variables are evaluated in order and method= MUST be last! */
@@ -960,7 +960,7 @@ int http_gridhttp(request_rec *r, mod_gridsite_dir_cfg *conf)
     apr_table_add(r->headers_out, 
                   apr_pstrdup(r->pool, "Set-Cookie"), 
                   apr_psprintf(r->pool, 
-                  "GRIDHTTP_ONETIME=%s; "
+                  "GRIDHTTP_PASSCODE=%s; "
                   "expires=%s; "
                   "domain=%s; "
                   "path=%s",
@@ -1524,7 +1524,7 @@ static void *create_gridsite_srv_config(apr_pool_t *p, server_rec *s)
       {
         gridhttpport = GRST_HTTP_PORT;
       
-        onetimesdir = apr_pstrdup(p, "/var/www/onetimes");
+        passcodesdir = apr_pstrdup(p, "/var/www/passcodes");
                                       /* GridSiteOnetimesDir dir-path   */
 
         sitecastdnlists = NULL;
@@ -1734,7 +1734,7 @@ static const char *mod_gridsite_take1_cmds(cmd_parms *a, void *cfg,
       if (a->server->is_virtual)
        return "GridSiteOnetimesDir cannot be used inside a virtual server";
     
-      onetimesdir = apr_pstrdup(a->pool, parm);
+      passcodesdir = apr_pstrdup(a->pool, parm);
     }
     else if (strcasecmp(a->cmd->name, "GridSiteGridHTTPport") == 0)
     {
@@ -2041,7 +2041,7 @@ static const command_rec mod_gridsite_cmds[] =
     AP_INIT_TAKE1("GridSiteGridHTTPport", mod_gridsite_take1_cmds,
                    NULL, RSRC_CONF, "GridHTTP port"),
     AP_INIT_TAKE1("GridSiteOnetimesDir", mod_gridsite_take1_cmds,
-                 NULL, RSRC_CONF, "directory with GridHTTP onetime passcodes"),
+                 NULL, RSRC_CONF, "directory with GridHTTP passcodes"),
 
     AP_INIT_TAKE1("GridSiteCastDNlists", mod_gridsite_take1_cmds,
                  NULL, RSRC_CONF, "DN Lists directories search path for SiteCast"),
@@ -2142,7 +2142,7 @@ static int mod_gridsite_perm_handler(request_rec *r)
                  destination_is_acl = 0, proxylevel;
     char        *dn, *p, envname[14], *grst_cred_0 = NULL, *dir_path, 
                 *remotehost, s[99], *grst_cred_i, *cookies, *file,
-                *gridauthonetime = NULL, *cookiefile, oneline[1025], *key_i,
+                *gridauthpasscode = NULL, *cookiefile, oneline[1025], *key_i,
                 *destination = NULL, *destination_uri = NULL, *querytmp, 
                 *destination_prefix = NULL, *destination_translated = NULL;
     const char  *content_type;
@@ -2314,49 +2314,49 @@ static int mod_gridsite_perm_handler(request_rec *r)
           }
       }
       
-    /* first look for GRIDHTTP_ONETIME cookie */
+    /* first look for GRIDHTTP_PASSCODE cookie */
       
     if ((p = (char *) apr_table_get(r->headers_in, "Cookie")) != NULL)
       {
         cookies = apr_pstrcat(r->pool, " ", p, NULL);
-        gridauthonetime = strstr(cookies, " GRIDHTTP_ONETIME=");
+        gridauthpasscode = strstr(cookies, " GRIDHTTP_PASSCODE=");
                 
-        if (gridauthonetime != NULL)
+        if (gridauthpasscode != NULL)
           {
-            for (p = &gridauthonetime[18]; 
+            for (p = &gridauthpasscode[18]; 
                  (*p != '\0') && (*p != ';'); ++p)
                                       if (!isalnum(*p)) *p = '\0';
           }
       }
 
-    /* then look for GRIDHTTP_ONETIME in QUERY_STRING ie after ? */
+    /* then look for GRIDHTTP_PASSCODE in QUERY_STRING ie after ? */
       
-    if (gridauthonetime == NULL)
+    if (gridauthpasscode == NULL)
       {
         if ((r->parsed_uri.query != NULL) && (r->parsed_uri.query[0] != '\0'))
           {
             querytmp = apr_pstrcat(r->pool,"&",r->parsed_uri.query,"&",NULL);
             
-            gridauthonetime = strstr(querytmp, "&GRIDHTTP_ONETIME=");
+            gridauthpasscode = strstr(querytmp, "&GRIDHTTP_PASSCODE=");
             
-            if (gridauthonetime != NULL)
+            if (gridauthpasscode != NULL)
               {
-                for (p = &gridauthonetime[18]; 
+                for (p = &gridauthpasscode[18]; 
                      (*p != '\0') && (*p != '&'); ++p)
                                           if (!isalnum(*p)) *p = '\0';
               }            
           }
       }
 
-    if ((gridauthonetime != NULL) && (gridauthonetime[0] != '\0')) 
+    if ((gridauthpasscode != NULL) && (gridauthpasscode[0] != '\0')) 
       {
         cookiefile = apr_psprintf(r->pool, "%s/%s",
                  ap_server_root_relative(r->pool,
-                 onetimesdir),
-                 &gridauthonetime[18]);
+                 passcodesdir),
+                 &gridauthpasscode[18]);
                                       
         ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                             "Opening GridHTTP onetime file %s", cookiefile);
+                             "Opening GridHTTP passcode file %s", cookiefile);
               
         if ((apr_stat(&cookiefile_info, cookiefile, 
                           APR_FINFO_TYPE, r->pool) == APR_SUCCESS) &&
@@ -2365,7 +2365,7 @@ static int mod_gridsite_perm_handler(request_rec *r)
                                                          == APR_SUCCESS))
               {
                 ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                             "Reading GridHTTP onetime file %s", cookiefile);
+                             "Reading GridHTTP passcode file %s", cookiefile);
               
                 while (apr_file_gets(oneline, 
                                      sizeof(oneline), fp) == APR_SUCCESS)
@@ -2387,7 +2387,7 @@ static int mod_gridsite_perm_handler(request_rec *r)
                                 (strcmp(&oneline[5], r->uri) != 0))
                                   break;
                        else if  (strncmp(oneline, "onetime=yes", 11) == 0)
-                                  apr_file_remove(cookiefile, r->pool);                                  
+                                  apr_file_remove(cookiefile, r->pool);
                        else if  (strncmp(oneline, "method=PUT", 10) == 0)
                                   perm |= GRST_PERM_WRITE;
                        else if  (strncmp(oneline, "method=GET", 10) == 0)

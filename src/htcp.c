@@ -119,7 +119,7 @@ struct grst_dir_list { char   *filename;
 
 struct grst_header_data { int    retcode;                         
                           char  *location;
-                          char  *gridhttponetime;
+                          char  *gridhttppasscode;
                           size_t length;
                           int    length_set;
                           time_t modified;                           
@@ -159,15 +159,15 @@ size_t headers_callback(void *ptr, size_t size, size_t nmemb, void *p)
         if (header_data->common_data->verbose > 0)
              fprintf(stderr, "Received Location: %s\n", header_data->location);
       }
-  else if (strncmp(s, "Set-Cookie: GRIDHTTP_ONETIME=", 29) == 0) 
+  else if (strncmp(s, "Set-Cookie: GRIDHTTP_PASSCODE=", 29) == 0) 
       {
-        header_data->gridhttponetime = strdup(&s[12]);
-        q = index(header_data->gridhttponetime, ';');
+        header_data->gridhttppasscode = strdup(&s[12]);
+        q = index(header_data->gridhttppasscode, ';');
         if (q != NULL) *q = '\0';       
 
         if (header_data->common_data->verbose > 0)
              fprintf(stderr, "Received GridHTTP Auth Cookie: %s\n", 
-                             header_data->gridhttponetime);
+                             header_data->gridhttppasscode);
       }
   else if (strncmp(s, "Last-Modified: ", 15) == 0)
       {
@@ -314,7 +314,7 @@ int do_rmtcp(char *sources[], char *destination,
 
 	 header_data.retcode  = 0;
 	 header_data.location = NULL;
-	 header_data.gridhttponetime = NULL;
+	 header_data.gridhttppasscode = NULL;
 	 header_data.common_data = common_data;
 	 thiserror = curl_easy_perform(easyhandle);
 
@@ -342,7 +342,7 @@ int do_rmtcp(char *sources[], char *destination,
        asprintf(&p, "COPY %s", sources[isrc]);
        curl_easy_setopt(easyhandle, CURLOPT_CUSTOMREQUEST, p);//"COPY");//gh_header_slist);
        curl_easy_setopt(easyhandle, CURLOPT_URL, remoteserver);
-       curl_easy_setopt(easyhandle, CURLOPT_COOKIE, header_data.gridhttponetime);
+       curl_easy_setopt(easyhandle, CURLOPT_COOKIE, header_data.gridhttppasscode);
 
        curl_easy_setopt(easyhandle, CURLOPT_USERAGENT, common_data->useragent);
        curl_easy_setopt(easyhandle, CURLOPT_HTTPHEADER, nogh_header_slist);
@@ -471,7 +471,7 @@ int do_copies(char *sources[], char *destination,
 
        header_data.retcode  = 0;
        header_data.location = NULL;
-       header_data.gridhttponetime = NULL;
+       header_data.gridhttppasscode = NULL;
        header_data.common_data = common_data;
        thiserror = curl_easy_perform(easyhandle);
        
@@ -482,7 +482,7 @@ int do_copies(char *sources[], char *destination,
            (header_data.retcode == 302) &&
            (header_data.location != NULL) &&
            (strncmp(header_data.location, "http://", 7) == 0) &&
-           (header_data.gridhttponetime != NULL))
+           (header_data.gridhttppasscode != NULL))
          {
            if (common_data->verbose > 0)
              fprintf(stderr, "... Found (%d)\nGridHTTP redirect to %s\n",
@@ -519,7 +519,7 @@ int do_copies(char *sources[], char *destination,
            curl_easy_setopt(easyhandle, CURLOPT_URL, header_data.location);
            curl_easy_setopt(easyhandle, CURLOPT_HTTPHEADER, nogh_header_slist);
            curl_easy_setopt(easyhandle, CURLOPT_COOKIE, 
-                                                  header_data.gridhttponetime);
+                                                  header_data.gridhttppasscode);
            thiserror = curl_easy_perform(easyhandle);
 
            fclose(common_data->fp);
@@ -1393,7 +1393,7 @@ int do_listings(char *sources[], struct grst_stream_data *common_data,
            curl_easy_setopt(easyhandle, CURLOPT_NOBODY, 1);
          }
 
-       header_data.gridhttponetime = NULL;
+       header_data.gridhttppasscode = NULL;
        header_data.length_set   = 0;
        header_data.modified_set = 0;
        header_data.retcode      = 0;
@@ -1442,7 +1442,7 @@ int do_listings(char *sources[], struct grst_stream_data *common_data,
                         asprintf(&s, "%s%s", sources[isrc], list[i].filename);                        
                         curl_easy_setopt(easyhandle, CURLOPT_URL, s);
 
-                        header_data.gridhttponetime = NULL;
+                        header_data.gridhttppasscode = NULL;
                         header_data.length_set   = 0;
                         header_data.modified_set = 0;
                         header_data.retcode = 0;

@@ -2,7 +2,7 @@ Name: gridsite
 Version: %(echo ${MYVERSION:-1.1.x})
 Release: 1
 Summary: GridSite
-Copyright: Modified BSD
+License: Modified BSD
 Group: System Environment/Daemons
 Source: %{name}-%{version}.src.tar.gz
 Prefix: %(echo ${MYPREFIX:-/usr})

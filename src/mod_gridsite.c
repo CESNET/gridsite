@@ -756,7 +756,7 @@ int html_dir_list(request_rec *r, mod_gridsite_dir_cfg *conf)
     by GridSiteHtmlFormat/conf->format
 */
 {
-    int    i, fd, n;
+    int    i, fd, n, nn;
     char  *buf, *p, *s, *head_formatted, *header_formatted,
           *body_formatted, *admin_formatted, *footer_formatted, *temp,
            modified[99], *d_namepath, *indexheaderpath, *indexheadertext;
@@ -837,8 +837,8 @@ int html_dir_list(request_rec *r, mod_gridsite_dir_cfg *conf)
         "<tr><td colspan=3>[<a href=\"../\">Parent directory</a>]</td></tr>\n", 
          NULL);
       
-    n = scandir(r->filename, &namelist, 0, versionsort);
-    while (n--)
+    nn = scandir(r->filename, &namelist, 0, versionsort);
+    for (n=0; n < nn; ++n)
          {
            if ((namelist[n]->d_name[0] != '.') && 
                ((conf->indexheader == NULL) || 

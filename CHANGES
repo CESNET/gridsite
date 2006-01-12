@@ -1,3 +1,6 @@
+* Thu Jan 12 2005 Andrew McNab <Andrew.McNab@man.ac.uk>
+- Add 5 minute window for VOMS attributes valid slightly
+  in the future.
 * Mon Dec 5 2005 Andrew McNab <Andrew.McNab@man.ac.uk>
 - Change GRIDHTTP_ONETIME to GRIDHTTP_PASSCODE 
 - Remove onetime=yes default from mod_gridsite

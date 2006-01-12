@@ -27,6 +27,25 @@
    OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
    OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
    POSSIBILITY OF SUCH DAMAGE.
+
+
+   This program includes dav_parse_range() from Apache mod_dav.c and
+   associated code contributed by  David O Callaghan
+   
+   Copyright 2000-2005 The Apache Software Foundation or its licensors, as
+   applicable.
+   
+   Licensed under the Apache License, Version 2.0 (the "License");
+   you may not use this file except in compliance with the License.
+   You may obtain a copy of the License at
+
+        http://www.apache.org/licenses/LICENSE-2.0
+   
+   Unless required by applicable law or agreed to in writing, software
+   distributed under the License is distributed on an "AS IS" BASIS,
+   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+   See the License for the specific language governing permissions and
+   limitations under the License.
 */
 
 /*------------------------------------------------------------------*
@@ -374,6 +393,46 @@ static apr_status_t mod_gridsite_soap2cgi_in(ap_filter_t *f,
 #endif
                                                                                 
     return APR_SUCCESS;
+}
+
+
+/*
+ * dav_parse_range() is based on modules/dav/main/mod_dav.c from Apache
+ */
+
+int dav_parse_range(request_rec *r, apr_off_t *range_start, 
+                    apr_off_t *range_end)
+{
+    const char *range_c;
+    char *range;
+    char *dash;
+    char *slash;
+
+    range_c = apr_table_get(r->headers_in, "content-range");
+    if (range_c == NULL)
+        return 0;
+
+    range = apr_pstrdup(r->pool, range_c);
+    if (strncasecmp(range, "bytes ", 6) != 0
+        || (dash = ap_strchr(range, '-')) == NULL
+        || (slash = ap_strchr(range, '/')) == NULL) {
+        /* malformed header. ignore it (per S14.16 of RFC2616) */
+        return 0;
+    }
+
+    *dash = *slash = '\0';
+
+    *range_start = apr_atoi64(range + 6);
+    *range_end = apr_atoi64(dash + 1);
+
+    if (*range_end < *range_start
+        || (slash[1] != '*' && apr_atoi64(slash + 1) <= *range_end)) {
+        /* invalid range. ignore it (per S14.16 of RFC2616) */
+        return 0;
+    }
+
+    /* we now have a valid range */
+    return 1;
 }
 
 char *make_admin_footer(request_rec *r, mod_gridsite_dir_cfg *conf,
@@ -981,10 +1040,17 @@ int http_gridhttp(request_rec *r, mod_gridsite_dir_cfg *conf)
 int http_put_method(request_rec *r, mod_gridsite_dir_cfg *conf)
 {
   char        buf[2048];
-  size_t      length;
-  int         retcode;
+  size_t      length, total_length;
+  int         retcode, stat_ret;
   apr_file_t *fp;
+  apr_int32_t open_flag;
+  struct stat statbuf;
     
+  int       has_range = 0, is_done = 0;
+  apr_off_t range_start;
+  apr_off_t range_end;
+  size_t range_length;
+  
   /* ***  check if directory creation: PUT /.../  *** */
 
   if ((r->unparsed_uri    != NULL) && 
@@ -1008,33 +1074,68 @@ int http_put_method(request_rec *r, mod_gridsite_dir_cfg *conf)
 
   /* ***  otherwise assume trying to create a regular file *** */
 
-  if (apr_file_open(&fp, r->filename, 
-      APR_WRITE | APR_CREATE | APR_BUFFERED | APR_TRUNCATE,
+  stat_ret = stat(r->filename, &statbuf);
+
+  /* find if a range is specified */
+
+  has_range = dav_parse_range(r, &range_start, &range_end);
+
+  if (has_range)
+      open_flag = APR_WRITE | APR_CREATE | APR_BUFFERED;
+  else
+      open_flag = APR_WRITE | APR_CREATE | APR_BUFFERED | APR_TRUNCATE;
+
+  if (apr_file_open(&fp, r->filename, open_flag,
       conf->diskmode, r->pool) != 0) return HTTP_INTERNAL_SERVER_ERROR;
    
   /* we force the permissions, rather than accept any existing ones */
 
   apr_file_perms_set(r->filename, conf->diskmode);
-                             
-// TODO: need to add Range: support at some point too
-// Also return 201 Created rather than 200 OK if not already existing
+
+  if (has_range)
+    {
+      if (apr_file_seek(fp, APR_SET, &range_start) != 0) 
+        {
+          retcode = HTTP_INTERNAL_SERVER_ERROR;
+          //break;
+          return retcode;
+        }
+
+      range_length = range_end - range_start + 1;
+    }
 
   retcode = ap_setup_client_block(r, REQUEST_CHUNKED_DECHUNK);
   if (retcode == OK)
     {
+      if (has_range) total_length = 0;
       if (ap_should_client_block(r))
-        while ((length = ap_get_client_block(r, buf, sizeof(buf))) > 0)
-               if (apr_file_write(fp, buf, &length) != 0) 
-                 {
-                   retcode = HTTP_INTERNAL_SERVER_ERROR;
-                   break;
-                 }
+          while ((length = ap_get_client_block(r, buf, sizeof(buf))) > 0)
+            {
+              if (has_range && (total_length + length > range_length))
+                {
+                  length = range_length - total_length;
+                  is_done = 1;
+                }
 
+              if (apr_file_write(fp, buf, &length) != 0) 
+                {
+                  retcode = HTTP_INTERNAL_SERVER_ERROR;
+                  break;
+                }
+
+              if (has_range)
+                {
+                  if (is_done) break;
+                  else total_length += length;
+                }
+            }
       ap_set_content_length(r, 0);
       ap_set_content_type(r, "text/html");
     }
 
   if (apr_file_close(fp) != 0) return HTTP_INTERNAL_SERVER_ERROR;
+
+  if (retcode == OK) retcode = (stat_ret == 0) ? HTTP_OK : HTTP_CREATED;
 
   return retcode;
 }

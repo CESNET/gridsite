@@ -544,7 +544,7 @@ int GRSTx509ParseVomsExt(int *lastcred, int maxcreds, size_t credlen,
         if (actime2 < time2_time) time2_time = actime2;
 
         time(&time_now);
-        if ((time1_time > time_now) || (time2_time < time_now)) 
+        if ((time1_time > time_now + 300) || (time2_time < time_now))
                continue; /* expiration isnt invalidity ...? */
 
         for (i=1; ; ++i)

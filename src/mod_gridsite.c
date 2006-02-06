@@ -146,6 +146,7 @@ typedef struct
    int			soap2cgi;
    char			*aclformat;
    char			*execmethod;
+   char			*delegationuri;
    ap_unix_identity_t	execugid;
    apr_fileperms_t	diskmode;
 }  mod_gridsite_dir_cfg; /* per-directory config choices */
@@ -584,7 +585,15 @@ char *make_admin_footer(request_rec *r, mod_gridsite_dir_cfg *conf,
            "GridSite</a>&nbsp;%s\n", VERSION);
         out = apr_pstrcat(r->pool, out, temp, NULL);
       }
-                     
+
+    if (conf->delegationuri)
+      {
+        temp = apr_psprintf(r->pool,
+                            "<br/><span id=\"grstDelegationURI\" title=\"https://%s%s\">Delegation service active</span>\n",
+                            r->server->server_hostname, conf->delegationuri);
+        out = apr_pstrcat(r->pool, out, temp, NULL);
+
+      }
     out = apr_pstrcat(r->pool, out, "\n</small>\n", NULL);
 
     return out;
@@ -1675,7 +1684,7 @@ static void *create_gridsite_dir_config(apr_pool_t *p, char *path)
         conf->unzip         = NULL;  /* GridSiteUnzip         file-path    */
 
         conf->methods    = apr_pstrdup(p, " GET ");
-                                        /* GridSiteMethods      methods   */
+                                        /* GridSiteMethods      methods    */
 
         conf->editable = apr_pstrdup(p, " txt shtml html htm css js php jsp ");
                                         /* GridSiteEditable     types   */
@@ -1687,7 +1696,8 @@ static void *create_gridsite_dir_config(apr_pool_t *p, char *path)
         conf->gridhttp      = 0;     /* GridSiteGridHTTP      on/off       */
         conf->soap2cgi      = 0;     /* GridSiteSoap2cgi      on/off       */
 	conf->aclformat     = apr_pstrdup(p, "GACL");
-                                     /* GridSiteACLFormat     gacl/xacml */
+                                     /* GridSiteACLFormat     gacl/xacml   */
+	conf->delegationuri = NULL;  /* GridSiteDelegationURI URI-value    */
 	conf->execmethod    = NULL;
                /* GridSiteExecMethod  nosetuid/suexec/X509DN/directory */
                
@@ -1722,6 +1732,7 @@ static void *create_gridsite_dir_config(apr_pool_t *p, char *path)
         conf->gridhttp      = UNSET; /* GridSiteGridHTTP      on/off       */
         conf->soap2cgi      = UNSET; /* GridSiteSoap2cgi      on/off       */
 	conf->aclformat     = NULL;  /* GridSiteACLFormat     gacl/xacml   */
+	conf->delegationuri = NULL;  /* GridSiteDelegationURI URI-value    */
 	conf->execmethod    = NULL;  /* GridSiteExecMethod */
         conf->execugid.uid     = UNSET;	/* GridSiteUserGroup User Group */
         conf->execugid.gid     = UNSET; /* ditto */
@@ -1805,6 +1816,9 @@ static void *merge_gridsite_dir_config(apr_pool_t *p, void *vserver,
 
     if (direct->aclformat != NULL) conf->aclformat = direct->aclformat;
     else                           conf->aclformat = server->aclformat;
+
+    if (direct->delegationuri != NULL) conf->delegationuri = direct->delegationuri;
+    else                               conf->delegationuri = server->delegationuri;
 
     if (direct->execmethod != NULL) conf->execmethod = direct->execmethod;
     else                            conf->execmethod = server->execmethod;
@@ -1984,6 +1998,16 @@ static const char *mod_gridsite_take1_cmds(cmd_parms *a, void *cfg,
       
       ((mod_gridsite_dir_cfg *) cfg)->aclformat = apr_pstrdup(a->pool, parm);
     }
+
+    else if (strcasecmp(a->cmd->name, "GridSiteDelegationURI") == 0)
+    {
+      if (*parm != '/') return "GridSiteDelegationURI must begin with /";
+
+      if (*parm != '\0') 
+       ((mod_gridsite_dir_cfg *) cfg)->delegationuri =
+        apr_pstrdup(a->pool, parm);
+      
+    }
     else if (strcasecmp(a->cmd->name, "GridSiteExecMethod") == 0)
     {
       if (strcasecmp(parm, "nosetuid") == 0)
@@ -2158,6 +2182,9 @@ static const command_rec mod_gridsite_cmds[] =
 
     AP_INIT_TAKE1("GridSiteACLFormat", mod_gridsite_take1_cmds,
                  NULL, OR_FILEINFO, "format to save access control lists in"),
+
+    AP_INIT_TAKE1("GridSiteDelegationURI", mod_gridsite_take1_cmds,
+                 NULL, OR_FILEINFO, "location of the delegation service CGI"),
 
     AP_INIT_TAKE1("GridSiteExecMethod", mod_gridsite_take1_cmds,
                  NULL, OR_FILEINFO, "execution strategy used by gsexec"),
@@ -2563,6 +2590,11 @@ static int mod_gridsite_perm_handler(request_rec *r)
         if (((mod_gridsite_dir_cfg *) cfg)->aclformat != NULL)
 	          apr_table_setn(env, "GRST_ACL_FORMAT",
                               ((mod_gridsite_dir_cfg *) cfg)->aclformat);
+
+	if (((mod_gridsite_dir_cfg *) cfg)->delegationuri != NULL)
+	          apr_table_setn(env, "GRST_DELEGATION_URI",
+                              ((mod_gridsite_dir_cfg *) cfg)->delegationuri);
+
 
         if (((mod_gridsite_dir_cfg *) cfg)->execmethod != NULL)
           {

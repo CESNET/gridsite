@@ -586,21 +586,22 @@ char *make_admin_footer(request_rec *r, mod_gridsite_dir_cfg *conf,
         out = apr_pstrcat(r->pool, out, temp, NULL);
       }
 
-    if (conf->delegationuri)
-      {
-        temp = apr_psprintf(r->pool,
-                            "<br/><span id=\"grstDelegationURI\" title=\"https://%s%s\">Delegation service active</span>\n",
-                            r->server->server_hostname, conf->delegationuri);
-        out = apr_pstrcat(r->pool, out, temp, NULL);
-
-      }
     out = apr_pstrcat(r->pool, out, "\n</small>\n", NULL);
 
     return out;
 }
 
+void delegation_header(request_rec *r, mod_gridsite_dir_cfg *conf){
+
+  apr_table_add(r->headers_out,
+                apr_pstrdup(r->pool, "Grst-Delegation-Service"),
+                apr_psprintf(r->pool,"https://%s%s", r->hostname, conf->delegationuri));
+  return;
+
+}
+
 int html_format(request_rec *r, mod_gridsite_dir_cfg *conf)
-/* 
+/*
     try to do GridSite formatting of .html files (NOT .shtml etc)
 */
 {
@@ -610,12 +611,16 @@ int html_format(request_rec *r, mod_gridsite_dir_cfg *conf)
     size_t length;
     struct stat statbuf;
     apr_file_t *fp;
-    
+
     if (r->finfo.filetype == APR_NOFILE) return HTTP_NOT_FOUND;
-    
+
     if (apr_file_open(&fp, r->filename, APR_READ, 0, r->pool) != 0)
                                      return HTTP_INTERNAL_SERVER_ERROR;
-        
+
+
+    /* Put in Delegation service header if required */
+    if (conf->delegationuri) delegation_header(r, conf);
+
     file = rindex(r->uri, '/');
     if (file != NULL) ++file; /* file points to name without path */
 
@@ -631,7 +636,7 @@ int html_format(request_rec *r, mod_gridsite_dir_cfg *conf)
     fd = -1;
     s = malloc(strlen(r->filename) + strlen(conf->headfile) + 1);
     strcpy(s, r->filename);
-    
+
     for (;;)
        {
          p = rindex(s, '/');
@@ -644,7 +649,7 @@ int html_format(request_rec *r, mod_gridsite_dir_cfg *conf)
 
          *p = '\0';
        }
-            
+
     free(s);
 
     if (fd == -1) /* not found, so set up not to output one */
@@ -665,7 +670,7 @@ int html_format(request_rec *r, mod_gridsite_dir_cfg *conf)
         if (p == NULL) p = strstr(buf, "<BODY");
         if (p == NULL) p = strstr(buf, "<Body");
 
-        if (p == NULL) 
+        if (p == NULL)
           {
             head_formatted = apr_pstrdup(r->pool, "");
             body_formatted = buf;
@@ -675,7 +680,7 @@ int html_format(request_rec *r, mod_gridsite_dir_cfg *conf)
             *p = '\0';
             head_formatted = buf;
             ++p;
-        
+
             while ((*p != '>') && (*p != '\0')) ++p;
 
             if (*p == '\0')
@@ -687,7 +692,7 @@ int html_format(request_rec *r, mod_gridsite_dir_cfg *conf)
                 *p = '\0';
                 ++p;
                 body_formatted = p;
-              }        
+              }
           }
       }
 
@@ -696,38 +701,38 @@ int html_format(request_rec *r, mod_gridsite_dir_cfg *conf)
     p = strstr(body_formatted, "</body");
     if (p == NULL) p = strstr(body_formatted, "</BODY");
     if (p == NULL) p = strstr(body_formatted, "</Body");
-    
+
     if (p != NULL) *p = '\0';
 
     /* **** set up dynamic part of footer to go at end of body **** */
 
     admin_formatted = make_admin_footer(r, conf, FALSE);
-    
+
     /* **** try to find a footer file in this or parent directories **** */
 
     /* first make a buffer big enough to hold path names we want to try */
     fd = -1;
     s  = malloc(strlen(r->filename) + strlen(conf->footfile));
     strcpy(s, r->filename);
-    
+
     for (;;)
        {
          p = rindex(s, '/');
          if (p == NULL) break; /* failed to find one */
-    
+
          p[1] = '\0';
          strcat(p, conf->footfile);
-    
+
          fd = open(s, O_RDONLY);
          if (fd != -1) break; /* found one */
 
          *p = '\0';
        }
-            
+
     free(s);
 
     if (fd == -1) /* failed to find a footer, so set up empty default */
-      { 
+      {
         footer_formatted = apr_pstrdup(r->pool, "");
       }
     else /* found a footer, so set up to use it */
@@ -740,8 +745,8 @@ int html_format(request_rec *r, mod_gridsite_dir_cfg *conf)
       }
 
     /* **** can now calculate the Content-Length and output headers **** */
-      
-    length = strlen(head_formatted) + strlen(header_formatted) + 
+
+    length = strlen(head_formatted) + strlen(header_formatted) +
              strlen(body_formatted) + strlen(admin_formatted)  +
              strlen(footer_formatted);
 
@@ -776,7 +781,11 @@ int html_dir_list(request_rec *r, mod_gridsite_dir_cfg *conf)
     
     if (r->finfo.filetype == APR_NOFILE) return HTTP_NOT_FOUND;
         
-    head_formatted = apr_psprintf(r->pool, 
+
+    /* Put in Delegation service header if required */
+    if (conf->delegationuri) delegation_header(r, conf);
+
+    head_formatted = apr_psprintf(r->pool,
       "<head><title>Directory listing %s</title></head>\n", r->uri);
 
     if (conf->format)
@@ -787,7 +796,7 @@ int html_dir_list(request_rec *r, mod_gridsite_dir_cfg *conf)
         fd = -1;
         s = malloc(strlen(r->filename) + strlen(conf->headfile) + 1);
         strcpy(s, r->filename);
-    
+
         for (;;)
            {
              p = rindex(s, '/');
@@ -1198,7 +1207,6 @@ static int mod_gridsite_dir_handler(request_rec *r, mod_gridsite_dir_cfg *conf)
       }
       
     /* *** directory listing? *** */
-    
     if ((r->method_number == M_GET) && (conf->indexes))       
                        return html_dir_list(r, conf); /* directory listing */
     
@@ -2003,10 +2011,10 @@ static const char *mod_gridsite_take1_cmds(cmd_parms *a, void *cfg,
     {
       if (*parm != '/') return "GridSiteDelegationURI must begin with /";
 
-      if (*parm != '\0') 
+      if (*parm != '\0')
        ((mod_gridsite_dir_cfg *) cfg)->delegationuri =
         apr_pstrdup(a->pool, parm);
-      
+
     }
     else if (strcasecmp(a->cmd->name, "GridSiteExecMethod") == 0)
     {
@@ -2015,12 +2023,12 @@ static const char *mod_gridsite_take1_cmds(cmd_parms *a, void *cfg,
           ((mod_gridsite_dir_cfg *) cfg)->execmethod = NULL;
           return NULL;
         }
-    
+
       if ((strcasecmp(parm, "suexec")    != 0) &&
           (strcasecmp(parm, "X509DN")    != 0) &&
           (strcasecmp(parm, "directory") != 0))
           return "GridsiteExecMethod must be nosetuid, suexec, X509DN or directory";
-      
+
       ((mod_gridsite_dir_cfg *) cfg)->execmethod = apr_pstrdup(a->pool, parm);
     }
 
@@ -2184,7 +2192,7 @@ static const command_rec mod_gridsite_cmds[] =
                  NULL, OR_FILEINFO, "format to save access control lists in"),
 
     AP_INIT_TAKE1("GridSiteDelegationURI", mod_gridsite_take1_cmds,
-                 NULL, OR_FILEINFO, "location of the delegation service CGI"),
+                 NULL, OR_FILEINFO, "URI of the delegation service CGI"),
 
     AP_INIT_TAKE1("GridSiteExecMethod", mod_gridsite_take1_cmds,
                  NULL, OR_FILEINFO, "execution strategy used by gsexec"),

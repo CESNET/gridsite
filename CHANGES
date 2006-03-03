@@ -1,4 +1,7 @@
-* Mon Feb 6 2005 Shiv Kaushal <shiv@hep.man.ac.uk>
+* Fri Mar 03 2006 Shiv Kaushal <shiv@hep.man.ac.uk>
+- Modify GridSiteDelegationURI directive to insert HTTP 
+  headers instead of modifying HTML
+* Mon Feb 6 2006 Shiv Kaushal <shiv@hep.man.ac.uk>
 - Add GridSiteDelegationURI directive to mod_gridsite
   to allow Firefox extension to locate delegation service
 * Thu Jan 12 2005 Andrew McNab <Andrew.McNab@man.ac.uk>

@@ -996,17 +996,17 @@ int http_gridhttp(request_rec *r, mod_gridsite_dir_cfg *conf)
                         APR_CREATE | APR_WRITE | APR_EXCL,
                         r->pool)
                       != APR_SUCCESS) return HTTP_INTERNAL_SERVER_ERROR;
-                                    
+                      
     ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
                "Created passcode file %s", filetemplate);
 
-    expires_time = apr_time_now() + apr_time_from_sec(3600);
-    /* passcode cookies are valid for only 60 mins! */
+    expires_time = apr_time_now() + apr_time_from_sec(300);
+    /* passcode cookies are valid for only 5 mins! */
 
-    apr_file_printf(fp, 
-                   "expires=%lu\ndomain=%s\npath=%s\nmethod=%s\n", 
-                   (time_t) apr_time_sec(expires_time),
-                   r->hostname, r->uri, r->method);
+    apr_file_printf(fp,
+              "expires=%lu\ndomain=%s\npath=%s\nonetime=yes\nmethod=%s\n",
+              (time_t) apr_time_sec(expires_time),
+              r->hostname, r->uri, r->method);
     /* above variables are evaluated in order and method= MUST be last! */
 
     for (i=0; ; ++i)
@@ -1153,7 +1153,11 @@ int http_put_method(request_rec *r, mod_gridsite_dir_cfg *conf)
 
   if (apr_file_close(fp) != 0) return HTTP_INTERNAL_SERVER_ERROR;
 
-  if (retcode == OK) retcode = (stat_ret == 0) ? HTTP_OK : HTTP_CREATED;
+  if ((retcode == OK) && (stat_ret != 0))
+    {
+      retcode = HTTP_CREATED;
+      ap_custom_response(r, HTTP_CREATED, "");
+    }
 
   return retcode;
 }
@@ -1642,7 +1646,7 @@ static void *create_gridsite_srv_config(apr_pool_t *p, server_rec *s)
       {
         gridhttpport = GRST_HTTP_PORT;
       
-        passcodesdir = apr_pstrdup(p, "/var/www/passcodes");
+        passcodesdir = apr_pstrdup(p, "/var/www/onetimes");
                                       /* GridSiteOnetimesDir dir-path   */
 
         sitecastdnlists = NULL;
@@ -2275,9 +2279,9 @@ static int mod_gridsite_perm_handler(request_rec *r)
 */
 {
     int          retcode = DECLINED, i, n, file_is_acl = 0,
-                 destination_is_acl = 0, proxylevel;
+                 destination_is_acl = 0, proxylevel, ishttps = 0;
     char        *dn, *p, envname[14], *grst_cred_0 = NULL, *dir_path, 
-                *remotehost, s[99], *grst_cred_i, *cookies, *file,
+                *remotehost, s[99], *grst_cred_i, *cookies, *file, *https,
                 *gridauthpasscode = NULL, *cookiefile, oneline[1025], *key_i,
                 *destination = NULL, *destination_uri = NULL, *querytmp, 
                 *destination_prefix = NULL, *destination_translated = NULL;
@@ -2306,6 +2310,9 @@ static int mod_gridsite_perm_handler(request_rec *r)
                return DECLINED; /* if not turned on, look invisible */
 
     env = r->subprocess_env;
+
+    p = (char *) apr_table_get(r->subprocess_env, "HTTPS");
+    if ((p != NULL) && (strcmp(p, "on") == 0)) ishttps = 1;
 
     /* do we need/have per-connection (SSL) cred variable(s)? */
     
@@ -2459,7 +2466,9 @@ static int mod_gridsite_perm_handler(request_rec *r)
                 
         if (gridauthpasscode != NULL)
           {
-            for (p = &gridauthpasscode[18]; 
+            gridauthpasscode = &gridauthpasscode[19];
+          
+            for (p = gridauthpasscode; 
                  (*p != '\0') && (*p != ';'); ++p)
                                       if (!isalnum(*p)) *p = '\0';
           }
@@ -2475,9 +2484,11 @@ static int mod_gridsite_perm_handler(request_rec *r)
             
             gridauthpasscode = strstr(querytmp, "&GRIDHTTP_PASSCODE=");
             
-            if (gridauthpasscode != NULL)
+            if (gridauthpasscode != NULL)                         
               {
-                for (p = &gridauthpasscode[18]; 
+                gridauthpasscode = &gridauthpasscode[19];
+              
+                for (p = gridauthpasscode; 
                      (*p != '\0') && (*p != '&'); ++p)
                                           if (!isalnum(*p)) *p = '\0';
               }            
@@ -2489,7 +2500,7 @@ static int mod_gridsite_perm_handler(request_rec *r)
         cookiefile = apr_psprintf(r->pool, "%s/%s",
                  ap_server_root_relative(r->pool,
                  passcodesdir),
-                 &gridauthpasscode[18]);
+                 gridauthpasscode);
                                       
         ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
                              "Opening GridHTTP passcode file %s", cookiefile);
@@ -2522,7 +2533,8 @@ static int mod_gridsite_perm_handler(request_rec *r)
                        else if ((strncmp(oneline, "path=", 5) == 0) &&
                                 (strcmp(&oneline[5], r->uri) != 0))
                                   break;
-                       else if  (strncmp(oneline, "onetime=yes", 11) == 0)
+                       else if  ((strncmp(oneline, "onetime=yes", 11) == 0)
+                                 && !ishttps)
                                   apr_file_remove(cookiefile, r->pool);
                        else if  (strncmp(oneline, "method=PUT", 10) == 0)
                                   perm |= GRST_PERM_WRITE;

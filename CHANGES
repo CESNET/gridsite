@@ -1,3 +1,6 @@
+* Thu Mar 16 2006 Andrew McNab <Andrew.McNab@man.ac.uk>
+- Fixes for 200/201 error pages produced by Apache
+- Fixes for onetime passcode non-removal if HTTPS
 * Fri Mar 03 2006 Shiv Kaushal <shiv@hep.man.ac.uk>
 - Modify GridSiteDelegationURI directive to insert HTTP 
   headers instead of modifying HTML

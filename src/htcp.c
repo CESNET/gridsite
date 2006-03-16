@@ -526,7 +526,6 @@ int do_copies(char *sources[], char *destination,
          }
 
        if ((thiserror != 0) ||
-           (header_data.retcode <  200) ||
            (header_data.retcode >= 300))
          {
            fprintf(stderr, "... curl error: %s (%d), HTTP error: %d\n",
@@ -580,7 +579,6 @@ int do_deletes(char *sources[], struct grst_stream_data *common_data)
        thiserror = curl_easy_perform(easyhandle);
        
        if ((thiserror != 0) ||
-           (header_data.retcode <  200) ||
            (header_data.retcode >= 300))
          {
            fprintf(stderr, "... curl error: %s (%d), HTTP error: %d\n",
@@ -639,7 +637,6 @@ int do_move(char *source, char *destination,
   thiserror = curl_easy_perform(easyhandle);
        
   if ((thiserror != 0) ||
-           (header_data.retcode <  200) ||
            (header_data.retcode >= 300))
          {
            fprintf(stderr, "... curl error: %s (%d), HTTP error: %d\n",
@@ -690,7 +687,6 @@ int do_mkdirs(char *sources[], struct grst_stream_data *common_data)
        thiserror = curl_easy_perform(easyhandle);
        
        if ((thiserror != 0) ||
-           (header_data.retcode <  200) ||
            (header_data.retcode >= 300))
          {
            fprintf(stderr, "... curl error: %s (%d), HTTP error: %d\n",
@@ -1400,7 +1396,6 @@ int do_listings(char *sources[], struct grst_stream_data *common_data,
        thiserror = curl_easy_perform(easyhandle);
        
        if ((thiserror != 0) ||
-           (header_data.retcode <  200) ||
            (header_data.retcode >= 300))
          {
            fprintf(stderr, "... curl error: %s (%d), HTTP error: %d\n",
@@ -1834,7 +1829,6 @@ int main(int argc, char *argv[])
       else if (strcmp(executable,"htrmtcp")==0) common_data.method=HTCP_RMTCP;
     }
     
-printf("%d\n", common_data.method);
   if (common_data.method == HTCP_PING)
     {
       if (common_data.groups != NULL) return do_ping(&common_data);

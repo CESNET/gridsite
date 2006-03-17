@@ -22,15 +22,14 @@ http://www.gridsite.org/ for details.
 
 %package shared
 Group: Development/Libraries
-Summary: GridSite shared library
+Summary: GridSite shared library and core documentation
 
 %description shared
-GridSite shared library
+GridSite shared library and core documentation
 
 %package devel
 Group: Development/Libraries
 Summary: GridSite .a libraries and .h headers
-Requires: gridsite-shared
 
 %description devel
 GridSite development libraries

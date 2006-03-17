@@ -80,7 +80,7 @@ make install prefix=$RPM_BUILD_ROOT/%(echo ${MYPREFIX:-/usr}) \
 GSOAPDIR=$GSOAPDIR OPENSSL_FLAGS=$OPENSSL_FLAGS \
 OPENSSL_LIBS=$OPENSSL_LIBS FLAVOR_EXT=$FLAVOR_EXT
 
-%post
+%post shared
 /sbin/ldconfig
 ln -sf %(echo ${MYPREFIX:-/usr})/share/doc/gridsite-%{version} \
  %(echo ${MYPREFIX:-/usr})/share/doc/gridsite

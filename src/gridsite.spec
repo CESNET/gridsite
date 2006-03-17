@@ -20,12 +20,35 @@ programs for interactive management of HTTP(S) servers (gridsite-admin.cgi)
 See %(echo ${MYPREFIX:-/usr})/share/doc/gridsite-%{version} and
 http://www.gridsite.org/ for details.
 
-%package -n htcp
-Group: Applications/Internet
-Summary: HTTP(S) read/write client
-Requires: curl
+%package shared
+Group: Development/Libraries
+Summary: GridSite shared library
 
-%description -n htcp
+%description shared
+GridSite shared library
+
+%package devel
+Group: Development/Libraries
+Summary: GridSite .a libraries and .h headers
+Requires: gridsite-shared
+
+%description devel
+GridSite development libraries
+
+%package apache
+Group: System Environment/Daemons
+Summary: GridSite mod_gridsite module for Apache httpd
+Requires: gridsite-shared
+
+%description apache
+GridSite Apache module and CGI binaries
+
+%package commands
+Group: Applications/Internet
+Summary: HTTP(S) read/write client and other GridSite commands
+Requires: curl, gridsite-shared
+
+%description commands
 htcp is a client to fetch files or directory listings from remote
 servers using HTTP or HTTPS, or to put or delete files or directories
 onto remote servers using HTTPS. htcp is similar to scp(1), but uses
@@ -66,26 +89,26 @@ ln -sf %(echo ${MYPREFIX:-/usr})/share/doc/gridsite-%{version} \
 #%postun
 rm -f %(echo ${MYPREFIX:-/usr})/share/doc/gridsite
 
-%files
+%files shared
 %attr(-, root, root) %(echo ${MYPREFIX:-/usr})/lib/libgridsite.so.%{version}
 %attr(-, root, root) %(echo ${MYPREFIX:-/usr})/lib/libgridsite.so
 %attr(-, root, root) %(echo ${MYPREFIX:-/usr})/lib/libgridsite_globus.so.%{version}
 %attr(-, root, root) %(echo ${MYPREFIX:-/usr})/lib/libgridsite_globus.so
-%attr(-, root, root) %(echo ${MYPREFIX:-/usr})/bin/urlencode
-%attr(-, root, root) %(echo ${MYPREFIX:-/usr})/bin/findproxyfile
 %attr(-, root, root) %(echo ${MYPREFIX:-/usr})/share/doc/gridsite-%{version}
-%attr(-, root, root) %(echo ${MYPREFIX:-/usr})/share/man/man1/urlencode.1.gz
-%attr(-, root, root) %(echo ${MYPREFIX:-/usr})/share/man/man1/findproxyfile.1.gz
-%attr(-, root, root) %(echo ${MYPREFIX:-/usr})/share/man/man8/mod_gridsite.8.gz
+
+%files devel
 %attr(-, root, root) %(echo ${MYPREFIX:-/usr})/include/gridsite.h
 %attr(-, root, root) %(echo ${MYPREFIX:-/usr})/include/gridsite-gacl.h
 %attr(-, root, root) %(echo ${MYPREFIX:-/usr})/lib/libgridsite.a
 %attr(-, root, root) %(echo ${MYPREFIX:-/usr})/lib/libgridsite_globus.a
+
+%files apache
+%attr(-, root, root) %(echo ${MYPREFIX:-/usr})/share/man/man8/mod_gridsite.8.gz
 %attr(-, root, root) %(echo ${MYPREFIX:-/usr})/lib/httpd/modules/mod_gridsite.so
 %attr(-, root, root) %(echo ${MYPREFIX:-/usr})/sbin/real-gridsite-admin.cgi
 %attr(-, root, root) %(echo ${MYPREFIX:-/usr})/sbin/gridsite-copy.cgi
 
-%files -n htcp
+%files commands
 %attr(-, root, root) %(echo ${MYPREFIX:-/usr})/bin/htcp
 %attr(-, root, root) %(echo ${MYPREFIX:-/usr})/bin/htls
 %attr(-, root, root) %(echo ${MYPREFIX:-/usr})/bin/htll
@@ -94,6 +117,8 @@ rm -f %(echo ${MYPREFIX:-/usr})/share/doc/gridsite
 %attr(-, root, root) %(echo ${MYPREFIX:-/usr})/bin/htmv
 %attr(-, root, root) %(echo ${MYPREFIX:-/usr})/bin/htping
 %attr(-, root, root) %(echo ${MYPREFIX:-/usr})/bin/htfind
+%attr(-, root, root) %(echo ${MYPREFIX:-/usr})/bin/urlencode
+%attr(-, root, root) %(echo ${MYPREFIX:-/usr})/bin/findproxyfile
 %attr(-, root, root) %(echo ${MYPREFIX:-/usr})/share/man/man1/htcp.1.gz
 %attr(-, root, root) %(echo ${MYPREFIX:-/usr})/share/man/man1/htrm.1.gz
 %attr(-, root, root) %(echo ${MYPREFIX:-/usr})/share/man/man1/htls.1.gz
@@ -102,6 +127,8 @@ rm -f %(echo ${MYPREFIX:-/usr})/share/doc/gridsite
 %attr(-, root, root) %(echo ${MYPREFIX:-/usr})/share/man/man1/htmv.1.gz
 %attr(-, root, root) %(echo ${MYPREFIX:-/usr})/share/man/man1/htping.1.gz
 %attr(-, root, root) %(echo ${MYPREFIX:-/usr})/share/man/man1/htfind.1.gz
+%attr(-, root, root) %(echo ${MYPREFIX:-/usr})/share/man/man1/urlencode.1.gz
+%attr(-, root, root) %(echo ${MYPREFIX:-/usr})/share/man/man1/findproxyfile.1.gz
 
 %files gsexec
 %attr(4510, root, apache) %(echo ${MYPREFIX:-/usr})/sbin/gsexec

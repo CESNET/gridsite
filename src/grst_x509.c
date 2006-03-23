@@ -1226,19 +1226,19 @@ int GRSTx509MakeProxyRequest(char **reqtxt, char *proxydir,
           
   fd = mkstemp(prvkeyfile);
     
-  if ((fp = fdopen(fd, "w")) == NULL) return 1;
+  if ((fp = fdopen(fd, "w")) == NULL) return 2;
                                
   fprintf(fp, "%s\n%s\n", delegation_id, user_dn);
     
   if (!PEM_write_RSAPrivateKey(fp, keypair, NULL, NULL, 0, NULL, NULL))
-                               return 1;
+                               return 3;
   
-  if (fclose(fp) != 0) return 1;
+  if (fclose(fp) != 0) return 4;
   
   /* now create the certificate request */
 
   certreq = X509_REQ_new();
-  if (certreq == NULL) return 1;
+  if (certreq == NULL) return 5;
 
   OpenSSL_add_all_algorithms();
 
@@ -1322,6 +1322,47 @@ int GRSTx509StringToChain(STACK_OF(X509) **certstack, char *certstring)
    sk_X509_INFO_free(sk);
    
    return GRST_RET_OK;
+}
+
+/// Returns a Delegation ID based on hash of GRST_CRED_0, ...
+/**
+ *  Returns a malloc'd string with Delegation ID made by SHA1-hashing the
+ *  values of the compact credentials exported by mod_gridsite
+ */
+
+char *GRSTx509MakeDelegationID(void)
+{ 
+  unsigned char hash_delegation_id[EVP_MAX_MD_SIZE];        
+  int  size_needed = 0, i, delegation_id_len;
+  char cred_name[14], *cred_value, *delegation_id;
+  const EVP_MD *m;
+  EVP_MD_CTX ctx;
+
+  OpenSSL_add_all_digests();
+
+  m = EVP_sha1();
+  if (m == NULL) return NULL;
+
+  EVP_DigestInit(&ctx, m);
+
+  for (i=0; i <= 999; ++i)
+     {
+       snprintf(cred_name, sizeof(cred_name), "GRST_CRED_%d", i);       
+       if ((cred_value = getenv(cred_name)) == NULL) break;
+       
+       EVP_DigestUpdate(&ctx, cred_value, strlen(cred_value));
+     }
+     
+  EVP_DigestFinal(&ctx, hash_delegation_id, &delegation_id_len);
+
+  delegation_id = malloc(17);
+
+  for (i=0; i <=7; ++i)
+   sprintf(&delegation_id[i*2], "%02x", hash_delegation_id[i]);
+
+  delegation_id[16] = '\0';
+
+  return delegation_id;
 }
 
 /// Return the short file name for the given delegation_id and user_dn

@@ -1,5 +1,6 @@
 * Wed Mar 22 2006 Andrew McNab <Andrew.McNab@man.ac.uk>
 - Add GRSTx509MakeDelegationID() to grst_x509.c
+- Include code for new style delegation proxy storage
 * Fri Mar 17 2006 Andrew McNab <Andrew.McNab@man.ac.uk>
 - Associate ldconfig %post in spec with -shared RPM
 * Thu Mar 16 2006 Andrew McNab <Andrew.McNab@man.ac.uk>

@@ -1,5 +1,5 @@
 /*
-   Copyright (c) 2002-5, Andrew McNab, University of Manchester
+   Copyright (c) 2002-6, Andrew McNab, University of Manchester
    All rights reserved.
 
    Redistribution and use in source and binary forms, with or
@@ -38,6 +38,7 @@
 #include <stdio.h>
 #include <unistd.h>       
 #include <stdlib.h>
+#include <stdarg.h>
 #include <time.h>
 #include <stdarg.h>
 #include <dirent.h>
@@ -1197,18 +1198,33 @@ char *GRSTx509CachedProxyKeyFind(char *proxydir, char *delegation_id,
   return keyfile;
 }
 
+static void mkdir_printf(mode_t mode, char *fmt, ...)
+{
+  int   ret;
+  char *path;
+  va_list ap;
+  
+  va_start(ap, fmt);
+  vasprintf(&path, fmt, ap);
+  va_end(ap);
+
+  ret = mkdir(path, mode);
+
+  free(path);
+}
+
 /// Make and store a X.509 request for a GSI proxy
 /**
  *  Returns GRST_RET_OK on success, non-zero otherwise. Request string
- *  is PEM encoded, and the key is stored in proxydir as temporary file
- *  with a filename like .XXXXXX
+ *  is PEM encoded, and the key is stored in the temporary cache under
+ *  proxydir
  */ 
 
 int GRSTx509MakeProxyRequest(char **reqtxt, char *proxydir, 
                              char *delegation_id, char *user_dn)
 {
-  int              i, fd;
-  char            *docroot, *reqfile, *prvkeyfile, *ptr;
+  int              i;
+  char            *docroot, *prvkeyfile, *ptr, *user_dn_enc;
   size_t           ptrlen;
   FILE            *fp;
   RSA             *keypair;
@@ -1217,19 +1233,42 @@ int GRSTx509MakeProxyRequest(char **reqtxt, char *proxydir,
   EVP_PKEY        *pkey;
   X509_REQ        *certreq;
   BIO             *reqmem;
-  const EVP_MD          *digest;
+  const EVP_MD    *digest;
   struct stat      statbuf;
 
+  if (strcmp(user_dn, "cache") == 0) return GRST_RET_FAILED;
+    
+  user_dn_enc = GRSThttpUrlEncode(user_dn);
+
+  /* create directories if necessary */
+
+  mkdir_printf(S_IRUSR | S_IWUSR | S_IXUSR, 
+               "%s/cache",       proxydir);
+  mkdir_printf(S_IRUSR | S_IWUSR | S_IXUSR, 
+               "%s/cache/%s",    proxydir, user_dn_enc);
+  mkdir_printf(S_IRUSR | S_IWUSR | S_IXUSR, 
+               "%s/cache/%s/%s", proxydir, user_dn_enc, delegation_id);
+
+  /* make the new proxy private key */
+
+  asprintf(&prvkeyfile, "%s/cache/%s/%s/userkey.pem",
+           proxydir, user_dn_enc, delegation_id);
+
+  if (prvkeyfile == NULL)  
+    {
+      free(user_dn_enc);
+      return GRST_RET_FAILED;
+    }
+        
   if ((keypair = RSA_generate_key(GRST_KEYSIZE, 65537, NULL, NULL)) == NULL)
                                                                return 1;
-  asprintf(&prvkeyfile, "%s/.XXXXXX", proxydir);
           
-  fd = mkstemp(prvkeyfile);
-    
-  if ((fp = fdopen(fd, "w")) == NULL) return 2;
-                               
-  fprintf(fp, "%s\n%s\n", delegation_id, user_dn);
-    
+  if ((fp = fopen(prvkeyfile, "w")) == NULL) return 2;
+  
+  chmod(prvkeyfile, S_IRUSR | S_IWUSR);
+  free(prvkeyfile);
+  free(user_dn_enc);
+
   if (!PEM_write_RSAPrivateKey(fp, keypair, NULL, NULL, 0, NULL, NULL))
                                return 3;
   
@@ -1443,8 +1482,6 @@ char *GRSTx509MakeProxyFileName(char *delegation_id,
 
   filename[16] = '-';
 
-
-
   EVP_DigestInit(&ctx, m);
   EVP_DigestUpdate(&ctx, buf, der_name_len);
   EVP_DigestFinal(&ctx, hash_name, &hash_name_len);
@@ -1458,106 +1495,91 @@ char *GRSTx509MakeProxyFileName(char *delegation_id,
 /// Store a GSI proxy chain in the proxy cache, along with the private key
 /**
  *  Returns GRST_RET_OK on success, non-zero otherwise. The existing
- *  private key with the same delegation ID and user DN is appended to
- *  make a valid proxy file, and the temporary private key file deleted.
+ *  private key with the same delegation ID and user DN is moved out of
+ *  the temporary cache.
  */
 
 int GRSTx509CacheProxy(char *proxydir, char *delegation_id, 
                                        char *user_dn, char *proxychain)
 {
-  int   c, len = 0, i;
-  char *upcertfile, *upcertpath, *prvkeyfile, *p, *ptr;
+  int   c, len = 0, i, ret;
+  char *user_dn_enc, *upcertfile, *upcertpath, *userkeyfile, *cachekeyfile, 
+       *p, *ptr;
   FILE *ifp, *ofp;
-  STACK_OF(X509) *certstack;
-  BIO  *certmem;
-  X509 *cert;
-  long  ptrlen;
-    
-  prvkeyfile = GRSTx509CachedProxyKeyFind(proxydir, delegation_id, user_dn);
 
-  if (prvkeyfile == NULL)  
+  if (strcmp(user_dn, "cache") == 0) return GRST_RET_FAILED;
+    
+  user_dn_enc = GRSThttpUrlEncode(user_dn);
+
+  /* create directories if necessary */
+
+  mkdir_printf(S_IRUSR | S_IWUSR | S_IXUSR, 
+               "%s/%s",    proxydir, user_dn_enc);
+  mkdir_printf(S_IRUSR | S_IWUSR | S_IXUSR, 
+               "%s/%s/%s", proxydir, user_dn_enc, delegation_id);
+
+  /* move the new proxy private key */
+
+  asprintf(&cachekeyfile, "%s/cache/%s/%s/userkey.pem",
+           proxydir, user_dn_enc, delegation_id);
+
+  if (cachekeyfile == NULL)  
     {
+      free(user_dn_enc);
       return GRST_RET_FAILED;
     }
         
-  if ((ifp = fopen(prvkeyfile, "r")) == NULL) 
+  asprintf(&userkeyfile, "%s/%s/%s/userkey.pem",
+           proxydir, user_dn_enc, delegation_id);
+
+  if (userkeyfile == NULL)  
     {
-      free(prvkeyfile);
+      free(cachekeyfile);
+      free(user_dn_enc);
       return GRST_RET_FAILED;
     }
 
-//  fprintf(stderr, "\n\n\n\n PROXYCHAIN = \n %s", proxychain);
-  if (GRSTx509StringToChain(&certstack, proxychain) != GRST_RET_OK)
-                                                    return GRST_RET_FAILED;
+  ret = rename(cachekeyfile, userkeyfile);
+  chmod(userkeyfile, S_IRUSR | S_IWUSR);
 
-  upcertfile = GRSTx509MakeProxyFileName(delegation_id, certstack);
+  free(cachekeyfile);
+  free(userkeyfile);
+  
+  if (ret != 0)
+    {
+      free(user_dn_enc);
+      return GRST_RET_FAILED;
+    }
+
+  /* write out the proxy certificate chain */
+
+  asprintf(&upcertfile, "%s/%s/%s/usercert.pem",
+           proxydir, user_dn_enc, delegation_id);
 
   if (upcertfile == NULL)
     {
-      free(prvkeyfile);
-      sk_X509_free(certstack);
+      free(user_dn_enc);
       return GRST_RET_FAILED;
     }
     
-  asprintf(&upcertpath, "%s/%s", proxydir, upcertfile);  
-  ofp = fopen(upcertpath, "w");
-  chmod(upcertpath, S_IRUSR | S_IWUSR);
-  free(upcertpath);
-
+  ofp = fopen(upcertfile, "w");
   if (ofp == NULL)
     {
-      fclose(ifp);
-      free(prvkeyfile);
+      free(user_dn_enc);
       free(upcertfile);
       return GRST_RET_FAILED;
     }
-
-  fprintf(ofp, "%s\n%s\n", delegation_id, user_dn);
- 
-  /* write out the most recent proxy by itself */
- 
-  if (cert = sk_X509_value(certstack, 0))
-    {
-      certmem = BIO_new(BIO_s_mem());
-      if (PEM_write_bio_X509(certmem, cert) == 1)
-        {
-          ptrlen = BIO_get_mem_data(certmem, &ptr);
-          fwrite(ptr, 1, ptrlen, ofp);               
-        }
-             
-      BIO_free(certmem);           
-    }         
   
-  /* insert proxy private key */
-  
-  while ((c = fgetc(ifp)) != EOF) fputc(c, ofp);
-  unlink(prvkeyfile);
-  free(prvkeyfile);
+  chmod(upcertfile, S_IRUSR | S_IWUSR);
 
-  for (i=1; i <= sk_X509_num(certstack) - 1; ++i)
-        /* loop through the proxy chain starting at 2nd most recent proxy */
-     {
-       if (cert = sk_X509_value(certstack, i))
-         {
-           certmem = BIO_new(BIO_s_mem());
-           if (PEM_write_bio_X509(certmem, cert) == 1)
-             {
-               ptrlen = BIO_get_mem_data(certmem, &ptr);
-               fwrite(ptr, 1, ptrlen, ofp);
-             }
-             
-           BIO_free(certmem);           
-         }         
-     }
-
-  fputs(proxychain, ofp); /* write out certificates */
-
-
-  sk_X509_free(certstack);
+  free(user_dn_enc);
   free(upcertfile);
-  
-  if (fclose(ifp) != 0) return GRST_RET_FAILED;
-  if (fclose(ofp) != 0) return GRST_RET_FAILED;
+
+  if ((fwrite(proxychain, sizeof (char), strlen(proxychain), ofp) !=
+      strlen(proxychain)) || (fclose(ofp) != 0))
+    {      
+      return GRST_RET_FAILED;
+    }
   
 /* should also check validity of proxy cert to avoid suprises? */
       

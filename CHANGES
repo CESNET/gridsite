@@ -1,3 +1,6 @@
+* Sat Mar 25 2006 Shiv Kaushal <shiv@hep.man.ac.uk>
+- Change delegation header to Proxy-Delegation-Service
+  instead of Grst-
 * Wed Mar 22 2006 Andrew McNab <Andrew.McNab@man.ac.uk>
 - Add GRSTx509MakeDelegationID() to grst_x509.c
 - Include code for new style delegation proxy storage

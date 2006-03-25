@@ -594,7 +594,7 @@ char *make_admin_footer(request_rec *r, mod_gridsite_dir_cfg *conf,
 void delegation_header(request_rec *r, mod_gridsite_dir_cfg *conf){
 
   apr_table_add(r->headers_out,
-                apr_pstrdup(r->pool, "Grst-Delegation-Service"),
+                apr_pstrdup(r->pool, "Proxy-Delegation-Service"),
                 apr_psprintf(r->pool,"https://%s%s", r->hostname, conf->delegationuri));
   return;
 

@@ -225,7 +225,7 @@ xacmlexample: xacmlexample.c libgridsite.a
 #
 
 ifndef GSOAPDIR
-export GSOAPDIR=/usr/local/lib/gsoap
+export GSOAPDIR=/usr/local/
 endif
 
 delegation.wsdl: delegation.h

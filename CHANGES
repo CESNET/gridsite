@@ -1,3 +1,7 @@
+* Tue Mar 28 2006 Shiv Kaushal <shiv@hep.man.ac.uk>
+- Fixed bug in GACL admin interface that would cause
+  internal server erorr sometimes when adding new 
+  entries to and ACL.
 * Sat Mar 25 2006 Shiv Kaushal <shiv@hep.man.ac.uk>
 - Change delegation header to Proxy-Delegation-Service
   instead of Grst-

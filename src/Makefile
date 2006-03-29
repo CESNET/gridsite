@@ -59,7 +59,7 @@ endif
 build: apidoc \
        libgridsite.so.$(VERSION) libgridsite.a htcp mod_gridsite.so \
        urlencode findproxyfile real-gridsite-admin.cgi gsexec \
-       gridsite-copy.cgi # gridsite-delegation.cgi # htproxyput 
+       gridsite-copy.cgi
 
 build: libgridsite_globus.so.$(VERSION) libgridsite_globus.a
 
@@ -218,52 +218,6 @@ xacmlexample: xacmlexample.c libgridsite.a
             -I/usr/kerberos/include -lgridsite \
             -lssl -lcrypto -lxml2 -lz -lm
 
-#
-# Delegation machinery, including SOAP delegation portType. To build this
-# you need to install gSOAP and set GSOAPDIR to the directory containing
-# soapcpp2 and stdsoap2.h (unless GSOAPDIR is set already)
-#
-
-ifndef GSOAPDIR
-export GSOAPDIR=/usr/local/
-endif
-
-delegation.wsdl: delegation.h
-	ls -lR $(GSOAPDIR)
-	$(GSOAPDIR)/bin/soapcpp2 -c delegation.h
-
-libstdsoap2.a: $(GSOAPDIR)/stdsoap2.c
-	gcc -g -c -DWITH_OPENSSL $(GSOAPDIR)/stdsoap2.c
-	ar src libstdsoap2.a stdsoap2.o
-
-gridsite-delegation.cgi: grst-delegation.c delegation.h delegation.wsdl \
-                         soapC.c soapServer.c
-	gcc -g $(MYCFLAGS) $(MYLDFLAGS) -o gridsite-delegation.cgi \
-            grst-delegation.c \
-            -I/usr/kerberos/include -I$(GSOAPDIR)/include \
-            -DVERSION=\"$(VERSION)\" -L$(GSOAPDIR)/lib \
-            soapC.c soapServer.c -lgsoap \
-            -lgridsite -lcurl -lz -lssl -lcrypto -lxml2 -lm
-
-htproxyput: htproxyput.c delegation.h delegation.wsdl \
-            soapC.c soapServer.c
-	gcc -g $(MYCFLAGS) $(MYLDFLAGS) -o htproxyput \
-            htproxyput.c \
-            -I/usr/kerberos/include \
-            -g -DVERSION=\"$(VERSION)\" \
-            -I$(GSOAPDIR)/include -DWITH_OPENSSL -L$(GSOAPDIR)/lib \
-            soapC.c soapClient.c -lgsoap \
-            -lgridsite -lcurl -lz -lssl -lcrypto -lxml2 -lm
-
-proxyput-example: proxyput-example.c delegation.h delegation.wsdl \
-            soapC.c soapServer.c
-	gcc -g $(MYCFLAGS) $(MYLDFLAGS) -o proxyput-example \
-            proxyput-example.c \
-            -I/usr/kerberos/include \
-            -g -DVERSION=\"$(VERSION)\" \
-            -I$(GSOAPDIR) -DWITH_OPENSSL \
-            soapC.c soapClient.c libstdsoap2.a \
-            -lgridsite -lcurl -lz -lssl -lcrypto -lxml2 -lm
 
 clean:
 
@@ -332,9 +286,9 @@ dist:
                  ../gridsite-$(PATCH_VERSION)/interface
 	cp -f ../VERSION ../README ../LICENSE ../CHANGES ../INSTALL \
                  ../gridsite-$(PATCH_VERSION)
-	cp -f Makefile grst*.c htproxyput.c proxyput-example.c htcp.c \
+	cp -f Makefile grst*.c htcp.c \
                  urlencode.c findproxyfile.c gaclexample.c mod_gridsite.c \
-                 delegation.h grst_admin.h mod_ssl-private.h \
+                 grst_admin.h mod_ssl-private.h \
                  gsexec.c gsexec.h gridsite-copy.c \
                  roffit gridsite.spec \
                  Doxyfile doxygen.css doxyheader.html \

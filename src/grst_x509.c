@@ -814,7 +814,7 @@ static void mpcerror(FILE *debugfp, char *msg)
  */
 
 int GRSTx509MakeProxyCert(char **proxychain, FILE *debugfp, 
-                           char *reqtxt, char *cert, char *key, int minutes)
+                          char *reqtxt, char *cert, char *key, int minutes)
 {
   char *ptr, *certchain;
   int i, subjAltName_pos, ncerts;
@@ -1308,6 +1308,110 @@ int GRSTx509MakeProxyRequest(char **reqtxt, char *proxydir,
   X509_REQ_free(certreq);
   
   return 0;
+}
+
+/// Destroy stored GSI proxy files
+/**
+ *  Returns GRST_RET_OK on success, non-zero otherwise.
+ *  (Including GRST_RET_NO_SUCH_FILE if the private key or cert chain
+ *   were not found.)
+ */ 
+
+int GRSTx509ProxyDestroy(char *proxydir, char *delegation_id, char *user_dn)
+{
+  int              ret = GRST_RET_OK;
+  char            *docroot, *filename, *user_dn_enc;
+
+  if (strcmp(user_dn, "cache") == 0) return GRST_RET_FAILED;
+    
+  user_dn_enc = GRSThttpUrlEncode(user_dn);
+
+  /* private key */
+  
+  asprintf(&filename, "%s/%s/%s/userkey.pem",
+           proxydir, user_dn_enc, delegation_id);
+
+  if (filename == NULL)  
+    {
+      free(user_dn_enc);
+      return GRST_RET_FAILED;
+    }
+
+  if (unlink(filename) != 0) ret = GRST_RET_NO_SUCH_FILE;  
+  free(filename);
+
+  /* cert chain */
+  
+  asprintf(&filename, "%s/%s/%s/usercert.pem",
+           proxydir, user_dn_enc, delegation_id);
+
+  if (filename == NULL)  
+    {
+      free(user_dn_enc);
+      return GRST_RET_FAILED;
+    }
+
+  if (unlink(filename) != 0) ret = GRST_RET_NO_SUCH_FILE;  
+  free(filename);
+
+  /* voms file */
+  
+  asprintf(&filename, "%s/%s/%s/voms.attributes",
+           proxydir, user_dn_enc, delegation_id);
+
+  if (filename == NULL)  
+    {
+      free(user_dn_enc);
+      return GRST_RET_FAILED;
+    }
+
+  unlink(filename);
+  free(filename);
+  
+  return ret;
+}
+
+/// Get start and finish validity times of stored GSI proxy file
+/**
+ *  Returns GRST_RET_OK on success, non-zero otherwise.
+ *  (Including GRST_RET_NO_SUCH_FILE if the cert chain was not found.)
+ */ 
+
+int GRSTx509ProxyGetTimes(char *proxydir, char *delegation_id, char *user_dn, 
+                          time_t *start, time_t *finish)
+{
+  char  *docroot, *filename, *user_dn_enc;
+  FILE  *fp;
+  X509  *cert;
+
+  if (strcmp(user_dn, "cache") == 0) return GRST_RET_FAILED;
+    
+  user_dn_enc = GRSThttpUrlEncode(user_dn);
+
+  /* cert chain */
+  
+  asprintf(&filename, "%s/%s/%s/usercert.pem",
+           proxydir, user_dn_enc, delegation_id);
+           
+  free(user_dn_enc);
+
+  if (filename == NULL) return GRST_RET_FAILED;
+
+  fp = fopen(filename, "r");
+  free(filename);
+  
+  if (fp == NULL) return GRST_RET_NO_SUCH_FILE;
+
+  cert = PEM_read_X509(fp, NULL, NULL, NULL);
+
+  fclose(fp);
+  
+  *start  = GRSTasn1TimeToTimeT(ASN1_STRING_data(X509_get_notBefore(cert)),0);
+  *finish = GRSTasn1TimeToTimeT(ASN1_STRING_data(X509_get_notAfter(cert)),0);
+
+  X509_free(cert);
+  
+  return GRST_RET_OK;
 }
 
 /// Create a stack of X509 certificate from a PEM-encoded string

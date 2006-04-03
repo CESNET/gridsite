@@ -1,11 +1,13 @@
 * Mon Apr  3 2006 Andrew McNab <Andrew.McNab@man.ac.uk>
+- Use dist for building tar balls
+* Mon Apr  3 2006 Andrew McNab <Andrew.McNab@man.ac.uk>
 - ==== GridSite version 1.1.19 ====
 * Fri Mar 31 2006 Andrew McNab <Andrew.McNab@man.ac.uk>
-- Final tidy up for gLite 3.0
+- Final tidy up for gLite 3.1
 * Fri Mar 31 2006 Andrew McNab <Andrew.McNab@man.ac.uk>
 - ==== GridSite version 1.1.18 ====
 * Wed Mar 29 2006 Andrew McNab <Andrew.McNab@man.ac.uk>
-- New proxy destroy and time functions.
+- New proxy destroy and time functions. 
 * Tue Mar 28 2006 Shiv Kaushal <shiv@hep.man.ac.uk>
 - Fixed bug in GACL admin interface that would cause
   internal server erorr sometimes when adding new 

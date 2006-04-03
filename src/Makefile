@@ -281,26 +281,25 @@ install: apidoc
 
 # source files tarball
 dist:
-	ls -l ..
-	mkdir -p ../gridsite-$(PATCH_VERSION)/src \
-                 ../gridsite-$(PATCH_VERSION)/doc \
-                 ../gridsite-$(PATCH_VERSION)/interface
+	mkdir -p ../dist/gridsite-$(PATCH_VERSION)/src \
+                 ../dist/gridsite-$(PATCH_VERSION)/doc \
+                 ../dist/gridsite-$(PATCH_VERSION)/interface
 	cp -f ../VERSION ../README ../LICENSE ../CHANGES ../INSTALL \
-                 ../gridsite-$(PATCH_VERSION)
+                 ../dist/gridsite-$(PATCH_VERSION)
 	cp -f Makefile grst*.c htcp.c \
                  urlencode.c findproxyfile.c gaclexample.c mod_gridsite.c \
                  grst_admin.h mod_ssl-private.h \
                  gsexec.c gsexec.h gridsite-copy.c \
                  roffit gridsite.spec \
                  Doxyfile doxygen.css doxyheader.html \
-                 ../gridsite-$(PATCH_VERSION)/src
+                 ../dist/gridsite-$(PATCH_VERSION)/src
 	cp -f ../doc/*.html ../doc/*.1 ../doc/*.8 ../doc/*.conf ../doc/*.sh \
-              ../doc/*.wsdl ../gridsite-$(PATCH_VERSION)/doc
+              ../doc/*.wsdl ../dist/gridsite-$(PATCH_VERSION)/doc
 	cp -f ../interface/*.h \
-                 ../gridsite-$(PATCH_VERSION)/interface
-	cd .. ; tar zcvf gridsite-$(PATCH_VERSION).src.tar.gz \
+                 ../dist/gridsite-$(PATCH_VERSION)/interface
+	cd ../dist ; tar zcvf ../gridsite-$(PATCH_VERSION).src.tar.gz \
                  gridsite-$(PATCH_VERSION)
-	rm -Rf ../gridsite-$(PATCH_VERSION)
+	rm -Rf ../dist/gridsite-$(PATCH_VERSION)
 
 
 # binary tarball distribution for htcp users

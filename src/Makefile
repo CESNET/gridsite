@@ -281,6 +281,7 @@ install: apidoc
 
 # source files tarball
 dist:
+	ls -l ..
 	mkdir -p ../gridsite-$(PATCH_VERSION)/src \
                  ../gridsite-$(PATCH_VERSION)/doc \
                  ../gridsite-$(PATCH_VERSION)/interface

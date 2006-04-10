@@ -1,3 +1,6 @@
+* Mon Apr 10 2006 Andrew McNab <Andrew.McNab@man.ac.uk>
+- Patch from Alberto di Meglio <alberto.di.meglio@cern.ch>
+  to allow use of relocated httpd include files.
 * Mon Apr  3 2006 Andrew McNab <Andrew.McNab@man.ac.uk>
 - Use dist for building tar balls
 * Mon Apr  3 2006 Andrew McNab <Andrew.McNab@man.ac.uk>

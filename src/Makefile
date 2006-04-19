@@ -45,11 +45,11 @@ export prefix=/usr/local
 endif
 
 ifndef HTTPD_FLAGS
-export HTTPD_FLAGS=/usr/include/httpd
+export HTTPD_FLAGS=-I/usr/include/httpd
 endif
 
 ifndef MYCFLAGS
-export MYCFLAGS=-I. -I../interface -I$(HTTPD_FLAGS) -I/usr/include/apr-0 -I/opt/glite/include -fPIC
+export MYCFLAGS=-I. -I../interface $(HTTPD_FLAGS) -I/usr/include/apr-0 -I/opt/glite/include -fPIC
 endif
 
 ifndef MYLDFLAGS

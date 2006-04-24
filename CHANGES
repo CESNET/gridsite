@@ -1,4 +1,6 @@
 * Mon Apr 24 2006 Andrew McNab <Andrew.McNab@man.ac.uk>
+- Merge delegation functions from before 1.1.18 with
+  fixes and mod_gridsite improvements from 1.1.18
 - Reworked SSL session caching: passcodes directory now
   because /var/www/sessions by default, and also used
   to cache credentials according to SSL Session ID.

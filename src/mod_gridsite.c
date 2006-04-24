@@ -1,5 +1,5 @@
 /*
-   Copyright (c) 2003-5, Andrew McNab and Shiv Kaushal, 
+   Copyright (c) 2003-6, Andrew McNab and Shiv Kaushal, 
    University of Manchester. All rights reserved.
 
    Redistribution and use in source and binary forms, with or
@@ -92,7 +92,6 @@
 #include <libxml/parser.h>
 #include <libxml/tree.h>
 
-
 #include "mod_ssl-private.h"
 
 #include "gridsite.h"
@@ -100,6 +99,8 @@
 #ifndef UNSET
 #define UNSET -1
 #endif
+
+#define GRST_SESSIONS_DIR "/var/www/sessions"
 
 module AP_MODULE_DECLARE_DATA gridsite_module;
 
@@ -117,7 +118,7 @@ struct sitecast_alias
    These are assigned default values in create_gridsite_srv_config() */
 
 int			gridhttpport = 0;
-char                    *passcodesdir = NULL;
+char                    *sessionsdir = NULL;
 char			*sitecastdnlists = NULL;
 struct sitecast_group	sitecastgroups[GRST_SITECAST_GROUPS+1];
 struct sitecast_alias	sitecastaliases[GRST_SITECAST_ALIASES];
@@ -143,258 +144,12 @@ typedef struct
    char			*headfile;
    char			*footfile;
    int			gridhttp;
-   int			soap2cgi;
    char			*aclformat;
    char			*execmethod;
    char			*delegationuri;
    ap_unix_identity_t	execugid;
    apr_fileperms_t	diskmode;
 }  mod_gridsite_dir_cfg; /* per-directory config choices */
-
-typedef struct
-{
-  xmlDocPtr doc;
-//  char *outbuffer;
-} soap2cgi_ctx; /* store per-request context for Soap2cgi in/out filters */
-
-static const char Soap2cgiFilterName[]="Soap2cgiFilter";
-
-static void mod_gridsite_soap2cgi_insert(request_rec *r)
-{
-    mod_gridsite_dir_cfg *conf;
-    soap2cgi_ctx     *ctx;
-    
-    conf = (mod_gridsite_dir_cfg *) ap_get_module_config(r->per_dir_config,
-                                                      &gridsite_module);
-                                                      
-    if (conf->soap2cgi) 
-      {
-        ctx = (soap2cgi_ctx *) malloc(sizeof(soap2cgi_ctx));        
-        ctx->doc = NULL;
-        
-        ap_add_output_filter(Soap2cgiFilterName, ctx, r, r->connection);
-
-        ap_add_input_filter(Soap2cgiFilterName, NULL, r, r->connection);
-      }
-}
-
-xmlNodePtr find_one_child(xmlNodePtr parent_node, char *name)
-{
-    xmlNodePtr cur;
-
-    for (cur = parent_node->children; cur != NULL; cur = cur->next)
-       {
-         if ((cur->type == XML_ELEMENT_NODE) &&
-             (strcmp(cur->name, name) == 0)) return cur;
-       }
-
-    return NULL;
-}
-
-int add_one_node(xmlDocPtr doc, char *line)
-{
-    char *p, *name, *aftername, *attrname = NULL, *value = NULL;
-    xmlNodePtr cur, cur_child;
-
-    cur = xmlDocGetRootElement(doc);
-
-    p = index(line, '=');
-    if (p == NULL) return 1;
-
-    *p = '\0';
-    value = &p[1];
-
-    name = line;
-
-    while (1) /* go through each .-deliminated segment of line[] */
-         {
-           if ((p = index(name, '.')) != NULL)
-             {
-               *p = '\0';
-               aftername = &p[1];
-             }
-           else aftername = &name[strlen(name)];
-
-           if ((p = index(name, '_')) != NULL)
-             {
-               *p = '\0';
-               attrname = &p[1];
-             }
-
-           cur_child = find_one_child(cur, name);
-
-           if (cur_child == NULL)
-                    cur_child = xmlNewChild(cur, NULL, name, NULL);
-
-           cur = cur_child;
-
-           name = aftername;
-
-           if (attrname != NULL)
-             {
-               xmlSetProp(cur, attrname, value);
-               return 0;
-             }
-
-           if (*name == '\0')
-             {
-               xmlNodeSetContent(cur, value);
-               return 0;
-             }             
-         }
-}
-
-static apr_status_t mod_gridsite_soap2cgi_out(ap_filter_t *f,
-                                              apr_bucket_brigade *bbIn)
-{
-    char        *p, *name, *outbuffer;
-    request_rec *r = f->r;
-    conn_rec    *c = r->connection;
-    apr_bucket         *bucketIn, *pbktEOS;
-    apr_bucket_brigade *bbOut;
-
-    const char *data;
-    apr_size_t len;
-    char *buf;
-    apr_size_t n;
-    apr_bucket *pbktOut;
-
-    soap2cgi_ctx *ctx;
-    xmlNodePtr   root_node = NULL;
-    xmlBufferPtr buff;
-
-    ctx = (soap2cgi_ctx *) f->ctx;
-
-// LIBXML_TEST_VERSION;
-
-    bbOut = apr_brigade_create(r->pool, c->bucket_alloc);
-
-    if (ctx->doc == NULL)
-      {
-        ctx->doc = xmlNewDoc("1.0");
-             
-        root_node = xmlNewNode(NULL, "Envelope");
-        xmlDocSetRootElement(ctx->doc, root_node);
-                                                                                
-        xmlNewChild(root_node, NULL, "Header", NULL);
-        xmlNewChild(root_node, NULL, "Body",   NULL);
-      }
-    
-    apr_brigade_pflatten(bbIn, &outbuffer, &len, r->pool);
-       
-    /* split up buffer and feed each line to add_one_node() */
-    
-    name = outbuffer;
-    
-    while (*name != '\0')
-         {
-           p = index(name, '\n');
-           if (p != NULL) 
-             {
-               *p = '\0';
-               ++p;             
-             }
-           else p = &name[strlen(name)]; /* point to final NUL */
-           
-           add_one_node(ctx->doc, name);
-           
-           name = p;
-         }
-
-    APR_BRIGADE_FOREACH(bucketIn, bbIn)
-       {
-         if (APR_BUCKET_IS_EOS(bucketIn))
-           {
-             /* write out XML tree we have built */
-
-             buff = xmlBufferCreate();
-             xmlNodeDump(buff, ctx->doc, root_node, 0, 0);
-
-// TODO: simplify/reduce number of copies or libxml vs APR buffers?
-
-             buf = (char *) xmlBufferContent(buff);
-
-             pbktOut = apr_bucket_heap_create(buf, strlen(buf), NULL, 
-                                              c->bucket_alloc);
-
-             APR_BRIGADE_INSERT_TAIL(bbOut, pbktOut);
-       
-             xmlBufferFree(buff);
-
-             pbktEOS = apr_bucket_eos_create(c->bucket_alloc);
-             APR_BRIGADE_INSERT_TAIL(bbOut, pbktEOS);
-
-             continue;
-           }
-       }
-       
-    return ap_pass_brigade(f->next, bbOut);
-}
-
-static apr_status_t mod_gridsite_soap2cgi_in(ap_filter_t *f,
-                                             apr_bucket_brigade *pbbOut,
-                                             ap_input_mode_t eMode,
-                                             apr_read_type_e eBlock,
-                                             apr_off_t nBytes)
-{
-    request_rec *r = f->r;
-    conn_rec *c = r->connection;
-//    CaseFilterInContext *pCtx;
-    apr_status_t ret;
-
-#ifdef NEVERDEFINED
-
-    ret = ap_get_brigade(f->next, pCtx->pbbTmp, eMode, eBlock, nBytes);    
- 
-    if (!(pCtx = f->ctx)) {
-        f->ctx = pCtx = apr_palloc(r->pool, sizeof *pCtx);
-        pCtx->pbbTmp = apr_brigade_create(r->pool, c->bucket_alloc);
-    }
- 
-    if (APR_BRIGADE_EMPTY(pCtx->pbbTmp)) {
-        ret = ap_get_brigade(f->next, pCtx->pbbTmp, eMode, eBlock, nBytes);
- 
-        if (eMode == AP_MODE_EATCRLF || ret != APR_SUCCESS)
-            return ret;
-    }
- 
-    while(!APR_BRIGADE_EMPTY(pCtx->pbbTmp)) {
-        apr_bucket *pbktIn = APR_BRIGADE_FIRST(pCtx->pbbTmp);
-        apr_bucket *pbktOut;
-        const char *data;
-        apr_size_t len;
-        char *buf;
-        int n;
- 
-        /* It is tempting to do this...
-         * APR_BUCKET_REMOVE(pB);
-         * APR_BRIGADE_INSERT_TAIL(pbbOut,pB);
-         * and change the case of the bucket data, but that would be wrong
-         * for a file or socket buffer, for example...
-         */
-                                                                                
-        if(APR_BUCKET_IS_EOS(pbktIn)) {
-            APR_BUCKET_REMOVE(pbktIn);
-            APR_BRIGADE_INSERT_TAIL(pbbOut, pbktIn);
-            break;
-        }
-                                                                                
-        ret=apr_bucket_read(pbktIn, &data, &len, eBlock);
-        if(ret != APR_SUCCESS)
-            return ret;
-                                                                                
-        buf = malloc(len);
-        for(n=0 ; n < len ; ++n)
-            buf[n] = apr_toupper(data[n]);
-                                                                                
-        pbktOut = apr_bucket_heap_create(buf, len, 0, c->bucket_alloc);
-        APR_BRIGADE_INSERT_TAIL(pbbOut, pbktOut);
-        apr_bucket_delete(pbktIn);
-    }
-#endif
-                                                                                
-    return APR_SUCCESS;
-}
 
 
 /*
@@ -986,9 +741,9 @@ int http_gridhttp(request_rec *r, mod_gridsite_dir_cfg *conf)
     ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
                "Generated GridHTTP passcode %016llx", gridauthcookie);
 
-    filetemplate = apr_psprintf(r->pool, "%s/%016llxXXXXXX", 
+    filetemplate = apr_psprintf(r->pool, "%s/passcode-%016llxXXXXXX", 
      ap_server_root_relative(r->pool,
-     passcodesdir),
+     sessionsdir),
      gridauthcookie);
 
     if (apr_file_mktemp(&fp, 
@@ -1028,7 +783,7 @@ int http_gridhttp(request_rec *r, mod_gridsite_dir_cfg *conf)
     
     /* send redirection header back to client */
        
-    cookievalue = rindex(filetemplate, '/');
+    cookievalue = rindex(filetemplate, '-');
     if (cookievalue != NULL) ++cookievalue;
     else cookievalue = filetemplate;
        
@@ -1646,8 +1401,8 @@ static void *create_gridsite_srv_config(apr_pool_t *p, server_rec *s)
       {
         gridhttpport = GRST_HTTP_PORT;
       
-        passcodesdir = apr_pstrdup(p, "/var/www/onetimes");
-                                      /* GridSiteOnetimesDir dir-path   */
+        sessionsdir = apr_pstrdup(p, GRST_SESSIONS_DIR);
+                                      /* GridSiteSessionsDir dir-path   */
 
         sitecastdnlists = NULL;
 
@@ -1706,7 +1461,6 @@ static void *create_gridsite_dir_config(apr_pool_t *p, char *path)
                /* GridSiteHeadFile and GridSiteFootFile  file name */
 
         conf->gridhttp      = 0;     /* GridSiteGridHTTP      on/off       */
-        conf->soap2cgi      = 0;     /* GridSiteSoap2cgi      on/off       */
 	conf->aclformat     = apr_pstrdup(p, "GACL");
                                      /* GridSiteACLFormat     gacl/xacml   */
 	conf->delegationuri = NULL;  /* GridSiteDelegationURI URI-value    */
@@ -1742,7 +1496,6 @@ static void *create_gridsite_dir_config(apr_pool_t *p, char *path)
         conf->headfile      = NULL;  /* GridSiteHeadFile      file name    */
         conf->footfile      = NULL;  /* GridSiteFootFile      file name    */
         conf->gridhttp      = UNSET; /* GridSiteGridHTTP      on/off       */
-        conf->soap2cgi      = UNSET; /* GridSiteSoap2cgi      on/off       */
 	conf->aclformat     = NULL;  /* GridSiteACLFormat     gacl/xacml   */
 	conf->delegationuri = NULL;  /* GridSiteDelegationURI URI-value    */
 	conf->execmethod    = NULL;  /* GridSiteExecMethod */
@@ -1823,9 +1576,6 @@ static void *merge_gridsite_dir_config(apr_pool_t *p, void *vserver,
     if (direct->gridhttp != UNSET) conf->gridhttp = direct->gridhttp;
     else                           conf->gridhttp = server->gridhttp;
         
-    if (direct->soap2cgi != UNSET) conf->soap2cgi = direct->soap2cgi;
-    else                           conf->soap2cgi = server->soap2cgi;
-
     if (direct->aclformat != NULL) conf->aclformat = direct->aclformat;
     else                           conf->aclformat = server->aclformat;
 
@@ -1856,12 +1606,20 @@ static const char *mod_gridsite_take1_cmds(cmd_parms *a, void *cfg,
     int   n, i;
     char *p;
   
-    if (strcasecmp(a->cmd->name, "GridSiteOnetimesDir") == 0)
+    if (strcasecmp(a->cmd->name, "GridSiteSessionsDir") == 0)
+    {
+      if (a->server->is_virtual)
+       return "GridSiteSessionsDir cannot be used inside a virtual server";
+    
+      sessionsdir = apr_pstrdup(a->pool, parm);
+    }
+/* GridSiteOnetimesDir is deprecated : */
+    else if (strcasecmp(a->cmd->name, "GridSiteOnetimesDir") == 0)
     {
       if (a->server->is_virtual)
        return "GridSiteOnetimesDir cannot be used inside a virtual server";
     
-      passcodesdir = apr_pstrdup(a->pool, parm);
+      sessionsdir = apr_pstrdup(a->pool, parm);
     }
     else if (strcasecmp(a->cmd->name, "GridSiteGridHTTPport") == 0)
     {
@@ -2122,10 +1880,6 @@ static const char *mod_gridsite_flag_cmds(cmd_parms *a, void *cfg,
 
       ((mod_gridsite_dir_cfg *) cfg)->gridhttp = flag;
     }
-    else if (strcasecmp(a->cmd->name, "GridSiteSoap2cgi") == 0)
-    {
-      ((mod_gridsite_dir_cfg *) cfg)->soap2cgi = flag;
-    }
 
     return NULL;
 }
@@ -2177,6 +1931,9 @@ static const command_rec mod_gridsite_cmds[] =
                  NULL, OR_FILEINFO, "on or off"),
     AP_INIT_TAKE1("GridSiteGridHTTPport", mod_gridsite_take1_cmds,
                    NULL, RSRC_CONF, "GridHTTP port"),
+    AP_INIT_TAKE1("GridSiteSessionsDir", mod_gridsite_take1_cmds,
+                 NULL, RSRC_CONF, "directory with GridHTTP passcodes and SSL session creds"),
+/* GridSiteOnetimesDir is deprecated: */
     AP_INIT_TAKE1("GridSiteOnetimesDir", mod_gridsite_take1_cmds,
                  NULL, RSRC_CONF, "directory with GridHTTP passcodes"),
 
@@ -2188,9 +1945,6 @@ static const command_rec mod_gridsite_cmds[] =
                  NULL, RSRC_CONF, "multicast group[:port] to listen for HTCP on"),
     AP_INIT_TAKE2("GridSiteCastAlias", mod_gridsite_take2_cmds,
                  NULL, RSRC_CONF, "URL and local path mapping"),
-
-    AP_INIT_FLAG("GridSiteSoap2cgi", mod_gridsite_flag_cmds,
-                 NULL, OR_FILEINFO, "on or off"),
 
     AP_INIT_TAKE1("GridSiteACLFormat", mod_gridsite_take1_cmds,
                  NULL, OR_FILEINFO, "format to save access control lists in"),
@@ -2235,22 +1989,114 @@ static int mod_gridsite_first_fixups(request_rec *r)
     return DECLINED;
 }  
 
-void GRST_creds_to_conn(conn_rec *conn, 
+
+int GRST_get_session_id(SSL *ssl, char *session_id, size_t len)
+{
+   int          i;
+   SSL_SESSION *session;
+
+   if (((session = SSL_get_session(ssl)) == NULL) ||
+       (session->session_id_length == 0)) return GRST_RET_FAILED;
+   
+   if (2 * session->session_id_length + 1 > len) return GRST_RET_FAILED;
+
+   for (i=0; i < (int) session->session_id_length; ++i)
+    sprintf(&(session_id[i*2]), "%02X", (unsigned char) session->session_id[i]);
+
+   session_id[i*2] = '\0';
+   
+   return GRST_RET_OK;
+}
+
+void GRST_expire_ssl_creds(void)
+{
+
+
+}
+
+int GRST_load_ssl_creds(SSL *ssl, conn_rec *conn)
+{
+   char session_id[(SSL_MAX_SSL_SESSION_ID_LENGTH+1)*2], *sessionfile = NULL,
+        line[512], *p;
+   apr_file_t  *fp = NULL;
+   int i;
+      
+   if (GRST_get_session_id(ssl, session_id, sizeof(session_id)) != GRST_RET_OK)
+     return GRST_RET_FAILED;
+   
+   sessionfile = apr_psprintf(conn->pool, "%s/sslcreds-%s",
+                         ap_server_root_relative(conn->pool, sessionsdir),
+                         session_id);
+
+   if (apr_file_open(&fp, sessionfile, APR_READ, 0, conn->pool) != APR_SUCCESS)
+       return GRST_RET_FAILED;
+   
+   while (apr_file_gets(line, sizeof(line), fp) == APR_SUCCESS)
+        {
+          if (sscanf(line, "GRST_CRED_%d=", &i) == 1)
+            {
+              p = index(line, '=');
+
+              apr_table_setn(conn->notes,
+                         apr_psprintf(conn->pool, "GRST_CRED_%d", i),
+                         apr_pstrdup(conn->pool, &p[1]));
+            }
+        }
+        
+   apr_file_close(fp);
+
+   /* connection notes created by GRST_save_ssl_creds() are now reloaded */
+   apr_table_set(conn->notes, "GRST_save_ssl_creds", "yes");
+
+   return GRST_RET_OK;
+}
+
+/*
+    Save result of GRSTx509CompactCreds() into connection notes, and
+    write out in an SSL session creds file.
+*/
+
+void GRST_save_ssl_creds(conn_rec *conn, 
                         STACK_OF(X509) *certstack, X509 *peercert)
 {
-   int i, lastcred;
-   const int maxcreds = 99;
+   int          i, lastcred;
+   const int    maxcreds = 99;
    const size_t credlen = 1024;
-   char creds[maxcreds][credlen+1], envname[14];
+   char         creds[maxcreds][credlen+1], envname[14], *tempfile = NULL,
+               *sessionfile, session_id[(SSL_MAX_SSL_SESSION_ID_LENGTH+1)*2];
+   apr_file_t  *fp = NULL;
+   SSL         *ssl;
+   SSLConnRec  *sslconn;
+
+   /* check if already done */
 
    if ((certstack != NULL) && (conn->notes != NULL) &&
-       (apr_table_get(conn->notes, "GRST_creds_to_conn") != NULL)) return;
+       (apr_table_get(conn->notes, "GRST_save_ssl_creds") != NULL)) return;
 
-   /* Put result of GRSTx509CompactCreds() into connection notes */
+   /* we at least need to say we've been run */
 
-   apr_table_set(conn->notes, "GRST_creds_to_conn", "yes");
+   apr_table_set(conn->notes, "GRST_save_ssl_creds", "yes");
    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, conn->base_server,
-                                            "set GRST_creds_to_conn");
+                                            "set GRST_save_ssl_creds");
+
+   sslconn = (SSLConnRec *)ap_get_module_config(conn->conn_config,&ssl_module);
+
+   if ((sslconn != NULL) && 
+       ((ssl = sslconn->ssl) != NULL) &&
+       (GRST_get_session_id(ssl,session_id,sizeof(session_id)) == GRST_RET_OK))
+     {
+       sessionfile = apr_psprintf(conn->pool, "%s/sslcreds-%s",
+                         ap_server_root_relative(conn->pool, sessionsdir),
+                         session_id);
+
+       tempfile = apr_pstrcat(conn->pool, 
+                          ap_server_root_relative(conn->pool, sessionsdir), 
+                          "/tmp-XXXXXX", NULL);
+   
+       if ((tempfile != NULL) && (tempfile[0] != '\0'))
+               apr_file_mktemp(&fp, tempfile, 
+                               APR_CREATE | APR_WRITE | APR_EXCL, conn->pool);
+     }
 
    if (GRSTx509CompactCreds(&lastcred, maxcreds, credlen, (char *) creds,
                           certstack, GRST_VOMS_DIR, peercert) == GRST_RET_OK)
@@ -2264,10 +2110,18 @@ void GRST_creds_to_conn(conn_rec *conn,
             ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, conn->base_server,
                                       "store GRST_CRED_%d=%s", i, creds[i]);
 
+            if (fp != NULL) apr_file_printf(fp, "GRST_CRED_%d=%s\n",
+                                                i, creds[i]);
           }
                                    
        /* free remaining dup'd certs? */
-     }     
+     }
+     
+   if (fp != NULL)
+     {
+       apr_file_close(fp);
+       apr_file_rename(tempfile, sessionfile, conn->pool);
+     }
 }
 
 static int mod_gridsite_perm_handler(request_rec *r)
@@ -2318,15 +2172,15 @@ static int mod_gridsite_perm_handler(request_rec *r)
     
     sslconn = (SSLConnRec *) ap_get_module_config(r->connection->conn_config, 
                                                   &ssl_module);
-
-    if ((sslconn != NULL) && (sslconn->ssl != NULL) &&
+    if ((sslconn != NULL) && 
+        (sslconn->ssl != NULL) &&
+        (sslconn->ssl->session != NULL) &&
         (r->connection->notes != NULL) &&
-        (apr_table_get(r->connection->notes, "GRST_creds_to_conn") == NULL))
+        (apr_table_get(r->connection->notes, "GRST_save_ssl_creds") == NULL))
       {
-        certstack = SSL_get_peer_cert_chain(sslconn->ssl);
-        peercert  = SSL_get_peer_certificate(sslconn->ssl);
-      
-        GRST_creds_to_conn(r->connection, certstack, peercert);
+        if (GRST_load_ssl_creds(sslconn->ssl, r->connection) == GRST_RET_OK)        
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                         "Restored SSL session data from session cache file");
       }
 
     proxylevel = ((mod_gridsite_dir_cfg *) cfg)->gsiproxylimit + 1;
@@ -2497,9 +2351,9 @@ static int mod_gridsite_perm_handler(request_rec *r)
 
     if ((gridauthpasscode != NULL) && (gridauthpasscode[0] != '\0')) 
       {
-        cookiefile = apr_psprintf(r->pool, "%s/%s",
+        cookiefile = apr_psprintf(r->pool, "%s/passcode-%s",
                  ap_server_root_relative(r->pool,
-                 passcodesdir),
+                 sessionsdir),
                  gridauthpasscode);
                                       
         ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
@@ -2830,7 +2684,7 @@ int GRST_callback_SSLVerify_wrapper(int ok, X509_STORE_CTX *ctx)
             /* Put result of GRSTx509CompactCreds() into connection notes */
             if ((certstack = 
                   (STACK_OF(X509) *) X509_STORE_CTX_get_chain(ctx)) != NULL)
-             GRST_creds_to_conn(conn, certstack, NULL);
+             GRST_save_ssl_creds(conn, certstack, NULL);
           }
      }
 
@@ -3182,6 +3036,7 @@ static int mod_gridsite_server_post_config(apr_pool_t *pPool,
    server_rec      *this_server;
    apr_proc_t      *procnew = NULL;
    apr_status_t     status;
+   char            *path;
    const char *userdata_key = "sitecast_init";
 
    apr_pool_userdata_get((void **) &procnew, userdata_key, 
@@ -3257,13 +3112,60 @@ static int mod_gridsite_server_post_config(apr_pool_t *pPool,
                       "Set mod_ssl verify callbacks to GridSite wrappers");
           }
       }
-      
+
+   /* create sessions directory if necessary */
+
+   path = ap_server_root_relative(pPool, sessionsdir);
+   apr_dir_make_recursive(path, APR_UREAD | APR_UWRITE | APR_UEXECUTE, pPool);
+   chown(path, unixd_config.user_id, unixd_config.group_id);
+
    return OK;
 }
       
 static void mod_gridsite_child_init(apr_pool_t *pPool, server_rec *pServer)
 {
+   apr_time_t cutoff_time;
+   apr_dir_t *dir;
+   char *filename;
+   apr_finfo_t finfo;
+   SSLSrvConfigRec *sc = ap_get_module_config(pServer->module_config, 
+                                                        &ssl_module);          
    GRSTgaclInit();
+
+   /* expire old ssl creds files */
+                                    
+   if (sc != NULL) // && sc->enabled)
+     {
+       cutoff_time = apr_time_now() 
+                      - apr_time_from_sec(sc->session_cache_timeout);
+
+       ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, pServer,
+                        "Cutoff time for ssl creds cache: %ld", 
+                        (long) apr_time_sec(cutoff_time));
+
+       if (apr_dir_open(&dir, 
+           ap_server_root_relative(pPool, sessionsdir), pPool) == APR_SUCCESS)
+         {
+           while (apr_dir_read(&finfo, 
+                        APR_FINFO_CTIME | APR_FINFO_NAME, dir) == APR_SUCCESS)
+                {
+                  if ((finfo.ctime < cutoff_time) &&
+                      (strncmp(finfo.name, "sslcreds-", 9) == 0))
+                    {
+                      filename = apr_pstrcat(pPool, 
+                                   ap_server_root_relative(pPool, sessionsdir),
+                                   "/", finfo.name, NULL);
+                    
+                      ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, pServer,
+                        "Remove %s from ssl creds cache", filename);
+
+                      apr_file_remove(filename, pPool);
+                    }
+                }
+
+           apr_dir_close(dir);
+         }       
+     }
 }
 
 static int mod_gridsite_handler(request_rec *r)
@@ -3309,17 +3211,6 @@ static ap_unix_identity_t *mod_gridsite_get_suexec_id_doer(const request_rec *r)
 
 static void register_hooks(apr_pool_t *p)
 {
-    /* set up the Soap2cgi input and output filters */
-
-    ap_hook_insert_filter(mod_gridsite_soap2cgi_insert, NULL, NULL,
-                          APR_HOOK_MIDDLE);
-
-    ap_register_output_filter(Soap2cgiFilterName, mod_gridsite_soap2cgi_out,
-                              NULL, AP_FTYPE_RESOURCE);
-
-//    ap_register_input_filter(Soap2cgiFilterName, mod_gridsite_soap2cgi_in,
-//                              NULL, AP_FTYPE_RESOURCE);
-
     /* config and handler stuff */
 
     ap_hook_post_config(mod_gridsite_server_post_config, NULL, NULL, 

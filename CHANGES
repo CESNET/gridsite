@@ -1,3 +1,7 @@
+* Mon Apr 24 2006 Andrew McNab <Andrew.McNab@man.ac.uk>
+- Reworked SSL session caching: passcodes directory now
+  because /var/www/sessions by default, and also used
+  to cache credentials according to SSL Session ID.
 * Mon Apr 10 2006 Andrew McNab <Andrew.McNab@man.ac.uk>
 - Patch from Alberto di Meglio <alberto.di.meglio@cern.ch>
   to allow use of relocated httpd include files.

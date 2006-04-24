@@ -45,7 +45,7 @@ export prefix=/usr/local
 endif
 
 ifndef MYCFLAGS
-export MYCFLAGS=-I. -I../interface -I$(HTTPD_FLAGS) -I/usr/include/httpd -I/usr/include/apr-0 -I/opt/glite/include -fPIC
+export MYCFLAGS=-I. -I../interface $(HTTPD_FLAGS) -I/usr/include/httpd -I/usr/include/apr-0 -I/opt/glite/include -fPIC
 endif
 
 ifndef MYLDFLAGS

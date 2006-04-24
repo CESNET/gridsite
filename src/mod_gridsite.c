@@ -1613,7 +1613,7 @@ static const char *mod_gridsite_take1_cmds(cmd_parms *a, void *cfg,
     
       sessionsdir = apr_pstrdup(a->pool, parm);
     }
-/* GridSiteOnetimesDir is deprecated : */
+/* GridSiteOnetimesDir is deprecated in favour of GridSiteSessionsDir */
     else if (strcasecmp(a->cmd->name, "GridSiteOnetimesDir") == 0)
     {
       if (a->server->is_virtual)
@@ -1933,7 +1933,7 @@ static const command_rec mod_gridsite_cmds[] =
                    NULL, RSRC_CONF, "GridHTTP port"),
     AP_INIT_TAKE1("GridSiteSessionsDir", mod_gridsite_take1_cmds,
                  NULL, RSRC_CONF, "directory with GridHTTP passcodes and SSL session creds"),
-/* GridSiteOnetimesDir is deprecated: */
+/* GridSiteOnetimesDir is deprecated in favour of GridSiteSessionsDir */
     AP_INIT_TAKE1("GridSiteOnetimesDir", mod_gridsite_take1_cmds,
                  NULL, RSRC_CONF, "directory with GridHTTP passcodes"),
 
@@ -2006,12 +2006,6 @@ int GRST_get_session_id(SSL *ssl, char *session_id, size_t len)
    session_id[i*2] = '\0';
    
    return GRST_RET_OK;
-}
-
-void GRST_expire_ssl_creds(void)
-{
-
-
 }
 
 int GRST_load_ssl_creds(SSL *ssl, conn_rec *conn)
@@ -2168,8 +2162,8 @@ static int mod_gridsite_perm_handler(request_rec *r)
     p = (char *) apr_table_get(r->subprocess_env, "HTTPS");
     if ((p != NULL) && (strcmp(p, "on") == 0)) ishttps = 1;
 
-    /* do we need/have per-connection (SSL) cred variable(s)? */
-    
+    /* reload per-connection (SSL) cred variables? */
+
     sslconn = (SSLConnRec *) ap_get_module_config(r->connection->conn_config, 
                                                   &ssl_module);
     if ((sslconn != NULL) && 

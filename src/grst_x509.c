@@ -583,7 +583,7 @@ int GRSTx509GetVomsCreds(int *lastcred, int maxcreds, size_t credlen,
                          char *creds, X509 *usercert, STACK_OF(X509) *certstack,
                          char *vomsdir)
 {
-   int  i, j, vomsfound=0;
+   int  i, j;
    char s[80];
    unsigned char  *ucuser;
    X509_EXTENSION *ex;
@@ -617,14 +617,11 @@ int GRSTx509GetVomsCreds(int *lastcred, int maxcreds, size_t credlen,
 
            if (strcmp(s, GRST_VOMS_OID) == 0) /* a VOMS extension */
              {
-               vomsfound=1;
                GRSTx509ParseVomsExt(lastcred, maxcreds, credlen, creds,
                                  uctime1_time, uctime2_time,
                                  ex, ucuser, vomsdir);
              }
          }
-
-      if (vomsfound) return GRST_RET_OK;
     }
 
    return GRST_RET_OK;

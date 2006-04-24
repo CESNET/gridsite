@@ -1,3 +1,12 @@
+* Mon Apr 24 2006 Andrew McNab <Andrew.McNab@man.ac.uk>
+- Reworked SSL session caching: passcodes directory now
+  because /var/www/sessions by default, and also used
+  to cache credentials according to SSL Session ID.
+- Patch from Alberto di Meglio <alberto.di.meglio@cern.ch>
+  to allow use of relocated httpd include files.
+- Use dist for building tar balls
+* Mon Apr 24 2006 Andrew McNab <Andrew.McNab@man.ac.uk>
+- ==== GridSite version 1.1.18.1 ====
 * Fri Mar 31 2006 Andrew McNab <Andrew.McNab@man.ac.uk>
 - Final tidy up for gLite 3.1
 * Fri Mar 31 2006 Andrew McNab <Andrew.McNab@man.ac.uk>

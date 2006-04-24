@@ -289,11 +289,8 @@ char *GRSTx509CachedProxyFind(char *, char *, char *);
 char *GRSTx509FindProxyFileName(void);
 int GRSTx509MakeProxyCert(char **, FILE *, char *, char *, char *, int);
 char *GRSTx509CachedProxyKeyFind(char *, char *, char *);
-int GRSTx509ProxyDestroy(char *, char *, char *);
-int GRSTx509ProxyGetTimes(char *, char *, char *, time_t *, time_t *);
 int GRSTx509MakeProxyRequest(char **, char *, char *, char *);
 int GRSTx509StringToChain(STACK_OF(X509) **, char *);
-char *GRSTx509MakeDelegationID(void);
 char *GRSTx509MakeProxyFileName(char *, STACK_OF(X509) *);
 int GRSTx509CacheProxy(char *, char *, char *, char *);
 

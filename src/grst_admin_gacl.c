@@ -188,8 +188,9 @@ void new_entry_form(GRSTgaclUser *user, char *dn, GRSTgaclPerm perm,char *help_u
   GRSTgaclEntry *entry;
   GRSTgaclNamevalue* namevalue;
 
-  if (!GRSTgaclPermHasAdmin(perm)) GRSThttpError ("403 Forbidden");
 
+  if (!GRSTgaclPermHasAdmin(perm)) GRSThttpError ("403 Forbidden");
+  entry = GRSTgaclEntryNew(); 
   StartHTML(&bp, dir_uri, dir_path);
   StartForm(&bp, dir_uri, dir_path, admin_file, timestamp, "new_entry");
   GRSThttpPrintf (&bp, "<font size=\"4\"><b>NEW ENTRY IN ACL FOR %s </b></font></p>\n", dir_uri);
@@ -831,7 +832,7 @@ void GRSTgaclCredTableEnd(GRSTgaclEntry* entry, int entry_no, int admin, int tim
 
   if (strcmp(cmd, "add_cred_form")==0 ||strcmp(cmd, "del_cred_sure")==0) show_perms=0; else show_perms=1;
   if (strcmp(cmd, "edit_entry_form")==0 || strcmp(cmd, "new_entry_form")==0) edit_perms=1; else edit_perms=0;
-  if (strcmp(cmd, "new_entry_form")==0) blank_perms=1; else blank_perms=0;
+  if (strcmp(cmd, "new_entry_form")==0)  blank_perms=1; else blank_perms=0;
 
   // If showing the last row is not required then exit
   if (show_perms==0){GRSThttpPrintf (bp,"</table><br>\n"); return;}
@@ -842,7 +843,7 @@ void GRSTgaclCredTableEnd(GRSTgaclEntry* entry, int entry_no, int admin, int tim
 
   GRSThttpPrintf (bp, "</td>\n<td>&nbsp;</td><td align=left>");
 
-  if (blank_perms) entry->allowed=entry->denied=GRST_PERM_NONE;
+  if (blank_perms==1)entry->allowed=entry->denied=GRST_PERM_NONE;
 
   // Show Permissions - will produce a list or a list of check boxes depending on whether the permissions are to be edited or not
   GRSThttpPrintf (bp, "<b>Allowed:</b>  ");

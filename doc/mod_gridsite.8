@@ -171,10 +171,12 @@ Sets the port to use for the unencrypted HTTP component of GridHTTP
 HTTPS->HTTP transfers. The same setting will be used for all virtual hosts
 which support GridHTTP. (Default: 777)
 
-.IP "GridSiteOnetimesDir path"
-Location of authentication cookies directory, relative to ServerRoot.
-Used by GridHTTP to record the credentials obtained via HTTPS,
-and available to the corresponding HTTP request. (Default: /var/www/onetimes)
+.IP "GridSiteSessionsDir path"
+Location of authentication cookies and SSL session credentials directory,
+relative to ServerRoot. Used by GridHTTP to record the credentials obtained
+via HTTPS, and available to the corresponding HTTP request or subsequent
+HTTPS requests following a session restart.
+(Default: /var/www/sessions)
 
 .IP "GridSiteACLFormat GACL|XACML"
 Format to use when writing .gacl files. (Both formats are automatically

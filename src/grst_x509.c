@@ -1,5 +1,5 @@
 /*
-   Copyright (c) 2002-6, Andrew McNab, University of Manchester
+   Copyright (c) 2002-5, Andrew McNab, University of Manchester
    All rights reserved.
 
    Redistribution and use in source and binary forms, with or
@@ -38,7 +38,6 @@
 #include <stdio.h>
 #include <unistd.h>       
 #include <stdlib.h>
-#include <stdarg.h>
 #include <time.h>
 #include <stdarg.h>
 #include <dirent.h>
@@ -545,7 +544,7 @@ int GRSTx509ParseVomsExt(int *lastcred, int maxcreds, size_t credlen,
         if (actime2 < time2_time) time2_time = actime2;
 
         time(&time_now);
-        if ((time1_time > time_now + 300) || (time2_time < time_now))
+        if ((time1_time > time_now) || (time2_time < time_now)) 
                continue; /* expiration isnt invalidity ...? */
 
         for (i=1; ; ++i)
@@ -583,7 +582,7 @@ int GRSTx509GetVomsCreds(int *lastcred, int maxcreds, size_t credlen,
                          char *creds, X509 *usercert, STACK_OF(X509) *certstack,
                          char *vomsdir)
 {
-   int  i, j, vomsfound=0;
+   int  i, j;
    char s[80];
    unsigned char  *ucuser;
    X509_EXTENSION *ex;
@@ -617,14 +616,11 @@ int GRSTx509GetVomsCreds(int *lastcred, int maxcreds, size_t credlen,
 
            if (strcmp(s, GRST_VOMS_OID) == 0) /* a VOMS extension */
              {
-               vomsfound=1;
                GRSTx509ParseVomsExt(lastcred, maxcreds, credlen, creds,
                                  uctime1_time, uctime2_time,
                                  ex, ucuser, vomsdir);
              }
          }
-
-      if (vomsfound) return GRST_RET_OK;
     }
 
    return GRST_RET_OK;
@@ -814,7 +810,7 @@ static void mpcerror(FILE *debugfp, char *msg)
  */
 
 int GRSTx509MakeProxyCert(char **proxychain, FILE *debugfp, 
-                          char *reqtxt, char *cert, char *key, int minutes)
+                           char *reqtxt, char *cert, char *key, int minutes)
 {
   char *ptr, *certchain;
   int i, subjAltName_pos, ncerts;
@@ -1198,33 +1194,18 @@ char *GRSTx509CachedProxyKeyFind(char *proxydir, char *delegation_id,
   return keyfile;
 }
 
-static void mkdir_printf(mode_t mode, char *fmt, ...)
-{
-  int   ret;
-  char *path;
-  va_list ap;
-  
-  va_start(ap, fmt);
-  vasprintf(&path, fmt, ap);
-  va_end(ap);
-
-  ret = mkdir(path, mode);
-
-  free(path);
-}
-
 /// Make and store a X.509 request for a GSI proxy
 /**
  *  Returns GRST_RET_OK on success, non-zero otherwise. Request string
- *  is PEM encoded, and the key is stored in the temporary cache under
- *  proxydir
+ *  is PEM encoded, and the key is stored in proxydir as temporary file
+ *  with a filename like .XXXXXX
  */ 
 
 int GRSTx509MakeProxyRequest(char **reqtxt, char *proxydir, 
                              char *delegation_id, char *user_dn)
 {
-  int              i;
-  char            *docroot, *prvkeyfile, *ptr, *user_dn_enc;
+  int              i, fd;
+  char            *docroot, *reqfile, *prvkeyfile, *ptr;
   size_t           ptrlen;
   FILE            *fp;
   RSA             *keypair;
@@ -1233,51 +1214,28 @@ int GRSTx509MakeProxyRequest(char **reqtxt, char *proxydir,
   EVP_PKEY        *pkey;
   X509_REQ        *certreq;
   BIO             *reqmem;
-  const EVP_MD    *digest;
+  const EVP_MD          *digest;
   struct stat      statbuf;
 
-  if (strcmp(user_dn, "cache") == 0) return GRST_RET_FAILED;
-    
-  user_dn_enc = GRSThttpUrlEncode(user_dn);
-
-  /* create directories if necessary */
-
-  mkdir_printf(S_IRUSR | S_IWUSR | S_IXUSR, 
-               "%s/cache",       proxydir);
-  mkdir_printf(S_IRUSR | S_IWUSR | S_IXUSR, 
-               "%s/cache/%s",    proxydir, user_dn_enc);
-  mkdir_printf(S_IRUSR | S_IWUSR | S_IXUSR, 
-               "%s/cache/%s/%s", proxydir, user_dn_enc, delegation_id);
-
-  /* make the new proxy private key */
-
-  asprintf(&prvkeyfile, "%s/cache/%s/%s/userkey.pem",
-           proxydir, user_dn_enc, delegation_id);
-
-  if (prvkeyfile == NULL)  
-    {
-      free(user_dn_enc);
-      return GRST_RET_FAILED;
-    }
-        
   if ((keypair = RSA_generate_key(GRST_KEYSIZE, 65537, NULL, NULL)) == NULL)
                                                                return 1;
+  asprintf(&prvkeyfile, "%s/.XXXXXX", proxydir);
           
-  if ((fp = fopen(prvkeyfile, "w")) == NULL) return 2;
-  
-  chmod(prvkeyfile, S_IRUSR | S_IWUSR);
-  free(prvkeyfile);
-  free(user_dn_enc);
-
+  fd = mkstemp(prvkeyfile);
+    
+  if ((fp = fdopen(fd, "w")) == NULL) return 1;
+                               
+  fprintf(fp, "%s\n%s\n", delegation_id, user_dn);
+    
   if (!PEM_write_RSAPrivateKey(fp, keypair, NULL, NULL, 0, NULL, NULL))
-                               return 3;
+                               return 1;
   
-  if (fclose(fp) != 0) return 4;
+  if (fclose(fp) != 0) return 1;
   
   /* now create the certificate request */
 
   certreq = X509_REQ_new();
-  if (certreq == NULL) return 5;
+  if (certreq == NULL) return 1;
 
   OpenSSL_add_all_algorithms();
 
@@ -1308,110 +1266,6 @@ int GRSTx509MakeProxyRequest(char **reqtxt, char *proxydir,
   X509_REQ_free(certreq);
   
   return 0;
-}
-
-/// Destroy stored GSI proxy files
-/**
- *  Returns GRST_RET_OK on success, non-zero otherwise.
- *  (Including GRST_RET_NO_SUCH_FILE if the private key or cert chain
- *   were not found.)
- */ 
-
-int GRSTx509ProxyDestroy(char *proxydir, char *delegation_id, char *user_dn)
-{
-  int              ret = GRST_RET_OK;
-  char            *docroot, *filename, *user_dn_enc;
-
-  if (strcmp(user_dn, "cache") == 0) return GRST_RET_FAILED;
-    
-  user_dn_enc = GRSThttpUrlEncode(user_dn);
-
-  /* private key */
-  
-  asprintf(&filename, "%s/%s/%s/userkey.pem",
-           proxydir, user_dn_enc, delegation_id);
-
-  if (filename == NULL)  
-    {
-      free(user_dn_enc);
-      return GRST_RET_FAILED;
-    }
-
-  if (unlink(filename) != 0) ret = GRST_RET_NO_SUCH_FILE;  
-  free(filename);
-
-  /* cert chain */
-  
-  asprintf(&filename, "%s/%s/%s/usercert.pem",
-           proxydir, user_dn_enc, delegation_id);
-
-  if (filename == NULL)  
-    {
-      free(user_dn_enc);
-      return GRST_RET_FAILED;
-    }
-
-  if (unlink(filename) != 0) ret = GRST_RET_NO_SUCH_FILE;  
-  free(filename);
-
-  /* voms file */
-  
-  asprintf(&filename, "%s/%s/%s/voms.attributes",
-           proxydir, user_dn_enc, delegation_id);
-
-  if (filename == NULL)  
-    {
-      free(user_dn_enc);
-      return GRST_RET_FAILED;
-    }
-
-  unlink(filename);
-  free(filename);
-  
-  return ret;
-}
-
-/// Get start and finish validity times of stored GSI proxy file
-/**
- *  Returns GRST_RET_OK on success, non-zero otherwise.
- *  (Including GRST_RET_NO_SUCH_FILE if the cert chain was not found.)
- */ 
-
-int GRSTx509ProxyGetTimes(char *proxydir, char *delegation_id, char *user_dn, 
-                          time_t *start, time_t *finish)
-{
-  char  *docroot, *filename, *user_dn_enc;
-  FILE  *fp;
-  X509  *cert;
-
-  if (strcmp(user_dn, "cache") == 0) return GRST_RET_FAILED;
-    
-  user_dn_enc = GRSThttpUrlEncode(user_dn);
-
-  /* cert chain */
-  
-  asprintf(&filename, "%s/%s/%s/usercert.pem",
-           proxydir, user_dn_enc, delegation_id);
-           
-  free(user_dn_enc);
-
-  if (filename == NULL) return GRST_RET_FAILED;
-
-  fp = fopen(filename, "r");
-  free(filename);
-  
-  if (fp == NULL) return GRST_RET_NO_SUCH_FILE;
-
-  cert = PEM_read_X509(fp, NULL, NULL, NULL);
-
-  fclose(fp);
-  
-  *start  = GRSTasn1TimeToTimeT(ASN1_STRING_data(X509_get_notBefore(cert)),0);
-  *finish = GRSTasn1TimeToTimeT(ASN1_STRING_data(X509_get_notAfter(cert)),0);
-
-  X509_free(cert);
-  
-  return GRST_RET_OK;
 }
 
 /// Create a stack of X509 certificate from a PEM-encoded string
@@ -1465,47 +1319,6 @@ int GRSTx509StringToChain(STACK_OF(X509) **certstack, char *certstring)
    sk_X509_INFO_free(sk);
    
    return GRST_RET_OK;
-}
-
-/// Returns a Delegation ID based on hash of GRST_CRED_0, ...
-/**
- *  Returns a malloc'd string with Delegation ID made by SHA1-hashing the
- *  values of the compact credentials exported by mod_gridsite
- */
-
-char *GRSTx509MakeDelegationID(void)
-{ 
-  unsigned char hash_delegation_id[EVP_MAX_MD_SIZE];        
-  int  size_needed = 0, i, delegation_id_len;
-  char cred_name[14], *cred_value, *delegation_id;
-  const EVP_MD *m;
-  EVP_MD_CTX ctx;
-
-  OpenSSL_add_all_digests();
-
-  m = EVP_sha1();
-  if (m == NULL) return NULL;
-
-  EVP_DigestInit(&ctx, m);
-
-  for (i=0; i <= 999; ++i)
-     {
-       snprintf(cred_name, sizeof(cred_name), "GRST_CRED_%d", i);       
-       if ((cred_value = getenv(cred_name)) == NULL) break;
-       
-       EVP_DigestUpdate(&ctx, cred_value, strlen(cred_value));
-     }
-     
-  EVP_DigestFinal(&ctx, hash_delegation_id, &delegation_id_len);
-
-  delegation_id = malloc(17);
-
-  for (i=0; i <=7; ++i)
-   sprintf(&delegation_id[i*2], "%02x", hash_delegation_id[i]);
-
-  delegation_id[16] = '\0';
-
-  return delegation_id;
 }
 
 /// Return the short file name for the given delegation_id and user_dn
@@ -1586,6 +1399,8 @@ char *GRSTx509MakeProxyFileName(char *delegation_id,
 
   filename[16] = '-';
 
+
+
   EVP_DigestInit(&ctx, m);
   EVP_DigestUpdate(&ctx, buf, der_name_len);
   EVP_DigestFinal(&ctx, hash_name, &hash_name_len);
@@ -1599,91 +1414,103 @@ char *GRSTx509MakeProxyFileName(char *delegation_id,
 /// Store a GSI proxy chain in the proxy cache, along with the private key
 /**
  *  Returns GRST_RET_OK on success, non-zero otherwise. The existing
- *  private key with the same delegation ID and user DN is moved out of
- *  the temporary cache.
+ *  private key with the same delegation ID and user DN is appended to
+ *  make a valid proxy file, and the temporary private key file deleted.
  */
 
 int GRSTx509CacheProxy(char *proxydir, char *delegation_id, 
                                        char *user_dn, char *proxychain)
 {
-  int   c, len = 0, i, ret;
-  char *user_dn_enc, *upcertfile, *upcertpath, *userkeyfile, *cachekeyfile, 
-       *p, *ptr;
+  int   c, len = 0, i;
+  char *upcertfile, *upcertpath, *prvkeyfile, *p, *ptr;
   FILE *ifp, *ofp;
-
-  if (strcmp(user_dn, "cache") == 0) return GRST_RET_FAILED;
+  STACK_OF(X509) *certstack;
+  BIO  *certmem;
+  X509 *cert;
+  long  ptrlen;
     
-  user_dn_enc = GRSThttpUrlEncode(user_dn);
+  prvkeyfile = GRSTx509CachedProxyKeyFind(proxydir, delegation_id, user_dn);
 
-  /* create directories if necessary */
-
-  mkdir_printf(S_IRUSR | S_IWUSR | S_IXUSR, 
-               "%s/%s",    proxydir, user_dn_enc);
-  mkdir_printf(S_IRUSR | S_IWUSR | S_IXUSR, 
-               "%s/%s/%s", proxydir, user_dn_enc, delegation_id);
-
-  /* move the new proxy private key */
-
-  asprintf(&cachekeyfile, "%s/cache/%s/%s/userkey.pem",
-           proxydir, user_dn_enc, delegation_id);
-
-  if (cachekeyfile == NULL)  
+  if (prvkeyfile == NULL)  
     {
-      free(user_dn_enc);
       return GRST_RET_FAILED;
     }
         
-  asprintf(&userkeyfile, "%s/%s/%s/userkey.pem",
-           proxydir, user_dn_enc, delegation_id);
-
-  if (userkeyfile == NULL)  
+  if ((ifp = fopen(prvkeyfile, "r")) == NULL) 
     {
-      free(cachekeyfile);
-      free(user_dn_enc);
+      free(prvkeyfile);
       return GRST_RET_FAILED;
     }
 
-  ret = rename(cachekeyfile, userkeyfile);
-  chmod(userkeyfile, S_IRUSR | S_IWUSR);
+//  fprintf(stderr, "\n\n\n\n PROXYCHAIN = \n %s", proxychain);
+  if (GRSTx509StringToChain(&certstack, proxychain) != GRST_RET_OK)
+                                                    return GRST_RET_FAILED;
 
-  free(cachekeyfile);
-  free(userkeyfile);
-  
-  if (ret != 0)
-    {
-      free(user_dn_enc);
-      return GRST_RET_FAILED;
-    }
-
-  /* write out the proxy certificate chain */
-
-  asprintf(&upcertfile, "%s/%s/%s/usercert.pem",
-           proxydir, user_dn_enc, delegation_id);
+  upcertfile = GRSTx509MakeProxyFileName(delegation_id, certstack);
 
   if (upcertfile == NULL)
     {
-      free(user_dn_enc);
+      free(prvkeyfile);
+      sk_X509_free(certstack);
       return GRST_RET_FAILED;
     }
     
-  ofp = fopen(upcertfile, "w");
+  asprintf(&upcertpath, "%s/%s", proxydir, upcertfile);  
+  ofp = fopen(upcertpath, "w");
+  chmod(upcertpath, S_IRUSR | S_IWUSR);
+  free(upcertpath);
+
   if (ofp == NULL)
     {
-      free(user_dn_enc);
+      fclose(ifp);
+      free(prvkeyfile);
       free(upcertfile);
       return GRST_RET_FAILED;
     }
+
+  fprintf(ofp, "%s\n%s\n", delegation_id, user_dn);
+ 
+  /* write out the most recent proxy by itself */
+ 
+  if (cert = sk_X509_value(certstack, 0))
+    {
+      certmem = BIO_new(BIO_s_mem());
+      if (PEM_write_bio_X509(certmem, cert) == 1)
+        {
+          ptrlen = BIO_get_mem_data(certmem, &ptr);
+          fwrite(ptr, 1, ptrlen, ofp);               
+        }
+             
+      BIO_free(certmem);           
+    }         
   
-  chmod(upcertfile, S_IRUSR | S_IWUSR);
+  /* insert proxy private key */
+  
+  while ((c = fgetc(ifp)) != EOF) fputc(c, ofp);
+  unlink(prvkeyfile);
+  free(prvkeyfile);
 
-  free(user_dn_enc);
+  for (i=1; i <= sk_X509_num(certstack) - 1; ++i)
+        /* loop through the proxy chain starting at 2nd most recent proxy */
+     {
+       if (cert = sk_X509_value(certstack, i))
+         {
+           certmem = BIO_new(BIO_s_mem());
+           if (PEM_write_bio_X509(certmem, cert) == 1)
+             {
+               ptrlen = BIO_get_mem_data(certmem, &ptr);
+               fwrite(ptr, 1, ptrlen, ofp);
+             }
+             
+           BIO_free(certmem);           
+         }         
+     }
+
+  sk_X509_free(certstack);
   free(upcertfile);
-
-  if ((fwrite(proxychain, sizeof (char), strlen(proxychain), ofp) !=
-      strlen(proxychain)) || (fclose(ofp) != 0))
-    {      
-      return GRST_RET_FAILED;
-    }
+  
+  if (fclose(ifp) != 0) return GRST_RET_FAILED;
+  if (fclose(ofp) != 0) return GRST_RET_FAILED;
   
 /* should also check validity of proxy cert to avoid suprises? */
       

@@ -1,6 +1,6 @@
 #
 #   Andrew McNab and Shiv Kaushal, University of Manchester.
-#   Copyright (c) 2002-5. All rights reserved.
+#   Copyright (c) 2002-6. All rights reserved.
 #
 #   Redistribution and use in source and binary forms, with or
 #   without modification, are permitted provided that the following
@@ -44,12 +44,8 @@ ifndef prefix
 export prefix=/usr/local
 endif
 
-ifndef HTTPD_FLAGS
-export HTTPD_FLAGS=-I/usr/include/httpd
-endif
-
 ifndef MYCFLAGS
-export MYCFLAGS=-I. -I../interface $(HTTPD_FLAGS) -I/usr/include/apr-0 -I/opt/glite/include -fPIC
+export MYCFLAGS=-I. -I../interface $(HTTPD_FLAGS) -I/usr/include/httpd -I/usr/include/apr-0 -I/opt/glite/include -fPIC
 endif
 
 ifndef MYLDFLAGS
@@ -206,6 +202,7 @@ showx509exts: showx509exts.c libgridsite.a
             -lssl -lcrypto -lxml2 -lz -lm
  
 apidoc:
+	date
 	doxygen Doxyfile
 	mkdir -p ../doc/doxygen
 	cp -f doxygen/*.html doxygen/*.css doxygen/*.png ../doc/doxygen
@@ -285,25 +282,25 @@ install: apidoc
 
 # source files tarball
 dist:
-	mkdir -p ../gridsite-$(PATCH_VERSION)/src \
-                 ../gridsite-$(PATCH_VERSION)/doc \
-                 ../gridsite-$(PATCH_VERSION)/interface
+	mkdir -p ../dist/gridsite-$(PATCH_VERSION)/src \
+                 ../dist/gridsite-$(PATCH_VERSION)/doc \
+                 ../dist/gridsite-$(PATCH_VERSION)/interface
 	cp -f ../VERSION ../README ../LICENSE ../CHANGES ../INSTALL \
-                 ../gridsite-$(PATCH_VERSION)
+                 ../dist/gridsite-$(PATCH_VERSION)
 	cp -f Makefile grst*.c htcp.c \
                  urlencode.c findproxyfile.c gaclexample.c mod_gridsite.c \
                  grst_admin.h mod_ssl-private.h \
                  gsexec.c gsexec.h gridsite-copy.c \
                  roffit gridsite.spec \
                  Doxyfile doxygen.css doxyheader.html \
-                 ../gridsite-$(PATCH_VERSION)/src
+                 ../dist/gridsite-$(PATCH_VERSION)/src
 	cp -f ../doc/*.html ../doc/*.1 ../doc/*.8 ../doc/*.conf ../doc/*.sh \
-              ../doc/*.wsdl ../gridsite-$(PATCH_VERSION)/doc
+              ../doc/*.wsdl ../dist/gridsite-$(PATCH_VERSION)/doc
 	cp -f ../interface/*.h \
-                 ../gridsite-$(PATCH_VERSION)/interface
-	cd .. ; tar zcvf gridsite-$(PATCH_VERSION).src.tar.gz \
+                 ../dist/gridsite-$(PATCH_VERSION)/interface
+	cd ../dist ; tar zcvf ../gridsite-$(PATCH_VERSION).src.tar.gz \
                  gridsite-$(PATCH_VERSION)
-	rm -Rf ../gridsite-$(PATCH_VERSION)
+	rm -Rf ../dist/gridsite-$(PATCH_VERSION)
 
 
 # binary tarball distribution for htcp users

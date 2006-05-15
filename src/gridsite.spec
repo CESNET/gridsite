@@ -17,7 +17,7 @@ GridSite adds GSI, VOMS and GACL support to Apache 2.0 (mod_gridsite),
 a library for manipulating these technologies (libgridsite), and CGI
 programs for interactive management of HTTP(S) servers (gridsite-admin.cgi)
 
-See %(echo ${MYPREFIX:-/usr})/share/doc/gridsite-%{version} and
+See %{prefix}/share/doc/gridsite-%{version} and
 http://www.gridsite.org/ for details.
 
 %package shared
@@ -70,65 +70,68 @@ with GridSite and Grid Security credentials.
 
 %build
 cd src
-make prefix=$RPM_BUILD_ROOT/%(echo ${MYPREFIX:-/usr}) \
+make prefix=$RPM_BUILD_ROOT/%{prefix} \
 GSOAPDIR=$GSOAPDIR OPENSSL_FLAGS=$OPENSSL_FLAGS \
 OPENSSL_LIBS=$OPENSSL_LIBS FLAVOR_EXT=$FLAVOR_EXT
 
 %install
 cd src
-make install prefix=$RPM_BUILD_ROOT/%(echo ${MYPREFIX:-/usr}) \
+make install prefix=$RPM_BUILD_ROOT/%{prefix} \
 GSOAPDIR=$GSOAPDIR OPENSSL_FLAGS=$OPENSSL_FLAGS \
 OPENSSL_LIBS=$OPENSSL_LIBS FLAVOR_EXT=$FLAVOR_EXT
 
 %post shared
-/sbin/ldconfig
-ln -sf %(echo ${MYPREFIX:-/usr})/share/doc/gridsite-%{version} \
- %(echo ${MYPREFIX:-/usr})/share/doc/gridsite
+if [ "$UID" = "0" ] ; then
+ /sbin/ldconfig
+fi
+
+ln -sf %{prefix}/share/doc/gridsite-%{version} \
+ %{prefix}/share/doc/gridsite
 
 #%postun
-rm -f %(echo ${MYPREFIX:-/usr})/share/doc/gridsite
+rm -f %{prefix}/share/doc/gridsite
 
 %files shared
-%attr(-, root, root) %(echo ${MYPREFIX:-/usr})/lib/libgridsite.so.%{version}
-%attr(-, root, root) %(echo ${MYPREFIX:-/usr})/lib/libgridsite.so
-%attr(-, root, root) %(echo ${MYPREFIX:-/usr})/lib/libgridsite_globus.so.%{version}
-%attr(-, root, root) %(echo ${MYPREFIX:-/usr})/lib/libgridsite_globus.so
-%attr(-, root, root) %(echo ${MYPREFIX:-/usr})/share/doc/gridsite-%{version}
+%attr(-, root, root) %{prefix}/lib/libgridsite.so.%{version}
+%attr(-, root, root) %{prefix}/lib/libgridsite.so
+%attr(-, root, root) %{prefix}/lib/libgridsite_globus.so.%{version}
+%attr(-, root, root) %{prefix}/lib/libgridsite_globus.so
+%attr(-, root, root) %{prefix}/share/doc/gridsite-%{version}
 
 %files devel
-%attr(-, root, root) %(echo ${MYPREFIX:-/usr})/include/gridsite.h
-%attr(-, root, root) %(echo ${MYPREFIX:-/usr})/include/gridsite-gacl.h
-%attr(-, root, root) %(echo ${MYPREFIX:-/usr})/lib/libgridsite.a
-%attr(-, root, root) %(echo ${MYPREFIX:-/usr})/lib/libgridsite_globus.a
+%attr(-, root, root) %{prefix}/include/gridsite.h
+%attr(-, root, root) %{prefix}/include/gridsite-gacl.h
+%attr(-, root, root) %{prefix}/lib/libgridsite.a
+%attr(-, root, root) %{prefix}/lib/libgridsite_globus.a
 
 %files apache
-%attr(-, root, root) %(echo ${MYPREFIX:-/usr})/share/man/man8/mod_gridsite.8.gz
-%attr(-, root, root) %(echo ${MYPREFIX:-/usr})/lib/httpd/modules/mod_gridsite.so
-%attr(-, root, root) %(echo ${MYPREFIX:-/usr})/sbin/real-gridsite-admin.cgi
-%attr(-, root, root) %(echo ${MYPREFIX:-/usr})/sbin/gridsite-copy.cgi
+%attr(-, root, root) %{prefix}/share/man/man8/mod_gridsite.8.gz
+%attr(-, root, root) %{prefix}/lib/httpd/modules/mod_gridsite.so
+%attr(-, root, root) %{prefix}/sbin/real-gridsite-admin.cgi
+%attr(-, root, root) %{prefix}/sbin/gridsite-copy.cgi
 
 %files commands
-%attr(-, root, root) %(echo ${MYPREFIX:-/usr})/bin/htcp
-%attr(-, root, root) %(echo ${MYPREFIX:-/usr})/bin/htls
-%attr(-, root, root) %(echo ${MYPREFIX:-/usr})/bin/htll
-%attr(-, root, root) %(echo ${MYPREFIX:-/usr})/bin/htrm
-%attr(-, root, root) %(echo ${MYPREFIX:-/usr})/bin/htmkdir
-%attr(-, root, root) %(echo ${MYPREFIX:-/usr})/bin/htmv
-%attr(-, root, root) %(echo ${MYPREFIX:-/usr})/bin/htping
-%attr(-, root, root) %(echo ${MYPREFIX:-/usr})/bin/htfind
-%attr(-, root, root) %(echo ${MYPREFIX:-/usr})/bin/urlencode
-%attr(-, root, root) %(echo ${MYPREFIX:-/usr})/bin/findproxyfile
-%attr(-, root, root) %(echo ${MYPREFIX:-/usr})/share/man/man1/htcp.1.gz
-%attr(-, root, root) %(echo ${MYPREFIX:-/usr})/share/man/man1/htrm.1.gz
-%attr(-, root, root) %(echo ${MYPREFIX:-/usr})/share/man/man1/htls.1.gz
-%attr(-, root, root) %(echo ${MYPREFIX:-/usr})/share/man/man1/htll.1.gz
-%attr(-, root, root) %(echo ${MYPREFIX:-/usr})/share/man/man1/htmkdir.1.gz
-%attr(-, root, root) %(echo ${MYPREFIX:-/usr})/share/man/man1/htmv.1.gz
-%attr(-, root, root) %(echo ${MYPREFIX:-/usr})/share/man/man1/htping.1.gz
-%attr(-, root, root) %(echo ${MYPREFIX:-/usr})/share/man/man1/htfind.1.gz
-%attr(-, root, root) %(echo ${MYPREFIX:-/usr})/share/man/man1/urlencode.1.gz
-%attr(-, root, root) %(echo ${MYPREFIX:-/usr})/share/man/man1/findproxyfile.1.gz
+%attr(-, root, root) %{prefix}/bin/htcp
+%attr(-, root, root) %{prefix}/bin/htls
+%attr(-, root, root) %{prefix}/bin/htll
+%attr(-, root, root) %{prefix}/bin/htrm
+%attr(-, root, root) %{prefix}/bin/htmkdir
+%attr(-, root, root) %{prefix}/bin/htmv
+%attr(-, root, root) %{prefix}/bin/htping
+%attr(-, root, root) %{prefix}/bin/htfind
+%attr(-, root, root) %{prefix}/bin/urlencode
+%attr(-, root, root) %{prefix}/bin/findproxyfile
+%attr(-, root, root) %{prefix}/share/man/man1/htcp.1.gz
+%attr(-, root, root) %{prefix}/share/man/man1/htrm.1.gz
+%attr(-, root, root) %{prefix}/share/man/man1/htls.1.gz
+%attr(-, root, root) %{prefix}/share/man/man1/htll.1.gz
+%attr(-, root, root) %{prefix}/share/man/man1/htmkdir.1.gz
+%attr(-, root, root) %{prefix}/share/man/man1/htmv.1.gz
+%attr(-, root, root) %{prefix}/share/man/man1/htping.1.gz
+%attr(-, root, root) %{prefix}/share/man/man1/htfind.1.gz
+%attr(-, root, root) %{prefix}/share/man/man1/urlencode.1.gz
+%attr(-, root, root) %{prefix}/share/man/man1/findproxyfile.1.gz
 
 %files gsexec
-%attr(4510, root, apache) %(echo ${MYPREFIX:-/usr})/sbin/gsexec
-%attr(-, root, root) %(echo ${MYPREFIX:-/usr})/share/man/man8/gsexec.8.gz
+%attr(4510, root, apache) %{prefix}/sbin/gsexec
+%attr(-, root, root) %{prefix}/share/man/man8/gsexec.8.gz

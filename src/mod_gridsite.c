@@ -29,8 +29,8 @@
    POSSIBILITY OF SUCH DAMAGE.
 
 
-   This program includes dav_parse_range() from Apache mod_dav.c and
-   associated code contributed by  David O Callaghan
+   This program includes code from dav_parse_range() from Apache mod_dav.c,
+   and associated code contributed by  David O Callaghan
    
    Copyright 2000-2005 The Apache Software Foundation or its licensors, as
    applicable.
@@ -153,39 +153,54 @@ typedef struct
 
 
 /*
- * dav_parse_range() is based on modules/dav/main/mod_dav.c from Apache
+ *   parse_content_range() is loosely 
+ *   based on modules/dav/main/mod_dav.c from Apache
  */
 
-int dav_parse_range(request_rec *r, apr_off_t *range_start, 
-                    apr_off_t *range_end)
+int parse_content_range(request_rec *r, apr_off_t *range_start, 
+                        apr_off_t *range_end, apr_off_t *range_length)
 {
+// this all needs verifying to be ok for large (>2GB, >4GB) files 
+
     const char *range_c;
     char *range;
     char *dash;
     char *slash;
 
     range_c = apr_table_get(r->headers_in, "content-range");
-    if (range_c == NULL)
-        return 0;
-
+    if (range_c == NULL) return 0;
+    
     range = apr_pstrdup(r->pool, range_c);
-    if (strncasecmp(range, "bytes ", 6) != 0
-        || (dash = ap_strchr(range, '-')) == NULL
-        || (slash = ap_strchr(range, '/')) == NULL) {
-        /* malformed header. ignore it (per S14.16 of RFC2616) */
-        return 0;
-    }
+
+    if ((strncasecmp(range, "bytes ", 6) != 0) ||
+        ((dash = ap_strchr(range, '-')) == NULL) ||
+        ((slash = ap_strchr(range, '/')) == NULL)) 
+      {        
+        return 0; /* malformed header. ignore it (per S14.16 of RFC2616) */
+      }
 
     *dash = *slash = '\0';
+    
+    // Check for GridSite-specific Content-Range: bytes *-*/LENGTH form
+    
+    if ((range[6] == '*') && (dash[1] == '*'))
+      {
+        if (slash[1] == '*') return 0; /* invalid truncation length */
+        
+        *range_length = apr_atoi64(&slash[1]);
+        *range_start  = 0;
+        *range_end    = 0;
+        
+        return 1; /* a valid (truncation) length */
+      }          
+    
+    *range_length = 0;
+    *range_start  = apr_atoi64(&range[6]);
+    *range_end    = apr_atoi64(&dash[1]);
 
-    *range_start = apr_atoi64(range + 6);
-    *range_end = apr_atoi64(dash + 1);
-
-    if (*range_end < *range_start
-        || (slash[1] != '*' && apr_atoi64(slash + 1) <= *range_end)) {
-        /* invalid range. ignore it (per S14.16 of RFC2616) */
-        return 0;
-    }
+    if ((*range_end < *range_start) || 
+        ((slash[1] != '*') && (apr_atoi64(&slash[1]) <= *range_end)))
+            return 0; /* ignore invalid ranges */
 
     /* we now have a valid range */
     return 1;
@@ -813,16 +828,13 @@ int http_gridhttp(request_rec *r, mod_gridsite_dir_cfg *conf)
 int http_put_method(request_rec *r, mod_gridsite_dir_cfg *conf)
 {
   char        buf[2048];
-  size_t      length, total_length;
+  size_t      block_length, length_sent;
   int         retcode, stat_ret;
   apr_file_t *fp;
   apr_int32_t open_flag;
   struct stat statbuf;
-    
   int       has_range = 0, is_done = 0;
-  apr_off_t range_start;
-  apr_off_t range_end;
-  size_t range_length;
+  apr_off_t range_start, range_end, range_length, length_to_send;
   
   /* ***  check if directory creation: PUT /.../  *** */
 
@@ -851,12 +863,22 @@ int http_put_method(request_rec *r, mod_gridsite_dir_cfg *conf)
 
   /* find if a range is specified */
 
-  has_range = dav_parse_range(r, &range_start, &range_end);
+  has_range = parse_content_range(r, &range_start, &range_end, &range_length);
 
   if (has_range)
-      open_flag = APR_WRITE | APR_CREATE | APR_BUFFERED;
-  else
-      open_flag = APR_WRITE | APR_CREATE | APR_BUFFERED | APR_TRUNCATE;
+    {
+       if ((range_start == 0) && (range_end == 0)) /* truncate? */
+         {
+           if (stat_ret != 0) return HTTP_NOT_FOUND;
+          
+           if (truncate(r->filename, range_length) != 0)
+                return HTTP_INTERNAL_SERVER_ERROR;
+           else return OK;
+         }
+    
+       open_flag = APR_WRITE | APR_CREATE | APR_BUFFERED;
+    }
+  else open_flag = APR_WRITE | APR_CREATE | APR_BUFFERED | APR_TRUNCATE;
 
   if (apr_file_open(&fp, r->filename, open_flag,
       conf->diskmode, r->pool) != 0) return HTTP_INTERNAL_SERVER_ERROR;
@@ -874,23 +896,24 @@ int http_put_method(request_rec *r, mod_gridsite_dir_cfg *conf)
           return retcode;
         }
 
-      range_length = range_end - range_start + 1;
+      length_to_send = range_end - range_start + 1;
     }
 
   retcode = ap_setup_client_block(r, REQUEST_CHUNKED_DECHUNK);
   if (retcode == OK)
     {
-      if (has_range) total_length = 0;
+      if (has_range) length_sent = 0;
+
       if (ap_should_client_block(r))
-          while ((length = ap_get_client_block(r, buf, sizeof(buf))) > 0)
+          while ((block_length = ap_get_client_block(r, buf, sizeof(buf))) > 0)
             {
-              if (has_range && (total_length + length > range_length))
+              if (has_range && (length_sent + block_length > length_to_send))
                 {
-                  length = range_length - total_length;
+                  block_length = length_to_send - length_sent;
                   is_done = 1;
                 }
 
-              if (apr_file_write(fp, buf, &length) != 0) 
+              if (apr_file_write(fp, buf, &block_length) != 0) 
                 {
                   retcode = HTTP_INTERNAL_SERVER_ERROR;
                   break;
@@ -899,7 +922,7 @@ int http_put_method(request_rec *r, mod_gridsite_dir_cfg *conf)
               if (has_range)
                 {
                   if (is_done) break;
-                  else total_length += length;
+                  else length_sent += block_length;
                 }
             }
       ap_set_content_length(r, 0);
@@ -919,7 +942,10 @@ int http_put_method(request_rec *r, mod_gridsite_dir_cfg *conf)
 
 int http_delete_method(request_rec *r, mod_gridsite_dir_cfg *conf)
 {
-  if (apr_file_remove(r->filename, r->pool) != 0) return HTTP_FORBIDDEN;
+  ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+               "Try remove(%s)", r->filename);
+
+  if (remove(r->filename) != 0) return HTTP_FORBIDDEN;
        
   ap_set_content_length(r, 0);
   ap_set_content_type(r, "text/html");
@@ -934,9 +960,12 @@ int http_move_method(request_rec *r, mod_gridsite_dir_cfg *conf)
   if (r->notes != NULL) destination_translated = 
             (char *) apr_table_get(r->notes, "GRST_DESTINATION_TRANSLATED");
 
-
-  if ((destination_translated == NULL) ||  
-      (apr_file_rename(r->filename, destination_translated, r->pool) != 0))
+  if (destination_translated == NULL) return HTTP_BAD_REQUEST;
+  
+  if (strcmp(r->filename, destination_translated) == 0)
+                                      return HTTP_FORBIDDEN;
+  
+  if (apr_file_rename(r->filename, destination_translated, r->pool) != 0)
                                                        return HTTP_FORBIDDEN;
 
   ap_set_content_length(r, 0);

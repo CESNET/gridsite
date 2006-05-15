@@ -827,6 +827,7 @@ int GRSTx509MakeProxyCert(char **proxychain, FILE *debugfp,
   STACK_OF (X509_EXTENSION) * req_exts;
   FILE *fp;
   BIO *reqmem, *certmem;
+  time_t notAfter;
 
   /* read in the request */
   reqmem = BIO_new(BIO_s_mem());
@@ -960,8 +961,6 @@ int GRSTx509MakeProxyCert(char **proxychain, FILE *debugfp,
       return GRST_RET_FAILED;
     }    
 
-// need to set validity within limits of earlier certificates in the chain
-
   /* set duration for the certificate */
   if (!(X509_gmtime_adj (X509_get_notBefore(certs[0]), 0)))
     {
@@ -975,7 +974,24 @@ int GRSTx509MakeProxyCert(char **proxychain, FILE *debugfp,
       mpcerror(debugfp,
       "GRSTx509MakeProxyCert(): error setting ending time of the certificate\n");
       return GRST_RET_FAILED;
-    }    
+    }
+    
+  /* go through chain making sure this proxy is not longer lived */
+
+  notAfter = 
+     GRSTasn1TimeToTimeT(ASN1_STRING_data(X509_get_notAfter(certs[0])), 0);
+
+  for (i=1; i < ncerts; ++i)
+       if (notAfter > 
+           GRSTasn1TimeToTimeT(ASN1_STRING_data(X509_get_notAfter(certs[i])),
+                               0))
+         {
+           notAfter = 
+            GRSTasn1TimeToTimeT(ASN1_STRING_data(X509_get_notAfter(certs[i])),
+                                0);
+            
+           ASN1_UTCTIME_set(X509_get_notAfter(certs[0]), notAfter);
+         }
 
   /* sign the certificate with the signing private key */
   if (EVP_PKEY_type (CApkey->type) == EVP_PKEY_RSA)

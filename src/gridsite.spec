@@ -1,5 +1,5 @@
 Name: gridsite
-Version: %(echo ${MYVERSION:-1.1.x})
+Version: %(echo ${MYVERSION:-1.3.x})
 Release: %(echo ${MYRELEASE:-1})
 Summary: GridSite
 License: Modified BSD

@@ -127,7 +127,7 @@ masquerading as your target.
 Try to use GridHTTP redirection for HTTPS URLs. Compatible servers will perform
 authentication and authorization on the HTTPS connection and then redirect
 to HTTP for the GET or PUT file transfer. htcp makes the HTTP request using
-the GRID_AUTH_ONETIME single-use passcode obtained via HTTPS. The --grid-http
+the GRID_AUTH_PASSCODE single-use passcode obtained via HTTPS. The --grid-http
 option will be ignored for directory operations or HTTP URLs. If a redirected
 transfer isn't possible, a normal HTTPS data transfer will be attempted.
 

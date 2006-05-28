@@ -86,9 +86,12 @@ OPENSSL_LIBS=$OPENSSL_LIBS FLAVOR_EXT=$FLAVOR_EXT
 
 mkdir -p $RPM_BUILD_ROOT/etc/rc.d/init.d
 
-if [ -f xxx/usr/include/fuse/fuse.h ] ; then
+if [ -f /usr/include/fuse/fuse.h ] ; then
  cp -f slashgrid      $RPM_BUILD_ROOT/%{prefix}/sbin/slashgrid
  cp -f slashgrid.init $RPM_BUILD_ROOT/etc/rc.d/init.d/slashgrid
+ mkdir -p $RPM_BUILD_ROOT/var/spool/slashgrid/headers
+ mkdir -p $RPM_BUILD_ROOT/var/spool/slashgrid/blocks
+ mkdir -p $RPM_BUILD_ROOT/var/spool/slashgrid/tmp
 else
  echo -e '#!/bin/sh\necho SlashGrid wasnt built since no fuse-devel on build machine)' \
    >$RPM_BUILD_ROOT/%{prefix}/sbin/slashgrid
@@ -158,6 +161,13 @@ Summary: slashgrid daemon
 %description slashgrid
 SlashGrid daemon
 
+%post slashgrid
+mkdir -p /grid
+
+%preun slashgrid
+/sbin/service slashgrid stop
+
 %files slashgrid
 %attr(0744, root, root) %{prefix}/sbin/slashgrid
 %attr(0744, root, root) /etc/rc.d/init.d/slashgrid
+%attr(0700, root, root) /var/spool/slashgrid

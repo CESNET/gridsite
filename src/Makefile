@@ -201,6 +201,12 @@ showx509exts: showx509exts.c libgridsite.a
             -lgridsite \
             -lssl -lcrypto -lxml2 -lz -lm
  
+slashgrid: slashgrid.c
+	gcc -g -o slashgrid -L/usr/local/lib -lfuse -lpthread slashgrid.c \
+          -D_FILE_OFFSET_BITS=64 -D_REENTRANT -DFUSE_USE_VERSION=22 \
+          -I/usr/kerberos/include `curl-config --cflags` \
+          `curl-config --libs` -lgridsite -lxml2
+
 apidoc:
 	date
 	doxygen Doxyfile
@@ -340,3 +346,5 @@ wtf:
 	ls -l
 	ls -lR /usr/local/
 	ls -lR $(GSOAPDIR)
+
+

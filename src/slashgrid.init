@@ -1,0 +1,66 @@
+#!/bin/bash
+#
+# slashgrid        Startup script for the SlashGrid client-side server
+#
+# chkconfig: - 90 10
+# description: Filesystem extension for access to HTTP(S) file servers
+# processname: slashgrid
+# config: /etc/sysconfig/slashgrid
+# pidfile: /var/run/slashgrid.pid
+
+# Source function library.
+. /etc/rc.d/init.d/functions
+
+# Examples of useful overrides of default settings:
+#
+# OPTIONS=--debug			# to turn on LOG_DEBUG in syslog
+# SLASHGRID=/usr/local/sbin/slashgrid	# if slashgrid not in /usr/sbin
+# PATH=$PATH:/usr/local/bin		# if fusermount not on old $PATH
+#
+if [ -f /etc/sysconfig/slashgrid ] ; then
+ . /etc/sysconfig/slashgrid
+fi
+
+slashgrid=${SLASHGRID-/usr/sbin/slashgrid}
+pidfile=${PIDFILE-/var/run/slashgrid.pid}
+lockfile=${LOCKFILE-/var/lock/subsys/slashgrid}
+prog=slashgrid
+RETVAL=0
+
+start() {
+        echo -n $"Starting $prog: "
+        modprobe fuse
+        daemon $slashgrid $OPTIONS
+        RETVAL=$?
+        echo
+        [ $RETVAL = 0 ] && touch ${lockfile}
+        return $RETVAL
+}
+
+stop() {
+	echo -n $"Stopping $prog: "
+	killproc $slashgrid
+	RETVAL=$?
+	echo
+	[ $RETVAL = 0 ] && rm -f ${lockfile} ${pidfile}
+}
+
+# Invoke the right function
+
+case "$1" in
+  start)
+	start
+	;;
+  stop)
+	stop
+	;;
+  restart)
+	stop
+	start
+	;;
+  *)
+	echo $"Usage: $prog {start|stop|restart|help}"
+	exit 1
+esac
+
+exit $RETVAL

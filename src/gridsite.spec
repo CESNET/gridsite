@@ -71,8 +71,12 @@ with GridSite and Grid Security credentials.
 %build
 cd src
 make prefix=$RPM_BUILD_ROOT/%{prefix} \
-GSOAPDIR=$GSOAPDIR OPENSSL_FLAGS=$OPENSSL_FLAGS \
-OPENSSL_LIBS=$OPENSSL_LIBS FLAVOR_EXT=$FLAVOR_EXT
+ GSOAPDIR=$GSOAPDIR OPENSSL_FLAGS=$OPENSSL_FLAGS \
+ OPENSSL_LIBS=$OPENSSL_LIBS FLAVOR_EXT=$FLAVOR_EXT
+
+if [ -f /usr/include/fuse/fuse.h ] ; then
+ make slashgrid
+fi
 
 %install
 cd src
@@ -80,16 +84,27 @@ make install prefix=$RPM_BUILD_ROOT/%{prefix} \
 GSOAPDIR=$GSOAPDIR OPENSSL_FLAGS=$OPENSSL_FLAGS \
 OPENSSL_LIBS=$OPENSSL_LIBS FLAVOR_EXT=$FLAVOR_EXT
 
+mkdir -p $RPM_BUILD_ROOT/etc/rc.d/init.d
+
+if [ -f xxx/usr/include/fuse/fuse.h ] ; then
+ cp -f slashgrid      $RPM_BUILD_ROOT/%{prefix}/sbin/slashgrid
+ cp -f slashgrid.init $RPM_BUILD_ROOT/etc/rc.d/init.d/slashgrid
+else
+ echo -e '#!/bin/sh\necho SlashGrid wasnt built since no fuse-devel on build machine)' \
+   >$RPM_BUILD_ROOT/%{prefix}/sbin/slashgrid
+ echo -e '#!/bin/sh\n# chkconfig: - 90 10\n# description: slashgrid\necho SlashGrid wasnt built since no fuse-devel on build machine' \
+   >$RPM_BUILD_ROOT/etc/rc.d/init.d/slashgrid
+fi
+
 %post shared
 if [ "$UID" = "0" ] ; then
  /sbin/ldconfig
 fi
 
-ln -sf %{prefix}/share/doc/gridsite-%{version} \
- %{prefix}/share/doc/gridsite
-
-#%postun
-rm -f %{prefix}/share/doc/gridsite
+%postun
+if [ "$UID" = "0" ] ; then
+ /sbin/ldconfig
+fi
 
 %files shared
 %attr(-, root, root) %{prefix}/lib/libgridsite.so.%{version}
@@ -135,3 +150,14 @@ rm -f %{prefix}/share/doc/gridsite
 %files gsexec
 %attr(4510, root, apache) %{prefix}/sbin/gsexec
 %attr(-, root, root) %{prefix}/share/man/man8/gsexec.8.gz
+
+%package slashgrid
+Group: Applications/Internet
+Summary: slashgrid daemon
+
+%description slashgrid
+SlashGrid daemon
+
+%files slashgrid
+%attr(0744, root, root) %{prefix}/sbin/slashgrid
+%attr(0744, root, root) /etc/rc.d/init.d/slashgrid

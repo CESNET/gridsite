@@ -202,7 +202,7 @@ showx509exts: showx509exts.c libgridsite.a
             -lssl -lcrypto -lxml2 -lz -lm
  
 slashgrid: slashgrid.c
-	gcc -g -o slashgrid -L/usr/local/lib -lfuse -lpthread slashgrid.c \
+	gcc -g -o slashgrid -lfuse -lpthread slashgrid.c \
           -D_FILE_OFFSET_BITS=64 -D_REENTRANT -DFUSE_USE_VERSION=22 \
           -I/usr/kerberos/include `curl-config --cflags` \
           `curl-config --libs` -lgridsite -lxml2
@@ -266,6 +266,7 @@ install: apidoc
 	cp -f ../CHANGES ../README ../INSTALL ../LICENSE ../VERSION \
                $(prefix)/share/doc/gridsite-$(PATCH_VERSION)
 	cp -f ../doc/*.html ../doc/*.conf ../doc/*.1 ../doc/*.8 ../doc/*.sh \
+	      ../doc/*.spec \
                $(prefix)/share/doc/gridsite-$(VERSION)
 	cp -f ../doc/*.1 $(prefix)/share/man/man1
 	cp -f ../doc/*.8 $(prefix)/share/man/man8
@@ -293,7 +294,7 @@ dist:
                  ../dist/gridsite-$(PATCH_VERSION)/interface
 	cp -f ../VERSION ../README ../LICENSE ../CHANGES ../INSTALL \
                  ../dist/gridsite-$(PATCH_VERSION)
-	cp -f Makefile grst*.c htcp.c \
+	cp -f Makefile grst*.c htcp.c slashgrid.c slashgrid.init \
                  urlencode.c findproxyfile.c gaclexample.c mod_gridsite.c \
                  grst_admin.h mod_ssl-private.h \
                  gsexec.c gsexec.h gridsite-copy.c \
@@ -301,6 +302,7 @@ dist:
                  Doxyfile doxygen.css doxyheader.html \
                  ../dist/gridsite-$(PATCH_VERSION)/src
 	cp -f ../doc/*.html ../doc/*.1 ../doc/*.8 ../doc/*.conf ../doc/*.sh \
+              ../doc/*.spec \
                ../dist/gridsite-$(PATCH_VERSION)/doc
 	cp -f ../interface/*.h \
                  ../dist/gridsite-$(PATCH_VERSION)/interface

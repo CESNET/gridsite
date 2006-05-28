@@ -68,6 +68,7 @@ rm -rf $RPM_BUILD_ROOT
 %post
 mknod --mode=0660 /dev/fuse c 10 229
 chown root.root /dev/fuse
+depmod
 
 %postun 
 

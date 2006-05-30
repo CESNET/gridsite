@@ -1,6 +1,6 @@
 Name: gridsite
 Version: %(echo ${MYVERSION:-1.3.x})
-Release: %(echo ${MYRELEASE:-1})
+Release: 1%(sed 's/^\([A-Z]\)[^ ]* \([A-Z]\)[^0-9]*\([0-9][^ ]*\).*/\1\2\3/g' /etc/redhat-release | sed 's/[^A-Z,a-z,0-9]//g')
 Summary: GridSite
 License: Modified BSD
 Group: System Environment/Daemons

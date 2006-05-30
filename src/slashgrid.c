@@ -1,11 +1,37 @@
-/*5~
-    SlashGrid2 (slashgrid for GridSite version 1.3.x)
+/*
+   Copyright (c) 2003-6, Andrew McNab,
+   University of Manchester. All rights reserved.
 
-    As root, start with:
+   Redistribution and use in source and binary forms, with or
+   without modification, are permitted provided that the following
+   conditions are met:
 
-     mkdir /grid
-     slashgrid /grid -d -o allow_other
+     o Redistributions of source code must retain the above
+       copyright notice, this list of conditions and the following
+       disclaimer. 
+     o Redistributions in binary form must reproduce the above
+       copyright notice, this list of conditions and the following
+       disclaimer in the documentation and/or other materials
+       provided with the distribution. 
+
+   THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND
+   CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES,
+   INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
+   MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+   DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS
+   BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
+   EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED
+   TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+   DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON
+   ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+   OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
+   OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+   POSSIBILITY OF SUCH DAMAGE.
 */
+
+/*------------------------------------------------------------------*
+ * This program is part of GridSite: http://www.gridsite.org/       *
+ *------------------------------------------------------------------*/
 
 #define _XOPEN_SOURCE
 
@@ -184,6 +210,45 @@ int debug_callback(CURL *handle, curl_infotype infotype,
   return 0;
 }                  
 
+char *check_x509_user_proxy(pid_t pid)
+{
+  int fd;
+  char file[80], *proxyfile = NULL, *pid_environ, *p;
+  struct stat statbuf1, statbuf2;
+  
+  snprintf(file, sizeof(file), "/proc/%d/environ", (int) pid);
+  
+  if ((fd = open(file, O_RDONLY)) == -1) return NULL;
+
+  if (debugmode) syslog(LOG_DEBUG, "Opened for %d environ in %s", (int) pid, file);
+  
+  fstat(fd, &statbuf1);
+  
+  pid_environ = malloc(statbuf1.st_size + 1);
+  
+  read(fd, pid_environ, statbuf1.st_size);
+  
+  close(fd);
+  
+  pid_environ[statbuf1.st_size] = '\0';
+    
+  for (p = pid_environ; p < pid_environ + statbuf1.st_size; p += (strlen(p) + 1))
+     {
+       if (debugmode) syslog(LOG_DEBUG, "Examine %s in environ", p);
+  
+       if (strncmp(p, "X509_USER_PROXY=", 16) == 0)
+         {
+           if ((p[16] != '\0') &&
+               (stat(&p[16], &statbuf2) == 0)) proxyfile = strdup(&p[16]);
+           break;
+         }
+     }
+  
+  free(pid_environ);
+
+  return proxyfile;    
+}
+
 int perform_request(struct grst_request *request_data,
                     struct fuse_context *fuse_ctx)
 {
@@ -196,17 +261,23 @@ int perform_request(struct grst_request *request_data,
     {
 // check for X509_USER_PROXY in that PID's environ too
 
-      asprintf(&proxyfile, "/tmp/x509up_u%d", fuse_ctx->uid);
-      /* if proxyfile is used, it will be referenced by handles[].proxyfile
-         and freed when this handle is eventually freed */
-
-      if ((stat(proxyfile, &statbuf) != 0) ||
-          (statbuf.st_uid != fuse_ctx->uid))
+      if ((proxyfile = check_x509_user_proxy(fuse_ctx->pid)) == NULL)
         {
-          free(proxyfile);
-          proxyfile = NULL;
+          asprintf(&proxyfile, "/tmp/x509up_u%d", fuse_ctx->uid);
+          /* if proxyfile is used, it will be referenced by handles[].proxyfile
+             and freed when this handle is eventually freed */
+
+          if ((stat(proxyfile, &statbuf) != 0) ||
+              (statbuf.st_uid != fuse_ctx->uid))
+            {
+              free(proxyfile);
+              proxyfile = NULL;
+            }
         }
     }
+
+  if (debugmode && (proxyfile != NULL))
+       syslog(LOG_DEBUG, "Using proxy file %s", proxyfile);
 
   /* try to find an existing handle for this uid/proxyfile */
 
@@ -943,7 +1014,6 @@ static int slashgrid_getattr(const char *rawpath, struct stat *stbuf)
       (strcmp(rawpath, "/https") == 0))
     {
       stbuf->st_mode = S_IFDIR | 0755;
-      stbuf->st_nlink = 2;
               
       return 0; /* The empty top level directory: OK */
     }
@@ -952,7 +1022,6 @@ static int slashgrid_getattr(const char *rawpath, struct stat *stbuf)
       if (index(&rawpath[6], '/') == NULL) /* top directory for remote server */
         {
           stbuf->st_mode = S_IFDIR | 0755;
-          stbuf->st_nlink = 2;
           
           asprintf(&url, "http://%s/", &rawpath[6]);
           asprintf(&path, "%s/", rawpath);
@@ -968,7 +1037,6 @@ static int slashgrid_getattr(const char *rawpath, struct stat *stbuf)
       if (index(&rawpath[7], '/') == NULL) /* top directory for remote server */
         {
           stbuf->st_mode = S_IFDIR | 0755;
-          stbuf->st_nlink = 2;
 
           asprintf(&url, "https://%s/", &rawpath[7]);
           asprintf(&path, "%s/", rawpath);
@@ -1064,7 +1132,6 @@ static int slashgrid_getattr(const char *rawpath, struct stat *stbuf)
             }
             
           stbuf->st_mode  = S_IFDIR | 0755;  /* this is a directory */
-          stbuf->st_nlink = 2;
 
           free(path);
           asprintf(&path, "%s/", rawpath);

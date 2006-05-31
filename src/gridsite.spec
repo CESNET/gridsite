@@ -87,16 +87,17 @@ OPENSSL_LIBS=$OPENSSL_LIBS FLAVOR_EXT=$FLAVOR_EXT
 mkdir -p $RPM_BUILD_ROOT/etc/rc.d/init.d
 
 if [ -f /usr/include/fuse/fuse.h ] ; then
- cp -f slashgrid      $RPM_BUILD_ROOT/%{prefix}/sbin/slashgrid
- cp -f slashgrid.init $RPM_BUILD_ROOT/etc/rc.d/init.d/slashgrid
- mkdir -p $RPM_BUILD_ROOT/var/spool/slashgrid/headers
- mkdir -p $RPM_BUILD_ROOT/var/spool/slashgrid/blocks
- mkdir -p $RPM_BUILD_ROOT/var/spool/slashgrid/tmp
+ make install-slashgrid prefix=$RPM_BUILD_ROOT/%{prefix} \
+ OPENSSL_FLAGS=$OPENSSL_FLAGS \
+ OPENSSL_LIBS=$OPENSSL_LIBS FLAVOR_EXT=$FLAVOR_EXT
 else
  echo -e '#!/bin/sh\necho SlashGrid wasnt built since no fuse-devel on build machine)' \
    >$RPM_BUILD_ROOT/%{prefix}/sbin/slashgrid
  echo -e '#!/bin/sh\n# chkconfig: - 90 10\n# description: slashgrid\necho SlashGrid wasnt built since no fuse-devel on build machine' \
    >$RPM_BUILD_ROOT/etc/rc.d/init.d/slashgrid
+ mkdir -p $RPM_BUILD_ROOT/var/spool/slashgrid/headers
+ mkdir -p $RPM_BUILD_ROOT/var/spool/slashgrid/blocks
+ mkdir -p $RPM_BUILD_ROOT/var/spool/slashgrid/tmp
 fi
 
 %post shared

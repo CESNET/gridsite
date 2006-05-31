@@ -204,6 +204,7 @@ showx509exts: showx509exts.c libgridsite.a
 slashgrid: slashgrid.c
 	gcc -g -o slashgrid -lfuse -lpthread slashgrid.c \
           -D_FILE_OFFSET_BITS=64 -D_REENTRANT -DFUSE_USE_VERSION=22 \
+          $(MYCFLAGS) $(MYLDFLAGS) \
           -I/usr/kerberos/include `curl-config --cflags` \
           `curl-config --libs` -lgridsite -lxml2
 
@@ -283,6 +284,13 @@ install: apidoc
 	cp -f gsexec $(prefix)/sbin
 	cp -f mod_gridsite.so $(prefix)/lib/httpd/modules
 
+install-slashgrid: slashgrid
+	cp -f slashgrid $(prefix)/sbin
+	cp -f slashgrid.init $(RPM_BUILD_ROOT)/etc/rc.d/init.d/slashgrid
+	mkdir -p $(RPM_BUILD_ROOT)/var/spool/slashgrid/headers
+	mkdir -p $(RPM_BUILD_ROOT)/var/spool/slashgrid/blocks
+	mkdir -p $(RPM_BUILD_ROOT)/var/spool/slashgrid/tmp
+	   
 #
 # Distributions
 #

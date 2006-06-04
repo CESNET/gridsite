@@ -8,7 +8,7 @@ Name:           fuse
 Version:        2.5.3
 URL:            http://fuse.sourceforge.net
 Source:         %{name}-%{version}.tar.gz
-Release:        1_%(uname -r | sed 's/-/_/g')
+Release:        3%(sed 's/^\([A-Z]\)[^ ]* \([A-Z]\)[^0-9]*\([0-9][^ ]*\).*/\1\2\3/g' /etc/redhat-release | sed 's/[^A-Z,a-z,0-9]//g')_%(uname -r | sed 's/-/_/g')
 Summary:        File System in Userspace (FUSE) utilities
 Group:          System Environment/Base
 License:        GPL
@@ -20,7 +20,8 @@ With FUSE it is possible to implement a fully functional filesystem in a
 userspace program. This package contains the FUSE userspace tools to 
 mount a FUSE filesystem.
 
-(This version is designed for use with the SlashGrid daemon.)
+(This version is designed for use with the SlashGrid daemon:
+ http://www.gridsite.org/slashgrid/ )
 
 %package libs
 Summary:        File System in Userspace (FUSE) libraries
@@ -80,7 +81,7 @@ depmod
 %doc AUTHORS ChangeLog COPYING FAQ Filesystems NEWS README README.NFS
 /sbin/mount.fuse
 %attr(0755,root,root) %{_bindir}/fusermount
-/lib/modules/%(uname -r)/kernel/fs/fuse/fuse.ko
+/lib/modules/%(uname -r)/kernel/fs/fuse/fuse.*o
 
 %files libs
 %doc COPYING.LIB
@@ -95,7 +96,7 @@ depmod
 
 %changelog
 
-* Sun May 28 2006 Andrew McNab <lemenkov@newmail.ru> 2.5.3-1_%(uname -r)
+* Sun May 28 2006 Andrew McNab <Andrew.McNab@manchester.ac.uk> 2.5.3-3
 - Simplify for use with SlashGrid daemon (which only runs as root) on
   Scientific Linux 3.*/4.* too
 

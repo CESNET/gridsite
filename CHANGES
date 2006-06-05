@@ -1,4 +1,6 @@
 * Mon Jun 05 2006 Andrew McNab <Andrew.McNab@man.ac.uk>
+- ==== GridSite version 1.2.3 ====
+* Mon Jun 05 2006 Andrew McNab <Andrew.McNab@man.ac.uk>
 - Remove malloc/free for header/footer in mod_gridsite
 * Mon Jun 05 2006 Andrew McNab <Andrew.McNab@man.ac.uk>
 - ==== GridSite version 1.2.2 ====

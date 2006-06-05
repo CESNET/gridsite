@@ -158,6 +158,7 @@ fi
 %package slashgrid
 Group: Applications/Internet
 Summary: slashgrid daemon
+Requires: curl,fuse,fuse-libs
 
 %description slashgrid
 SlashGrid daemon

@@ -404,7 +404,8 @@ int html_format(request_rec *r, mod_gridsite_dir_cfg *conf)
 
     /* first make a buffer big enough to hold path names we want to try */
     fd = -1;
-    s = malloc(strlen(r->filename) + strlen(conf->headfile) + 1);
+    s = apr_palloc(r->pool, 
+                       strlen(r->filename) + strlen(conf->headfile) + 1);
     strcpy(s, r->filename);
 
     for (;;)
@@ -419,8 +420,6 @@ int html_format(request_rec *r, mod_gridsite_dir_cfg *conf)
 
          *p = '\0';
        }
-
-    free(s);
 
     if (fd == -1) /* not found, so set up not to output one */
       {
@@ -482,7 +481,8 @@ int html_format(request_rec *r, mod_gridsite_dir_cfg *conf)
 
     /* first make a buffer big enough to hold path names we want to try */
     fd = -1;
-    s  = malloc(strlen(r->filename) + strlen(conf->footfile));
+    s = apr_palloc(r->pool, 
+                       strlen(r->filename) + strlen(conf->footfile) + 1);
     strcpy(s, r->filename);
 
     for (;;)
@@ -498,8 +498,6 @@ int html_format(request_rec *r, mod_gridsite_dir_cfg *conf)
 
          *p = '\0';
        }
-
-    free(s);
 
     if (fd == -1) /* failed to find a footer, so set up empty default */
       {
@@ -550,7 +548,6 @@ int html_dir_list(request_rec *r, mod_gridsite_dir_cfg *conf)
     struct dirent **namelist;
     
     if (r->finfo.filetype == APR_NOFILE) return HTTP_NOT_FOUND;
-        
 
     /* Put in Delegation service header if required */
     if (conf->delegationuri) delegation_header(r, conf);
@@ -564,7 +561,8 @@ int html_dir_list(request_rec *r, mod_gridsite_dir_cfg *conf)
 
         /* first make a buffer big enough to hold path names we want to try */
         fd = -1;
-        s = malloc(strlen(r->filename) + strlen(conf->headfile) + 1);
+        s = apr_palloc(r->pool, 
+                       strlen(r->filename) + strlen(conf->headfile) + 1);
         strcpy(s, r->filename);
 
         for (;;)
@@ -580,8 +578,6 @@ int html_dir_list(request_rec *r, mod_gridsite_dir_cfg *conf)
              *p = '\0';
            }
             
-        free(s);
-
         if (fd == -1) /* not found, so set up to output sensible default */
           {
             header_formatted = apr_pstrdup(r->pool, "<body bgcolor=white>");
@@ -679,7 +675,8 @@ int html_dir_list(request_rec *r, mod_gridsite_dir_cfg *conf)
 
         /* first make a buffer big enough to hold path names we want to try */
         fd = -1;
-        s  = malloc(strlen(r->filename) + strlen(conf->footfile));
+        s = apr_palloc(r->pool, 
+                       strlen(r->filename) + strlen(conf->footfile) + 1);
         strcpy(s, r->filename);
     
         for (;;)
@@ -696,8 +693,6 @@ int html_dir_list(request_rec *r, mod_gridsite_dir_cfg *conf)
              *p = '\0';
            }
             
-        free(s);
-
         if (fd == -1) /* failed to find a footer, so use standard default */
           {
             footer_formatted = apr_pstrdup(r->pool, "</body>");

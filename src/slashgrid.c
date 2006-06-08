@@ -33,6 +33,7 @@
  * This program is part of GridSite: http://www.gridsite.org/       *
  *------------------------------------------------------------------*/
 
+#define _GNU_SOURCE
 #define _XOPEN_SOURCE
 
 #include <stdio.h>
@@ -43,6 +44,8 @@
 #include <time.h>
 #include <syslog.h>
 #include <sys/types.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
 #include <sys/stat.h>
 #include <sys/vfs.h>
 #include <unistd.h>              
@@ -52,6 +55,8 @@
 #include <pthread.h>
 
 #include <fuse.h>
+
+#include "gridsite.h"
 
 #define GRST_SLASH_PIDFILE "/var/run/slashgrid.pid"
 
@@ -70,6 +75,13 @@
 #define GRST_SLASH_HEADERS_EXPIRE	60
 #define GRST_SLASH_BLOCK_SIZE		4096
 #define GRST_SLASH_MAX_HANDLES		16
+
+#define GRST_SLASH_MAX_LOCATION		1024
+
+/* maximum number of SiteCast groups */
+#define GRST_SLASH_MAX_GROUPS		10
+
+#define GRST_SLASH_HTCP_PORT		777
 
 #ifndef CURLOPT_WRITEDATA
 #define CURLOPT_WRITEDATA CURLOPT_FILE
@@ -98,7 +110,7 @@ struct grst_dir_list { char   *filename;
                        int     modified_set; } ;
 
 struct grst_request { int     retcode;                         
-                      char   *location;
+                      char    location[GRST_SLASH_MAX_LOCATION+1];
                       size_t  length;
                       int     length_set;
                       time_t  modified;                           
@@ -122,7 +134,9 @@ struct grst_handle { pthread_mutex_t	mutex;
                      time_t		last_used;
                    }  handles[GRST_SLASH_MAX_HANDLES];
  
-int debugmode = 0;
+int debugmode         = 0;
+int number_of_tries   = 1, sitecast_domain_len = 0;
+char *sitecast_domain = NULL, *sitecast_groups = NULL;
 
 size_t headers_callback(void *ptr, size_t size, size_t nmemb, void *p)
 /* Find the values of the return code, Content-Length, Last-Modified
@@ -144,7 +158,8 @@ size_t headers_callback(void *ptr, size_t size, size_t nmemb, void *p)
   else if (sscanf(s, "HTTP/%f %d ", &f, &(request_data->retcode)) == 2) ;
   else if (strncmp(s, "Location: ", 10) == 0) 
       {
-        request_data->location = strdup(&s[10]);
+        strncpy(request_data->location, &s[10], GRST_SLASH_MAX_LOCATION);
+        /* the location string is 1 byte longer and zeroed before use */
         
         for (q=request_data->location; *q != '\0'; ++q)
          if ((*q == '\r') || (*q == '\n')) *q = '\0';
@@ -210,6 +225,146 @@ int debug_callback(CURL *handle, curl_infotype infotype,
   return 0;
 }                  
 
+
+int translate_sitecast_url(char **sitecast_url, char *raw_url)
+{
+  int request_length, response_length, i, ret, s, igroup;
+  struct sockaddr_in srv, from;
+  socklen_t fromlen;
+#define MAXBUF 8192  
+  char *request, response[MAXBUF], *p;
+  GRSThtcpMessage msg;
+  struct timeval start_timeval, wait_timeval;
+  struct grst_sitecast_group 
+   { unsigned char quad1; unsigned char quad2;
+     unsigned char quad3; unsigned char quad4;
+     int port; int timewait; int ttl; } groups[GRST_SLASH_MAX_GROUPS];
+  fd_set readsckts;
+
+  p = sitecast_groups;
+  igroup = -1;
+
+  for (igroup=-1; igroup+1 < GRST_SLASH_MAX_GROUPS;)
+     {  
+       /* defaults for when sscanf fails to find all parameters */
+
+       groups[igroup+1].port     = GRST_SLASH_HTCP_PORT;
+       groups[igroup+1].timewait = 1;
+       groups[igroup+1].ttl      = 1;
+       
+       ret = sscanf(p, "%d.%d.%d.%d:%d:%d:%d", 
+                 &(groups[igroup+1].quad1),
+                 &(groups[igroup+1].quad2),    
+                 &(groups[igroup+1].quad3),
+                 &(groups[igroup+1].quad4),    
+                 &(groups[igroup+1].port),
+                 &(groups[igroup+1].ttl),
+                 &(groups[igroup+1].timewait));
+
+       if (ret == 0) break; /* end of list ? */
+         
+       if (ret < 5)
+         {
+           syslog(LOG_WARNING,
+                  "Failed parsing multicast group parameter %s\n", p);
+           return GRST_RET_FAILED;
+         }
+         
+       ++igroup;  
+       
+       if ((p = index(p, ',')) == NULL) break;       
+       ++p;
+     }
+
+  if (igroup == -1)
+    {
+      syslog(LOG_WARNING, "Failed parsing multicast group parameter %s\n", p);
+      return GRST_RET_FAILED;
+    }
+
+  if ((s = socket(AF_INET, SOCK_DGRAM, 0)) < 0) 
+    {
+      syslog(LOG_WARNING, "Failed to open SiteCast UDP socket\n");
+      return GRST_RET_FAILED;
+    }
+
+  /* loop through multicast groups since we need to take each 
+     ones timewait into account */
+
+  gettimeofday(&start_timeval, NULL);
+
+  for (i=0; i <= igroup; ++i)
+     {
+       if (debugmode)
+        syslog(LOG_DEBUG, "Querying multicast group %d.%d.%d.%d:%d:%d:%d\n",
+                groups[i].quad1, groups[i].quad2,
+                groups[i].quad3, groups[i].quad4,
+                groups[i].port, groups[i].ttl,
+                groups[i].timewait);
+        
+       bzero(&srv, sizeof(srv));
+       srv.sin_family = AF_INET;
+       srv.sin_port = htons(groups[i].port);
+       srv.sin_addr.s_addr = htonl(groups[i].quad1*0x1000000
+                                 + groups[i].quad2*0x10000
+                                 + groups[i].quad3*0x100
+                                 + groups[i].quad4);
+
+       /* send off queries, one for each source file */
+
+       GRSThtcpTSTrequestMake(&request, &request_length, 
+                                   (int) (start_timeval.tv_usec),
+                                   "GET", raw_url, "");
+
+       sendto(s, request, request_length, 0, 
+                       (struct sockaddr *) &srv, sizeof(srv));
+
+       free(request);
+          
+       /* reusing wait_timeval is a Linux-specific feature of select() */
+       wait_timeval.tv_usec = 0;
+       wait_timeval.tv_sec  = groups[i].timewait;
+
+       while ((wait_timeval.tv_sec > 0) || (wait_timeval.tv_usec > 0))
+            {
+              FD_ZERO(&readsckts);
+              FD_SET(s, &readsckts);
+  
+              ret = select(s + 1, &readsckts, NULL, NULL, &wait_timeval);
+
+              if (ret > 0)
+                {
+                  response_length = recvfrom(s, response, MAXBUF,
+                                             0, &from, &fromlen);
+  
+                  if ((GRSThtcpMessageParse(&msg, response, response_length) 
+                                                      == GRST_RET_OK) &&
+                      (msg.opcode == GRSThtcpTSTop) && (msg.rr == 1) && 
+                      (msg.trans_id == (int) start_timeval.tv_usec) &&
+                      (msg.resp_hdrs != NULL) &&
+                      (GRSThtcpCountstrLen(msg.resp_hdrs) > 12))
+                    { 
+                      /* found one */ 
+
+                      if (debugmode)
+                        syslog(LOG_DEBUG, "Sitecast %s -> %.*s\n",
+                                raw_url, 
+                                GRSThtcpCountstrLen(msg.resp_hdrs) - 12,
+                                &(msg.resp_hdrs->text[10]));
+                      
+                      asprintf(sitecast_url, "%.*s",
+                          GRSThtcpCountstrLen(msg.resp_hdrs) - 12, 
+                          &(msg.resp_hdrs->text[10]));
+                          
+                      return GRST_RET_OK;
+                    }
+                }
+            }
+     }
+     
+  return GRST_RET_FAILED;
+}
+
 char *check_x509_user_proxy(pid_t pid)
 {
   int fd;
@@ -252,14 +407,15 @@ char *check_x509_user_proxy(pid_t pid)
 int perform_request(struct grst_request *request_data,
                     struct fuse_context *fuse_ctx)
 {
-  int                ret, i, j;
-  char              *proxyfile = NULL, *range_header = NULL;
+  int                ret, i, j, itry, ishttps = 0;
+  char              *proxyfile = NULL, *range_header = NULL, *url;
   struct stat        statbuf;
   struct curl_slist *headers_list = NULL;
 
   if (strncmp(request_data->url, "https://", 8) == 0) /* HTTPS options */
     {
 // check for X509_USER_PROXY in that PID's environ too
+      ishttps = 1;
 
       if ((proxyfile = check_x509_user_proxy(fuse_ctx->pid)) == NULL)
         {
@@ -311,7 +467,7 @@ int perform_request(struct grst_request *request_data,
 
   /* now lock this handle and recheck settings inside the mutex lock */
 
-  pthread_mutex_lock(&(handles[i].mutex));
+  pthread_mutex_lock(&(handles[i].mutex)); /* unlock just before return */
 
   if ((handles[i].curl_handle == NULL)  ||
       (handles[i].uid != fuse_ctx->uid) ||
@@ -364,15 +520,8 @@ int perform_request(struct grst_request *request_data,
       curl_easy_setopt(handles[i].curl_handle, CURLOPT_SSL_VERIFYPEER, 2);
       curl_easy_setopt(handles[i].curl_handle, CURLOPT_SSL_VERIFYHOST, 2);
     }   
-    
-  if (request_data->method == GRST_SLASH_HEAD)
-    {
-      curl_easy_setopt(handles[i].curl_handle, CURLOPT_CUSTOMREQUEST, NULL);
-      curl_easy_setopt(handles[i].curl_handle, CURLOPT_NOBODY,  1);
-      curl_easy_setopt(handles[i].curl_handle, CURLOPT_HTTPGET, 0);
-      curl_easy_setopt(handles[i].curl_handle, CURLOPT_UPLOAD,  0);
-    }
-  else if (request_data->method == GRST_SLASH_GET)
+
+  if (request_data->method == GRST_SLASH_GET)
     {
       curl_easy_setopt(handles[i].curl_handle, CURLOPT_CUSTOMREQUEST, NULL);
       curl_easy_setopt(handles[i].curl_handle, CURLOPT_NOBODY,  0);
@@ -403,9 +552,15 @@ int perform_request(struct grst_request *request_data,
       curl_easy_setopt(handles[i].curl_handle, CURLOPT_UPLOAD,  0);
       curl_easy_setopt(handles[i].curl_handle, CURLOPT_CUSTOMREQUEST, "MOVE");
     }
-  else return CURLE_UNSUPPORTED_PROTOCOL;
+  else /* default or GRST_SLASH_HEAD */
+    {
+      curl_easy_setopt(handles[i].curl_handle, CURLOPT_CUSTOMREQUEST, NULL);
+      curl_easy_setopt(handles[i].curl_handle, CURLOPT_NOBODY,  1);
+      curl_easy_setopt(handles[i].curl_handle, CURLOPT_HTTPGET, 0);
+      curl_easy_setopt(handles[i].curl_handle, CURLOPT_UPLOAD,  0);
+    }
 
-  curl_easy_setopt(handles[i].curl_handle, CURLOPT_WRITEHEADER,    request_data);
+  curl_easy_setopt(handles[i].curl_handle, CURLOPT_WRITEHEADER, request_data);
   
   if (request_data->errorbuffer != NULL)
         curl_easy_setopt(handles[i].curl_handle, CURLOPT_ERRORBUFFER,
@@ -418,8 +573,6 @@ int perform_request(struct grst_request *request_data,
   curl_easy_setopt(handles[i].curl_handle, CURLOPT_READDATA, request_data->readdata);
   curl_easy_setopt(handles[i].curl_handle, CURLOPT_WRITEFUNCTION, request_data->writefunction);
   curl_easy_setopt(handles[i].curl_handle, CURLOPT_WRITEDATA, request_data->writedata);
-
-  curl_easy_setopt(handles[i].curl_handle, CURLOPT_URL, request_data->url);
 
   if ((request_data->start >= 0) && 
       (request_data->finish >= request_data->start))
@@ -438,8 +591,62 @@ int perform_request(struct grst_request *request_data,
     }
   else curl_easy_setopt(handles[i].curl_handle, CURLOPT_HTTPHEADER, NULL);
 
-  ret = curl_easy_perform(handles[i].curl_handle);
-  
+  /* retry loop */
+
+  for (itry=1; itry <= number_of_tries; ++itry)
+     {
+       request_data->length_set   = 0;
+       request_data->modified_set = 0;
+       request_data->retcode      = 0;
+       request_data->location[0]  = '\0';
+    
+       if ((sitecast_domain != NULL) &&
+           (sitecast_groups != NULL) &&
+
+           ((request_data->method == GRST_SLASH_HEAD) ||
+            (request_data->method == GRST_SLASH_GET)) &&
+
+           ((!ishttps && 
+             (strncmp(&(request_data->url[7]), sitecast_domain, 
+                                   sitecast_domain_len) == 0) &&
+             ((request_data->url[7+sitecast_domain_len] == ':') ||
+              (request_data->url[7+sitecast_domain_len] == '/')) )
+                                                                   ||
+            (ishttps &&
+             (strncmp(&(request_data->url[8]), sitecast_domain, 
+                                    sitecast_domain_len) == 0) &&
+             ((request_data->url[8+sitecast_domain_len] == ':') ||
+              (request_data->url[8+sitecast_domain_len] == '/')) ) ) )
+         {
+           if (debugmode)
+             syslog(LOG_DEBUG, "Apply SiteCast to URL %s", request_data->url);
+
+           if (translate_sitecast_url(&url, request_data->url) ==
+                GRST_RET_OK)
+             {
+               curl_easy_setopt(handles[i].curl_handle,
+                                            CURLOPT_URL, url);
+               ret = curl_easy_perform(handles[i].curl_handle);
+
+               free(url);               
+             }
+           else
+             {
+               ret = 1;
+               request_data->retcode = 404; /* HTTP not found */
+             }
+         }
+       else
+         {
+           curl_easy_setopt(handles[i].curl_handle,
+                                            CURLOPT_URL, request_data->url);
+           ret = curl_easy_perform(handles[i].curl_handle);
+         }
+
+// tests on whether to retry due to server error / timeout go here...
+       break;
+     }
+
   if (headers_list != NULL) curl_slist_free_all(headers_list);
   if (range_header != NULL) free(range_header);
 
@@ -696,6 +903,7 @@ struct grst_dir_list *index_to_dir_list(char *text, char *source)
   return list;  
 }
 
+#if 0
 static char *GRSThttpUrlMildencode(char *in)
 /* Return a pointer to a malloc'd string holding a partially URL-encoded
    version of *in. "Partially" means that A-Z a-z 0-9 . = - _ @ and /
@@ -735,6 +943,7 @@ static char *GRSThttpUrlMildencode(char *in)
   *q = '\0';
   return out;
 }
+#endif
 
 int read_headers_from_cache(struct fuse_context *fuse_ctx, char *filename, 
                             off_t *length, time_t *modified)
@@ -1102,16 +1311,15 @@ static int slashgrid_getattr(const char *rawpath, struct stat *stbuf)
 
        len = strlen(url);
       
-       if ((request_data.location != NULL) &&
+       if ((request_data.location[0] != '\0') &&
           (len + 1 == strlen(request_data.location)) &&
           (request_data.location[len] == '/') &&
           (strncmp(url, request_data.location, len) == 0))
         {
-          request_data.length_set   = 0;
-          request_data.modified_set = 0;
-          request_data.retcode      = 0;
-          request_data.url          = request_data.location;
-        
+          free(url);
+          url = strdup(request_data.location);
+          request_data.url = url;
+                  
           thiserror = perform_request(&request_data, &fuse_ctx);
 
           if ((thiserror != 0) ||
@@ -1606,13 +1814,13 @@ int slashgrid_mkdir(const char *path, mode_t mode)
 
 int slashgrid_chown(const char *path, uid_t uid, gid_t gid)
 {
-  puts("slashgrid_chown - NOP");
+  if (debugmode) syslog(LOG_DEBUG, "slashgrid_chown - NOP");
   return 0;
 }
 
 int slashgrid_chmod(const char *path, mode_t mode)
 {
-  puts("slashgrid_chmod - NOP");
+  if (debugmode) syslog(LOG_DEBUG, "slashgrid_chmod - NOP");
   return 0;
 }
 
@@ -1720,7 +1928,20 @@ int main(int argc, char *argv[])
   int   i, ret;
   
   for (i=1; i < argc; ++i)
-    if (strcmp(argv[i], "--debug") == 0) debugmode = 1;
+     {
+       if (strcmp(argv[i], "--debug") == 0) debugmode = 1;
+       else if ((strcmp(argv[i], "--domain") == 0) && (i + 1 < argc))
+         {
+           sitecast_domain = argv[i+1];
+           sitecast_domain_len = strlen(sitecast_domain);
+           ++i;
+         }
+       else if ((strcmp(argv[i], "--groups") == 0) && (i + 1 < argc))
+         {
+           sitecast_groups = argv[i+1];
+           ++i;
+         }          
+     }                 
 
   openlog("slashgrid", 0, LOG_DAEMON);
     

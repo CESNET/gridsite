@@ -1,5 +1,5 @@
 Name: gridsite
-Version: %(echo ${MYVERSION:-1.3.x})
+Version: %(echo ${MYVERSION:-1.x.x})
 Release: 1%(sed 's/^\([A-Z]\)[^ ]* \([A-Z]\)[^0-9]*\([0-9][^ ]*\).*/\1\2\3/g' /etc/redhat-release | sed 's/[^A-Z,a-z,0-9]//g')
 Summary: GridSite
 License: Modified BSD
@@ -17,8 +17,7 @@ GridSite adds GSI, VOMS and GACL support to Apache 2.0 (mod_gridsite),
 a library for manipulating these technologies (libgridsite), and CGI
 programs for interactive management of HTTP(S) servers (gridsite-admin.cgi)
 
-See %{prefix}/share/doc/gridsite-%{version} and
-http://www.gridsite.org/ for details.
+See http://www.gridsite.org/ for details.
 
 %package shared
 Group: Development/Libraries
@@ -27,12 +26,16 @@ Summary: GridSite shared library and core documentation
 %description shared
 GridSite shared library and core documentation
 
+See http://www.gridsite.org/ for details.
+
 %package devel
 Group: Development/Libraries
 Summary: GridSite .a libraries and .h headers
 
 %description devel
 GridSite development libraries
+
+See http://www.gridsite.org/ for details.
 
 %package apache
 Group: System Environment/Daemons
@@ -41,6 +44,8 @@ Requires: gridsite-shared
 
 %description apache
 GridSite Apache module and CGI binaries
+
+See http://www.gridsite.org/ for details.
 
 %package commands
 Group: Applications/Internet
@@ -53,6 +58,8 @@ servers using HTTP or HTTPS, or to put or delete files or directories
 onto remote servers using HTTPS. htcp is similar to scp(1), but uses
 HTTP/HTTPS rather than ssh as its transfer protocol.
 
+See http://www.gridsite.org/ for details.
+
 %package gsexec
 Group: Applications/Internet
 Summary: gsexec binary for the Apache HTTP server
@@ -63,6 +70,8 @@ to allow the Apache HTTP server to run CGI programs (and any programs
 executed by SSI pages) as a user other than the 'apache' user. gsexec
 is a drop-in replacement for suexec, with extended functionality for use
 with GridSite and Grid Security credentials.
+
+See http://www.gridsite.org/ for details.
 
 %prep
 
@@ -88,8 +97,8 @@ mkdir -p $RPM_BUILD_ROOT/etc/rc.d/init.d
 
 if [ -f /usr/include/fuse/fuse.h ] ; then
  make install-slashgrid prefix=$RPM_BUILD_ROOT/%{prefix} \
- OPENSSL_FLAGS=$OPENSSL_FLAGS \
- OPENSSL_LIBS=$OPENSSL_LIBS FLAVOR_EXT=$FLAVOR_EXT
+  OPENSSL_FLAGS=$OPENSSL_FLAGS \
+  OPENSSL_LIBS=$OPENSSL_LIBS FLAVOR_EXT=$FLAVOR_EXT
 else
  echo -e '#!/bin/sh\necho SlashGrid wasnt built since no fuse-devel on build machine)' \
    >$RPM_BUILD_ROOT/%{prefix}/sbin/slashgrid
@@ -115,7 +124,7 @@ fi
 %attr(-, root, root) %{prefix}/lib/libgridsite.so
 %attr(-, root, root) %{prefix}/lib/libgridsite_globus.so.%{version}
 %attr(-, root, root) %{prefix}/lib/libgridsite_globus.so
-%attr(-, root, root) %{prefix}/share/doc/gridsite-%{version}
+%attr(-, root, root) %{prefix}/share/doc/gridsite-%(echo ${MYVERSION:-1.x.x} | cut -f1-2 -d.)
 
 %files devel
 %attr(-, root, root) %{prefix}/include/gridsite.h

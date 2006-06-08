@@ -241,7 +241,7 @@ install: apidoc
                  $(prefix)/share/man/man1 \
                  $(prefix)/share/man/man8 \
                  $(prefix)/lib/httpd/modules \
-                 $(prefix)/share/doc/gridsite-$(PATCH_VERSION)
+                 $(prefix)/share/doc/gridsite-$(MINOR_VERSION)
 	cp -f ../interface/gridsite.h $(prefix)/include
 	cp -f ../interface/gridsite-gacl.h $(prefix)/include
 	cp -f urlencode $(prefix)/bin
@@ -265,10 +265,10 @@ install: apidoc
 	ln -sf libgridsite_globus.so.$(PATCH_VERSION) \
                                  $(prefix)/lib/libgridsite_globus.so.$(MINOR_VERSION)
 	cp -f ../CHANGES ../README ../INSTALL ../LICENSE ../VERSION \
-               $(prefix)/share/doc/gridsite-$(PATCH_VERSION)
+               $(prefix)/share/doc/gridsite-$(MINOR_VERSION)
 	cp -f ../doc/*.html ../doc/*.conf ../doc/*.1 ../doc/*.8 ../doc/*.sh \
 	      ../doc/*.spec \
-               $(prefix)/share/doc/gridsite-$(VERSION)
+               $(prefix)/share/doc/gridsite-$(MINOR_VERSION)
 	cp -f ../doc/*.1 $(prefix)/share/man/man1
 	cp -f ../doc/*.8 $(prefix)/share/man/man8
 	gzip -f $(prefix)/share/man/man1/*.1

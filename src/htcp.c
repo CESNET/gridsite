@@ -1,5 +1,5 @@
 /*
-   Copyright (c) 2002-5, Andrew McNab, University of Manchester
+   Copyright (c) 2002-6, Andrew McNab, University of Manchester
    All rights reserved.
 
    Redistribution and use in source and binary forms, with or
@@ -783,6 +783,14 @@ int do_ping(struct grst_stream_data *common_data_ptr)
        sendto(s, request, request_length, 0, (struct sockaddr *) &srv,
                                                     sizeof(srv));
        free(request);
+
+       if (common_data_ptr->verbose > 0)
+         fprintf(stderr, "UDP/HTCP NOP ping to %d:%d:%d:%d %d\n",
+                         sitecast_groups[i].quad1,
+                         sitecast_groups[i].quad2,
+                         sitecast_groups[i].quad3,
+                         sitecast_groups[i].quad4,
+                         sitecast_groups[i].port);
      }
 
   /* reusing wait_timeval is a Linux-specific feature of select() */
@@ -803,6 +811,10 @@ int do_ping(struct grst_stream_data *common_data_ptr)
              response_length = recvfrom(s, response, MAXBUF,
                                         0, &from, &fromlen);
   
+             if (common_data_ptr->verbose > 0)
+              fprintf(stderr, "UDP mesg from %s:%d\n",
+                              inet_ntoa(from.sin_addr), ntohs(from.sin_port));
+
              if ((GRSThtcpMessageParse(&msg, response, response_length) 
                                                       == GRST_RET_OK) &&
                  (msg.opcode == GRSThtcpNOPop) && (msg.rr == 1) && 
@@ -1686,7 +1698,6 @@ int main(int argc, char *argv[])
   int    c, i, option_index, anyerror;
   struct stat statbuf;
   struct grst_stream_data common_data;
-  struct grst_sitecast_group sitecast_groups[HTCP_SITECAST_GROUPS];
   struct passwd *userpasswd;
 
 #if (LIBCURL_VERSION_NUM < 0x070908)

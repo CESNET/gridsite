@@ -56,12 +56,12 @@ endif
 # Build
 #
 
-build: apidoc \
-       libgridsite.so.$(VERSION) libgridsite.a htcp mod_gridsite.so \
-       urlencode findproxyfile real-gridsite-admin.cgi gsexec \
-       gridsite-copy.cgi
+build: apidoc build-lib \
+       htcp gridsite-copy.cgi mod_gridsite.so \
+       urlencode findproxyfile real-gridsite-admin.cgi gsexec
 
-build: libgridsite_globus.so.$(VERSION) libgridsite_globus.a
+build-lib: libgridsite_globus.so.$(VERSION) libgridsite_globus.a \
+           libgridsite.so.$(VERSION) libgridsite.a 
 
 # First, normal versions using system OpenSSL rather than Globus OpenSSL
 
@@ -226,14 +226,13 @@ xacmlexample: xacmlexample.c libgridsite.a
             -I/usr/kerberos/include -lgridsite \
             -lssl -lcrypto -lxml2 -lz -lm
 
-
 clean:
 
 #
 # Install
 #
 
-install: apidoc
+install: apidoc install-lib
 	mkdir -p $(prefix)/include \
                  $(prefix)/lib \
                  $(prefix)/bin \
@@ -248,22 +247,6 @@ install: apidoc
 	cp -f findproxyfile $(prefix)/bin
 	cp -f real-gridsite-admin.cgi $(prefix)/sbin
 	cp -f gridsite-copy.cgi $(prefix)/sbin
-	cp -f  libgridsite.a $(prefix)/lib
-	cp -f  libgridsite.so.$(PATCH_VERSION) $(prefix)/lib
-	ln -sf libgridsite.so.$(PATCH_VERSION) \
-                                 $(prefix)/lib/libgridsite.so
-	ln -sf libgridsite.so.$(PATCH_VERSION) \
-                                 $(prefix)/lib/libgridsite.so.$(MAJOR_VERSION)
-	ln -sf libgridsite.so.$(PATCH_VERSION) \
-                                 $(prefix)/lib/libgridsite.so.$(MINOR_VERSION)
-	cp -f  libgridsite_globus.a $(prefix)/lib
-	cp -f  libgridsite_globus.so.$(PATCH_VERSION) $(prefix)/lib
-	ln -sf libgridsite_globus.so.$(PATCH_VERSION) \
-                                 $(prefix)/lib/libgridsite_globus.so
-	ln -sf libgridsite_globus.so.$(PATCH_VERSION) \
-                                 $(prefix)/lib/libgridsite_globus.so.$(MAJOR_VERSION)
-	ln -sf libgridsite_globus.so.$(PATCH_VERSION) \
-                                 $(prefix)/lib/libgridsite_globus.so.$(MINOR_VERSION)
 	cp -f ../CHANGES ../README ../INSTALL ../LICENSE ../VERSION \
                $(prefix)/share/doc/gridsite-$(MINOR_VERSION)
 	cp -f ../doc/*.html ../doc/*.conf ../doc/*.1 ../doc/*.8 ../doc/*.sh \
@@ -283,6 +266,25 @@ install: apidoc
 	ln -sf htcp $(prefix)/bin/htfind
 	cp -f gsexec $(prefix)/sbin
 	cp -f mod_gridsite.so $(prefix)/lib/httpd/modules
+
+install-lib:
+	mkdir -p $(prefix)/lib
+	cp -f  libgridsite.a $(prefix)/lib
+	cp -f  libgridsite.so.$(PATCH_VERSION) $(prefix)/lib
+	ln -sf libgridsite.so.$(PATCH_VERSION) \
+                                 $(prefix)/lib/libgridsite.so
+	ln -sf libgridsite.so.$(PATCH_VERSION) \
+                                 $(prefix)/lib/libgridsite.so.$(MAJOR_VERSION)
+	ln -sf libgridsite.so.$(PATCH_VERSION) \
+                                 $(prefix)/lib/libgridsite.so.$(MINOR_VERSION)
+	cp -f  libgridsite_globus.a $(prefix)/lib
+	cp -f  libgridsite_globus.so.$(PATCH_VERSION) $(prefix)/lib
+	ln -sf libgridsite_globus.so.$(PATCH_VERSION) \
+                                 $(prefix)/lib/libgridsite_globus.so
+	ln -sf libgridsite_globus.so.$(PATCH_VERSION) \
+                                 $(prefix)/lib/libgridsite_globus.so.$(MAJOR_VERSION)
+	ln -sf libgridsite_globus.so.$(PATCH_VERSION) \
+                                 $(prefix)/lib/libgridsite_globus.so.$(MINOR_VERSION)
 
 install-slashgrid: slashgrid
 	cp -f slashgrid $(prefix)/sbin

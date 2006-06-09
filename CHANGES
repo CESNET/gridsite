@@ -1,3 +1,8 @@
+* Fri Jun  9 2006 Andrew McNab <Andrew.McNab@man.ac.uk>
+- Add patch from Jan Pospisil <honik@kma.zcu.cz> to
+  Makefile, to allow standalone building of libraries.
+* Thu Jun  8 2006 Andrew McNab <Andrew.McNab@man.ac.uk>
+- SiteCast support in SlashGrid
 * Mon Jun  5 2006 Andrew McNab <Andrew.McNab@man.ac.uk>
 - ==== GridSite version 1.3.1 ====
 * Sun May 26 2006 Andrew McNab <Andrew.McNab@man.ac.uk>

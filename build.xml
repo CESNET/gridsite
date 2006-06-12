@@ -20,6 +20,9 @@
 
 	Revision history:
 	$Log$
+	Revision 1.12  2005/05/23 13:54:53  dimeglio
+	Added load of build.number file
+
 	Revision 1.11  2005/02/16 14:14:39  dimeglio
 	Added patch to use globus compilation flags also in the RPMS
 	
@@ -128,14 +131,23 @@
 
 	<target name="compile" depends="checkstyle">
 		<if>
+			<isset property="libonly"/>
+			<then>
+				<property name="buildtarget" value="build-lib"/>
+			</then>
+			<else>
+				<property name="buildtarget" value="build"/>
+			</else>
+		</if>
+		<if>
 			<isset property="build.make.arguments"/> 	 
 			<then>
 				<!-- Call make default compile target -->	
-				<make target="build" dir="${module.src.dir}" failonerror="${failonerror}" args="${build.make.arguments}"/>
+				<make target="${buildtarget}" dir="${module.src.dir}" failonerror="${failonerror}" args="${build.make.arguments}"/>
 			</then> 	 
 			<else> 	 
 				<!-- Call make default compile target -->	
-				<make target="build" dir="${module.src.dir}" failonerror="${failonerror}"/>
+				<make target="${buildtarget}" dir="${module.src.dir}" failonerror="${failonerror}"/>
 			</else> 	 
 		</if> 	 
 	</target>
@@ -154,14 +166,23 @@
 
     <target name="stage" depends="doc">
 		<if>
+			<isset property="libonly"/>
+			<then>
+				<property name="installtarget" value="install-lib"/>
+			</then>
+			<else>
+				<property name="installtarget" value="install"/>
+			</else>
+		</if>
+		<if>
 			<isset property="build.make.arguments"/> 	 
 			<then>
 				<!-- Call make default compile target -->	
-				<make target="install" dir="${module.src.dir}" failonerror="${failonerror}" args="${build.make.arguments}"/>
+				<make target="${installtarget}" dir="${module.src.dir}" failonerror="${failonerror}" args="${build.make.arguments}"/>
 			</then> 	 
 			<else> 	 
 				<!-- Call make default compile target -->	
-				<make target="install" dir="${module.src.dir}" failonerror="${failonerror}"/>
+				<make target="${installtarget}" dir="${module.src.dir}" failonerror="${failonerror}"/>
 			</else> 	 
 		</if> 	 
     </target>
@@ -260,12 +281,11 @@
 
 	</target>
 
-				<!-- ===============================================
+	<!-- ===============================================
 		 Modules proxy targets
 	     =============================================== -->
 
 	<!-- component targets definitions tag = do not remove = -->
-
 
 	<!-- Main proxy -->
 	<target name="buildmodules" depends="envset"/>

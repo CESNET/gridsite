@@ -1,5 +1,5 @@
 /*
-   Copyright (c) 2002-4, Andrew McNab, University of Manchester
+   Copyright (c) 2002-6, Andrew McNab, University of Manchester
    All rights reserved.
 
    Redistribution and use in source and binary forms, with or

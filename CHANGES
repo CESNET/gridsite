@@ -1,6 +1,9 @@
 * Fri Jun  9 2006 Andrew McNab <Andrew.McNab@man.ac.uk>
 - Add patch from Jan Pospisil <honik@kma.zcu.cz> to
   Makefile, to allow standalone building of libraries.
+- Include code for June 2006 version of delegation
+  protocol (ie userproxy.pem rather than usercert.pem
+  and userkey.pem)
 * Thu Jun  8 2006 Andrew McNab <Andrew.McNab@man.ac.uk>
 - SiteCast support in SlashGrid
 * Mon Jun  5 2006 Andrew McNab <Andrew.McNab@man.ac.uk>

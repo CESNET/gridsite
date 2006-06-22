@@ -1,5 +1,5 @@
 /*
-   Copyright (c) 2002-5, Andrew McNab, University of Manchester
+   Copyright (c) 2002-6, Andrew McNab, University of Manchester
    All rights reserved.
 
    Redistribution and use in source and binary forms, with or
@@ -63,6 +63,24 @@
 /// No such file or directory
 #define GRST_RET_NO_SUCH_FILE	1003
 
+
+// #define GRSTerrorLog(GRSTerrorLevel, GRSTerrorFmt, ...) if (GRSTerrorLogFunc != NULL) (GRSTerrorLogFunc)(__FILE__, __LINE__, GRSTerrorLevel, GRSTerrorFmt, __VA_ARGS__)
+
+#define GRSTerrorLog(GRSTerrorLevel, ...) if (GRSTerrorLogFunc != NULL) (GRSTerrorLogFunc)(__FILE__, __LINE__, GRSTerrorLevel, __VA_ARGS__)
+
+void (*GRSTerrorLogFunc)(char *, int, int, char *, ...);
+
+/* these levels are the same as Unix syslog() and Apache ap_log_error() */
+
+#define GRST_LOG_EMERG   0
+#define GRST_LOG_ALERT   1
+#define GRST_LOG_CRIT    2
+#define GRST_LOG_ERR     3
+#define GRST_LOG_WARNING 4
+#define GRST_LOG_NOTICE  5
+#define GRST_LOG_INFO    6
+#define GRST_LOG_DEBUG   7
+
 typedef struct { char                      *name;
                  char                      *value;
                  void                      *next;  } GRSTgaclNamevalue;
@@ -94,14 +112,14 @@ typedef struct { GRSTgaclCred *firstcred;
 #define GRST_PERM_ALL   31
 
 /* DO NOT USE PermIsNone!! */
-#define GRSTgaclPermIsNone(perm)    (perm == 0)
+#define GRSTgaclPermIsNone(perm)    ((perm) == 0)
 
-#define GRSTgaclPermHasNone(perm)    (perm == 0)
-#define GRSTgaclPermHasRead(perm)  ((perm & GRST_PERM_READ ) != 0)
-#define GRSTgaclPermHasExec(perm)  ((perm & GRST_PERM_EXEC ) != 0)
-#define GRSTgaclPermHasList(perm)  ((perm & GRST_PERM_LIST ) != 0)
-#define GRSTgaclPermHasWrite(perm) ((perm & GRST_PERM_WRITE) != 0)
-#define GRSTgaclPermHasAdmin(perm) ((perm & GRST_PERM_ADMIN) != 0)
+#define GRSTgaclPermHasNone(perm)    ((perm) == 0)
+#define GRSTgaclPermHasRead(perm)  (((perm) & GRST_PERM_READ ) != 0)
+#define GRSTgaclPermHasExec(perm)  (((perm) & GRST_PERM_EXEC ) != 0)
+#define GRSTgaclPermHasList(perm)  (((perm) & GRST_PERM_LIST ) != 0)
+#define GRSTgaclPermHasWrite(perm) (((perm) & GRST_PERM_WRITE) != 0)
+#define GRSTgaclPermHasAdmin(perm) (((perm) & GRST_PERM_ADMIN) != 0)
 
 #define GRST_ACTION_ALLOW 0
 #define GRST_ACTION_DENY  1
@@ -127,6 +145,7 @@ struct GRSTasn1TagList { char treecoords[GRST_ASN1_MAXCOORDLEN+1];
 #define GRST_HTTP_PORT		777
 #define GRST_HTTPS_PORT		488
 #define GRST_HTCP_PORT		777
+#define GRST_GSIFTP_PORT	2811
                          
 #define GRSThtcpNOPop 0
 #define GRSThtcpTSTop 1

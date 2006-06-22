@@ -53,6 +53,9 @@
 #include <malloc.h>
 #include <curl/curl.h>
 #include <pthread.h>
+#include <pwd.h>
+#include <sys/time.h>
+#include <sys/resource.h>
 
 #include <fuse.h>
 
@@ -136,7 +139,10 @@ struct grst_handle { pthread_mutex_t	mutex;
  
 int debugmode         = 0;
 int number_of_tries   = 1, sitecast_domain_len = 0;
-char *sitecast_domain = NULL, *sitecast_groups = NULL;
+char *sitecast_domain = NULL, *sitecast_groups = NULL, *local_root = NULL,
+     *gridmapdir = NULL;
+uid_t local_uid = 0;
+gid_t local_gid = 0;
 
 size_t headers_callback(void *ptr, size_t size, size_t nmemb, void *p)
 /* Find the values of the return code, Content-Length, Last-Modified
@@ -854,7 +860,7 @@ struct grst_dir_list *index_to_dir_list(char *text, char *source)
                                         (p[i] != '\t') &&
                                         (p[i] != ')' ) &&
                                         (p[i] != '>' ) ; ++i) ; }
-               if (i > namestart) 
+               if (i > namestart)
                  {
                    s = malloc(1 + i - namestart);
                    memcpy(s, &p[namestart], i - namestart);
@@ -862,6 +868,14 @@ struct grst_dir_list *index_to_dir_list(char *text, char *source)
 
                    list[used].filename = canonicalise(s, source);
                    free(s);
+                   
+                   if ((list[used].filename != NULL) &&
+                       ((list[used].filename[0] == '\0') ||
+                        (strcmp(list[used].filename, "/") == 0)))
+                     {
+                       free(list[used].filename);
+                       list[used].filename = NULL;
+                     }
                  }
                  
                p = &p[i-1]; /* -1 since continue results in ++i */
@@ -944,6 +958,31 @@ static char *GRSThttpUrlMildencode(char *in)
   return out;
 }
 #endif
+
+GRSTgaclPerm get_gaclPerm(struct fuse_context *fuse_ctx, char *path)
+{
+  GRSTgaclPerm perm = GRST_PERM_NONE; 
+  GRSTgaclCred *cred;
+  GRSTgaclUser *user;
+  GRSTgaclAcl  *acl;
+
+// eventually want a UID cache here...
+
+// will check gridmapdir for DN and create user in future...
+  user = NULL; // but just anonymous user for now
+  
+  acl  = GRSTgaclAclLoadforFile(path);
+ 
+  perm = GRSTgaclAclTestUser(acl, user);
+  GRSTgaclAclFree(acl);
+  GRSTgaclUserFree(user);
+  
+perm = 255;
+
+  if (debugmode) syslog(LOG_DEBUG, "get_gaclPerm returns perm=%d", perm);
+
+  return perm;            
+}
 
 int read_headers_from_cache(struct fuse_context *fuse_ctx, char *filename, 
                             off_t *length, time_t *modified)
@@ -1100,10 +1139,10 @@ static int slashgrid_readdir(const char *path, void *buf,
   (void) offset;
   (void) fi;
 
-  int          anyerror = 0, thiserror, i, ilast;
+  int          anyerror = 0, thiserror, i, ilast, len, isdir;
   const char  *months[] = { "Jan", "Feb", "Mar", "Apr", "May", "Jun", 
                             "Jul", "Aug", "Sep", "Oct", "Nov", "Dec" };
-  char        *s, *url, errorbuffer[CURL_ERROR_SIZE+1] = "";
+  char        *s, *url, errorbuffer[CURL_ERROR_SIZE+1] = "", *dirname, *p;
   struct       grst_body_text  rawindex;
   struct       grst_dir_list   *list;
   struct       grst_request request_data;
@@ -1111,12 +1150,78 @@ static int slashgrid_readdir(const char *path, void *buf,
   struct       stat             stat_tmp;
   time_t                        now;
   struct fuse_context fuse_ctx;
+  struct dirent **dirlist;
+  GRSTgaclPerm  perm;
   
   memcpy(&fuse_ctx, fuse_get_context(), sizeof(struct fuse_context));
 
   if (debugmode) syslog(LOG_DEBUG, "in slashgrid_readdir");
 
-  if (strncmp(path, "/http/", 6) == 0)
+  if (strcmp(path, "/") == 0)
+    {
+      filler(buf, ".",     NULL, 0);
+      filler(buf, "..",    NULL, 0);
+      filler(buf, "http",  NULL, 0);
+      filler(buf, "https", NULL, 0);
+      return 0;
+    }
+    
+  if ((strcmp(path, "/http") == 0) || (strcmp(path, "/https") == 0))
+    {
+      filler(buf, ".",     NULL, 0);
+      filler(buf, "..",    NULL, 0);
+
+      asprintf(&dirname, "%s/%d%s", GRST_SLASH_HEADERS, fuse_ctx.uid, path);
+      ilast = scandir(dirname, &dirlist, 0, alphasort) - 1;
+
+      for (i=0; i <= ilast; ++i)
+         {
+           if (dirlist[i]->d_name[0] != '.')
+                 filler(buf, dirlist[i]->d_name, NULL, 0);
+           free(dirlist[i]);
+         }
+         
+      free(dirlist);      
+      free(dirname);
+    
+      return 0;
+    }
+  else if ((local_root != NULL) &&
+           ((strcmp(path, "/local") == 0) || 
+            (strncmp(path, "/local/", 7) == 0)))
+    {
+      asprintf(&dirname, "%s%s/", local_root, &path[6]);
+
+  if (debugmode) syslog(LOG_DEBUG, "in slashgrid_readdir, dirname=%s", dirname);
+      
+      perm = get_gaclPerm(&fuse_ctx, dirname);
+
+      if (!GRSTgaclPermHasList(perm))
+        {
+          free(dirname);
+          return -EACCES;
+        }
+        
+      ilast = scandir(dirname, &dirlist, 0, alphasort) - 1;
+      free(dirname);
+
+      if (ilast < 0) return -ENOENT;
+              
+      filler(buf, ".",     NULL, 0);
+      filler(buf, "..",    NULL, 0);
+
+      for (i=0; i <= ilast; ++i)
+         {
+           if (dirlist[i]->d_name[0] != '.')
+                 filler(buf, dirlist[i]->d_name, NULL, 0);
+           free(dirlist[i]);
+         }
+         
+      free(dirlist);      
+
+      return 0;
+    }
+  else if (strncmp(path, "/http/", 6) == 0)
     asprintf(&url, "http://%s/", &path[6]);
   else if (strncmp(path, "/https/", 7) == 0)
     asprintf(&url, "https://%s/", &path[7]);
@@ -1163,13 +1268,32 @@ static int slashgrid_readdir(const char *path, void *buf,
 
            rawindex.text[rawindex.used] = '\0';
 
+// we need to get this out of headers cache instead iff still valid
+
            list  = index_to_dir_list(rawindex.text, url);
            ilast = -1;
 
            for (i=0; list[i].filename != NULL; ++i)
               {
+                if (debugmode) syslog(LOG_DEBUG, 
+                         "in slashgrid_readdir, list[%d].filename=%s",
+                         i, list[i].filename);
+              
                 if (strncmp(list[i].filename, "mailto:", 7) == 0) continue;
 
+                len = strlen(list[i].filename);
+                if (list[i].filename[len-1] == '/')
+                  {
+                    isdir = 1;
+                    list[i].filename[len-1] = '\0';
+                  }
+                else 
+                  {
+                    isdir = 0;
+                    
+                    if ((p = index(list[i].filename, '?')) != NULL) *p = '\0';
+                  }
+                
                 /* skip over duplicates */
                 
                 if ((ilast >= 0) && 
@@ -1177,34 +1301,45 @@ static int slashgrid_readdir(const char *path, void *buf,
                                                                  continue;
                 ilast=i; /* last distinct entry */
                 
+                if (debugmode) syslog(LOG_DEBUG, 
+                         "in slashgrid_readdir, list[%d].filename=%s not dup",
+                         i, list[i].filename);
+
                 asprintf(&s, "%s/%s", path, list[i].filename);
                 write_headers_to_cache(&fuse_ctx, s, list[i].length, 
                                        list[i].modified);
                 free(s);
            
                 bzero(&stat_tmp, sizeof(struct stat));
+
                 stat_tmp.st_size  = list[i].length;
                 stat_tmp.st_mtime = list[i].modified;
                 stat_tmp.st_ctime = list[i].modified;
                 stat_tmp.st_atime = now;
-                stat_tmp.st_mode  = 0666;
-            
+                stat_tmp.st_mode  = isdir ? 0777 : 0666;
                 filler(buf, list[i].filename, &stat_tmp, 0);
+
+                if (debugmode) syslog(LOG_DEBUG, 
+                         "in slashgrid_readdir, filler list[%d].filename=%s %lu %lu",
+                         i, list[i].filename, stat_tmp.st_size, stat_tmp.st_mtime);
               }
          }
      
+  if (debugmode) syslog(LOG_DEBUG, 
+                         "in slashgrid_readdir, return 0");
   return 0;
 }
 
 static int slashgrid_getattr(const char *rawpath, struct stat *stbuf)
 {
-  int          anyerror = 0, thiserror, i, ilast, len;
-  char        *s, *url, *path, errorbuffer[CURL_ERROR_SIZE+1] = "";
+  int          anyerror = 0, thiserror, i, ilast, len, ret;
+  char        *s, *url, *path, errorbuffer[CURL_ERROR_SIZE+1] = "", *p;
   struct       grst_dir_list   *list;
   struct       grst_request request_data;
   struct       tm               modified_tm;
   struct       stat             stat_tmp;
   time_t                        now;
+  GRSTgaclPerm dirperm, perm;
 
   struct fuse_context fuse_ctx;
 
@@ -1220,11 +1355,12 @@ static int slashgrid_getattr(const char *rawpath, struct stat *stbuf)
   
   if ((strcmp(rawpath, "/")      == 0) ||
       (strcmp(rawpath, "/http")  == 0) ||
-      (strcmp(rawpath, "/https") == 0))
+      (strcmp(rawpath, "/https") == 0) ||
+      ((local_root != NULL) && (strcmp(rawpath, "/local") == 0)))
     {
       stbuf->st_mode = S_IFDIR | 0755;
               
-      return 0; /* The empty top level directory: OK */
+      return 0; /* Empty top level directories: OK */
     }
   else if (strncmp(rawpath, "/http/", 6) == 0)
     {
@@ -1255,6 +1391,75 @@ static int slashgrid_getattr(const char *rawpath, struct stat *stbuf)
           asprintf(&url, "https://%s", &rawpath[7]);
           path = strdup(rawpath);
         }
+    }
+  else if ((local_root != NULL) && (strncmp(rawpath, "/local/", 7) == 0))
+    {      
+      asprintf(&path, "%s/%s", local_root, &rawpath[7]);
+ 
+      ret = lstat(path, &stat_tmp);
+
+      if (debugmode) syslog(LOG_DEBUG, "path=%s ret=%d", path, ret);
+
+      if ((ret == 0) && S_ISDIR(stat_tmp.st_mode))
+        {
+          dirperm = get_gaclPerm(&fuse_ctx, path);
+        
+          p = rindex(path, '/');
+          if (p != NULL) *p = '\0'; 
+          /* strip off directory name itself if a directory, 
+             so get the GACL of the parent directory */
+
+          perm = get_gaclPerm(&fuse_ctx, path);
+        }
+      else
+        {      
+          perm = get_gaclPerm(&fuse_ctx, path);
+          dirperm = perm;
+        }
+
+      if (!GRSTgaclPermHasRead(perm)) ret = -EACCES;
+      else if (ret == 0)
+        {
+          stbuf->st_nlink   = 1;
+          stbuf->st_uid     = fuse_ctx.uid;
+          stbuf->st_gid     = fuse_ctx.gid;
+          stbuf->st_size    = stat_tmp.st_size;
+          stbuf->st_blksize = stat_tmp.st_blksize;
+          stbuf->st_blocks  = stat_tmp.st_blocks;
+          stbuf->st_atime   = stat_tmp.st_atime;
+          stbuf->st_mtime   = stat_tmp.st_mtime;
+          stbuf->st_ctime   = stat_tmp.st_ctime;
+        
+          if (S_ISDIR(stat_tmp.st_mode))
+            {
+              stbuf->st_mode = S_IFDIR;
+            
+              if (GRSTgaclPermHasWrite(dirperm)) 
+                                        stbuf->st_mode |= S_IWUSR;
+
+              if (GRSTgaclPermHasList(dirperm)) 
+                                        stbuf->st_mode |= S_IRUSR | S_IXUSR;
+            }
+          else
+            {
+              stbuf->st_mode = S_IFREG;
+
+              if (GRSTgaclPermHasWrite(perm)) 
+                                        stbuf->st_mode |= S_IWUSR;
+
+              if (GRSTgaclPermHasRead(perm)) 
+                                        stbuf->st_mode |= S_IRUSR;
+            }          
+            
+          
+        }  
+      else ret = -ENOENT;
+      
+      free(path);
+
+      if (debugmode) syslog(LOG_DEBUG, "slashgrid_getattr returns %d for %s",
+                                       ret, rawpath);
+      return ret;
     }
   else return -ENOENT;
   
@@ -1370,7 +1575,6 @@ static int slashgrid_getattr(const char *rawpath, struct stat *stbuf)
   return 0;
 }
 
-
 int write_block_to_cache(struct fuse_context *fuse_ctx, char *filename,  
                          off_t start, off_t finish)
 {
@@ -1458,8 +1662,8 @@ int write_block_to_cache(struct fuse_context *fuse_ctx, char *filename,
        if (*p == '\0') break;
      }
 
-  asprintf(&new_filename, "%s/%d%s/%ld-%ld", 
-       GRST_SLASH_BLOCKS, fuse_ctx->uid, encoded_filename, (long) start, (long) finish);
+  asprintf(&new_filename, "%s/%d%s/%ld-%ld", GRST_SLASH_BLOCKS, fuse_ctx->uid,
+                           encoded_filename, (long) start, (long) finish);
 
   free(encoded_filename);
   
@@ -1520,19 +1724,42 @@ static int slashgrid_read(const char *path, char *buf,
   (void) fi;
 
   int          anyerror = 0, thiserror, i, ilast, fd;
-  char        *s, *url, *disk_filename, *encoded_filename;
+  char        *s, *url, *disk_filename, *encoded_filename, *localpath;
   off_t        block_start, block_finish, block_i, len;
   struct       grst_body_text   rawbody;
   struct       grst_request request_data;
   struct       tm               modified_tm;
   struct       stat             statbuf;
   time_t                        now;
+  GRSTgaclPerm perm;
   struct fuse_context fuse_ctx;
 
   memcpy(&fuse_ctx, fuse_get_context(), sizeof(struct fuse_context));
   
   if (debugmode) syslog(LOG_DEBUG, "in slashgrid_read size=%ld offset=%ld",
                                     (long) size, (long) offset);
+
+  if ((local_root != NULL) && (strncmp(path, "/local/", 7) == 0))
+    {
+      asprintf(&localpath, "%s/%s", local_root, &path[7]);
+      
+      perm = get_gaclPerm(&fuse_ctx, localpath);
+      
+      if (GRSTgaclPermHasRead(perm))
+        {
+          fd = open(localpath, O_RDONLY);
+
+          if (lseek(fd, offset, SEEK_SET) < 0) size = -1;
+          else size = read(fd, buf, size);
+
+          close(fd);                  
+        }
+      else size = -1;
+      
+      free(localpath);
+      
+      return size;
+    }
 
   if ((strncmp(path, "/http/",  6) != 0) &&
       (strncmp(path, "/https/", 7) != 0)) return -ENOENT;
@@ -1600,13 +1827,40 @@ static int slashgrid_write(const char *path, const char *buf,
                            struct fuse_file_info *fi)
 {
   int          anyerror = 0, thiserror, i, fd;
-  char        *s, *url, *p, errorbuffer[CURL_ERROR_SIZE+1] = "";
+  char        *s, *url, *p, errorbuffer[CURL_ERROR_SIZE+1] = "", *localpath;
+  GRSTgaclPerm perm;
 
   struct grst_read_data read_data;
   struct grst_request request_data;
   struct fuse_context fuse_ctx;
   
   memcpy(&fuse_ctx, fuse_get_context(), sizeof(struct fuse_context));  
+
+  if (debugmode) syslog(LOG_DEBUG, "in slashgrid_write, path=%s, UID=%d\n",
+                                   path, fuse_ctx.uid);
+                         
+  if ((local_root != NULL) && (strncmp(path, "/local/", 7) == 0))
+    {
+      asprintf(&localpath, "%s/%s", local_root, &path[7]);
+      
+      perm = get_gaclPerm(&fuse_ctx, localpath);
+      
+      if (GRSTgaclPermHasWrite(perm))
+        {
+          fd = open(localpath, O_WRONLY | O_CREAT, S_IRUSR | S_IWUSR);
+
+          if (lseek(fd, offset, SEEK_SET) < 0) size = -1;
+          else size = write(fd, buf, size);
+
+          fchown(fd, local_uid, local_gid);
+          close(fd);                  
+        }
+      else size = -1;
+      
+      free(localpath);
+      
+      return size;
+    }
 
   if (strncmp(path, "/http/", 6) == 0)
     asprintf(&url, "http://%s", &path[6]);
@@ -1794,6 +2048,8 @@ int slashgrid_rmdir(const char *path)
 int slashgrid_mknod(const char *path, mode_t mode, dev_t dev)
 {
   int ret;
+
+  if (debugmode) syslog(LOG_DEBUG, "slashgrid_mknod called for %s", path);
   
   ret = slashgrid_write(path, "", 0, 0, NULL);
 
@@ -1826,8 +2082,9 @@ int slashgrid_chmod(const char *path, mode_t mode)
 
 int slashgrid_truncate(const char *path, off_t offset)
 {
-  int          anyerror = 0, thiserror, i, fd;
-  char        *s, *url, *p, errorbuffer[CURL_ERROR_SIZE+1] = "";
+  int   anyerror = 0, thiserror, i, fd, ret;
+  char *s, *url, *p, errorbuffer[CURL_ERROR_SIZE+1] = "", *localpath;
+  GRSTgaclPerm perm;
 
   struct grst_read_data read_data;
   struct fuse_context fuse_ctx;
@@ -1835,10 +2092,30 @@ int slashgrid_truncate(const char *path, off_t offset)
 
   memcpy(&fuse_ctx, fuse_get_context(), sizeof(struct fuse_context));
 
+  if (debugmode) syslog(LOG_DEBUG, "slashgrid_truncate, for %s (%d)",
+                                  path, offset);
+
   if (strncmp(path, "/http/", 6) == 0)
     asprintf(&url, "http://%s", &path[6]);
   else if (strncmp(path, "/https/", 7) == 0)
     asprintf(&url, "https://%s", &path[7]);
+  else if ((local_root != NULL) && (strncmp(path, "/local/", 7) == 0))
+    {
+      asprintf(&localpath, "%s/%s", local_root, &path[7]);
+      
+      perm = get_gaclPerm(&fuse_ctx, localpath);
+      
+      if (GRSTgaclPermHasWrite(perm))
+        {
+          ret = truncate(localpath, offset);
+          free(localpath);
+          
+          return (ret == 0) ? 0 : -ENOENT;
+        }
+
+      free(localpath);
+      return -EACCES;
+    }
   else return -ENOENT;
 
   read_data.buf     = "";
@@ -1882,7 +2159,12 @@ int slashgrid_truncate(const char *path, off_t offset)
 
 int slashgrid_statfs(const char *path, struct statfs *fs)
 {
-  return statfs(GRST_SLASH_BLOCKS, fs);
+  /* statfs() on /local not used in practice, since not mounted separately */
+
+  if ((strncmp(path, "/local/", 7) == 0) ||
+      (strcmp(path, "/local") == 0))
+       return statfs(local_root, fs);
+  else return statfs(GRST_SLASH_BLOCKS, fs);
 }
 
 void *slashgrid_init(void)
@@ -1921,15 +2203,39 @@ static struct fuse_operations slashgrid_oper = {
   .destroy	= slashgrid_destroy
 };
 
+void slashgrid_logfunc(char *file, int line, int level, char *fmt, ...)
+{
+  char *mesg;
+  va_list ap;
+
+  va_start(ap, fmt);
+  vasprintf(&mesg, fmt, ap);
+  va_end(ap);
+  
+  syslog(level, "%s(%d) %s", file, line, mesg);
+  
+  free(mesg);
+}
+
 int main(int argc, char *argv[])
 {
-#define FUSE_ARGC 4
-  char *fuse_argv[FUSE_ARGC] = { "slashgrid", "/grid", "-o", "allow_other" };
-  int   i, ret;
+  char *fuse_argv[] = { "slashgrid", "/grid", "-o", "allow_other",
+                        "-s", "-d" };
+  int   i, ret, fuse_argc = 4; /* by default, ignore the final 2 args */
+  struct passwd *pw;
+  struct rlimit unlimited = { RLIM_INFINITY, RLIM_INFINITY };
   
   for (i=1; i < argc; ++i)
      {
-       if (strcmp(argv[i], "--debug") == 0) debugmode = 1;
+       if (strcmp(argv[i], "--debug") == 0) 
+         {
+           debugmode = 1;
+         }
+       else if (strcmp(argv[i], "--foreground") == 0) 
+         {
+           debugmode = 1;
+           fuse_argc = 6;
+         }
        else if ((strcmp(argv[i], "--domain") == 0) && (i + 1 < argc))
          {
            sitecast_domain = argv[i+1];
@@ -1941,7 +2247,42 @@ int main(int argc, char *argv[])
            sitecast_groups = argv[i+1];
            ++i;
          }          
-     }                 
+       else if ((strcmp(argv[i], "--local-root") == 0) && (i + 1 < argc))
+         {
+           local_root = argv[i+1];
+           ++i;
+         }          
+       else if ((strcmp(argv[i], "--local-user") == 0) && (i + 1 < argc))
+         {
+           if ((pw = getpwnam(argv[i+1])) == NULL)
+             {
+               fprintf(stderr, "unable to find user %s\n", argv[i+1]);
+               return 1;
+             }
+            
+           local_uid = pw->pw_uid;
+           local_gid = pw->pw_gid;
+           ++i;           
+         }
+       else if ((strcmp(argv[i], "--gridmapdir") == 0) && (i + 1 < argc))
+         {
+           gridmapdir = argv[i+1];
+           ++i;
+         }          
+       else
+         {
+           fprintf(stderr, "argument %s not recognised\n", argv[i]);
+           return 1;
+         }
+     }              
+
+  if ((local_root != NULL) && 
+      ((local_uid == 0) || (local_gid == 0)))
+    {
+      fprintf(stderr, "if --local-root is given, "
+                "--local-user must be given too and not be the root user\n");
+      return 1;
+    }
 
   openlog("slashgrid", 0, LOG_DAEMON);
     
@@ -1955,7 +2296,17 @@ int main(int argc, char *argv[])
        handles[i].last_used   = 0;
      }
 
-  ret = fuse_main(FUSE_ARGC, fuse_argv, &slashgrid_oper);
+  if (debugmode) 
+    {
+      chdir("/var/tmp");
+      setrlimit(RLIMIT_CORE, &unlimited);
+    }
+
+//  GRSTerrorLogFunc = slashgrid_logfunc;
+ 
+  GRSTgaclInit();
+ 
+  ret = fuse_main(fuse_argc, fuse_argv, &slashgrid_oper);
 
   return ret;
 }

@@ -231,7 +231,7 @@ static GRSTgaclEntry *GRSTxacmlEntryParse(xmlNodePtr cur)
 
 GRSTgaclAcl *GRSTxacmlAclLoadFile(char *filename)
 {
-xmlDocPtr   doc;
+  xmlDocPtr   doc;
   xmlNodePtr  cur;
   GRSTgaclAcl    *acl;
 
@@ -245,7 +245,7 @@ xmlDocPtr   doc;
   else if (!xmlStrcmp(cur->name, (const xmlChar *) "gacl")) {acl=GRSTgaclAclParse(doc, cur, acl);}
   else /* ACL format not recognised */
     {
-      free(doc);
+      xmlFreeDoc(doc);
       free(cur);
       return NULL;
     }
@@ -283,7 +283,6 @@ GRSTgaclAcl *GRSTxacmlAclParse(xmlDocPtr doc, xmlNodePtr cur, GRSTgaclAcl *acl)
       if (entry == NULL)
       {
         GRSTgaclAclFree(acl);
-        xmlFreeDoc(doc);
         return NULL;
       }
       else GRSTgaclAclAddEntry(acl, entry);

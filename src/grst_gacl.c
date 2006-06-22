@@ -1,5 +1,5 @@
 /*
-   Copyright (c) 2002-3, Andrew McNab, University of Manchester
+   Copyright (c) 2002-6, Andrew McNab, University of Manchester
    All rights reserved.
 
    Redistribution and use in source and binary forms, with or
@@ -53,7 +53,7 @@
 #include "gridsite.h"
 
 /*                                                                      *
- * Global variables, shared by all GACL functions by private to libgacl *
+ * Global variables, shared by all GACL functions but private to libgacl *
  *                                                                      */
  
 char     *grst_perm_syms[] =  { "none",
@@ -572,8 +572,9 @@ static GRSTgaclCred *GRSTgaclCredParse(xmlNodePtr cur)
   
   for (cur2 = cur->xmlChildrenNode; cur2 != NULL; cur2=cur2->next)
      {
-       GRSTgaclCredAddValue(cred, (char *) cur2->name, 
-                           (char *) xmlNodeGetContent(cur2));     
+       if (!xmlIsBlankNode(cur2))
+        GRSTgaclCredAddValue(cred, (char *) cur2->name, 
+                             (char *) xmlNodeGetContent(cur2));     
      }
 
   return cred;
@@ -599,21 +600,32 @@ static GRSTgaclEntry *GRSTgaclEntryParse(xmlNodePtr cur)
   
   while (cur != NULL)
        {
-         if (xmlStrcmp(cur->name, (const xmlChar *) "allow") == 0)
+         if (xmlIsBlankNode(cur))
+           {
+             cur=cur->next;
+             continue;
+           }
+         else if (xmlStrcmp(cur->name, (const xmlChar *) "allow") == 0)
            {
              for (cur2 = cur->xmlChildrenNode; cur2 != NULL; cur2=cur2->next)
-              for (i=0; grst_perm_syms[i] != NULL; ++i)
-               if (xmlStrcmp(cur2->name, 
+                if (!xmlIsBlankNode(cur2))
+                  {                
+                    for (i=0; grst_perm_syms[i] != NULL; ++i)
+                     if (xmlStrcmp(cur2->name, 
                              (const xmlChar *) grst_perm_syms[i]) == 0)
-                     GRSTgaclEntryAllowPerm(entry, grst_perm_vals[i]);
+                       GRSTgaclEntryAllowPerm(entry, grst_perm_vals[i]);
+                  }
            }
          else if (xmlStrcmp(cur->name, (const xmlChar *) "deny") == 0)
            {
              for (cur2 = cur->xmlChildrenNode; cur2 != NULL; cur2=cur2->next)
-              for (i=0; grst_perm_syms[i] != NULL; ++i)
-               if (xmlStrcmp(cur2->name, 
+                if (!xmlIsBlankNode(cur2))
+                  {
+                    for (i=0; grst_perm_syms[i] != NULL; ++i)
+                     if (xmlStrcmp(cur2->name, 
                              (const xmlChar *) grst_perm_syms[i]) == 0)
-                     GRSTgaclEntryDenyPerm(entry, grst_perm_vals[i]);
+                       GRSTgaclEntryDenyPerm(entry, grst_perm_vals[i]);
+                  }
            }
          else if ((cred = GRSTgaclCredParse(cur)) != NULL) 
            {
@@ -642,22 +654,37 @@ GRSTgaclAcl *GRSTgaclAclLoadFile(char *filename)
   xmlNodePtr  cur;
   GRSTgaclAcl    *acl;
 
+  GRSTerrorLog(GRST_LOG_DEBUG, "GRSTgaclAclLoadFile() starting");
+
+  if (filename == NULL) 
+    {
+      GRSTerrorLog(GRST_LOG_DEBUG, "GRSTgaclAclLoadFile() cannot open a NULL filename");
+      return NULL;
+    }
+
   doc = xmlParseFile(filename);
-  if (doc == NULL) return NULL;
+  if (doc == NULL) 
+    {
+      GRSTerrorLog(GRST_LOG_DEBUG, "GRSTgaclAclLoadFile failed to open ACL file %s", filename);
+      return NULL;
+    }
 
   cur = xmlDocGetRootElement(doc);
   if (cur == NULL) 
     {
-      xmlFreeDoc(doc);      
+      xmlFreeDoc(doc);
+      GRSTerrorLog(GRST_LOG_DEBUG, "GRSTgaclAclLoadFile failed to parse root of ACL file %s", filename);
       return NULL;
     }
 
   if (!xmlStrcmp(cur->name, (const xmlChar *) "Policy")) 
     { 
+      GRSTerrorLog(GRST_LOG_DEBUG, "GRSTgaclAclLoadFile parsing XACML");
       acl=GRSTxacmlAclParse(doc, cur, acl);
     }
   else if (!xmlStrcmp(cur->name, (const xmlChar *) "gacl")) 
     {
+      GRSTerrorLog(GRST_LOG_DEBUG, "GRSTgaclAclLoadFile parsing GACL");
       acl=GRSTgaclAclParse(doc, cur, acl);
     }
   else /* ACL format not recognised */
@@ -680,15 +707,18 @@ GRSTgaclAcl *GRSTgaclAclParse(xmlDocPtr doc, xmlNodePtr cur, GRSTgaclAcl *acl)
 
   while (cur != NULL)
        {
-         entry = GRSTgaclEntryParse(cur);
-         if (entry == NULL)
+         if (!xmlIsBlankNode(cur))
            {
-             GRSTgaclAclFree(acl);
-             xmlFreeDoc(doc);
-             return NULL;
-           }
+             entry = GRSTgaclEntryParse(cur);
+             if (entry == NULL)
+               {
+                 GRSTgaclAclFree(acl);
 
-         GRSTgaclAclAddEntry(acl, entry);
+                 return NULL;
+               }
+
+             GRSTgaclAclAddEntry(acl, entry);
+           }
 
          cur=cur->next;
        }

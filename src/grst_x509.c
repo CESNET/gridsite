@@ -76,7 +76,8 @@ int GRSTx509NameCmp(char *a, char *b)
  *  would ideally be done with OIDs/values. In particular, we equate
  *  "/Email=" == "/emailAddress=" to deal with this important change
  *  between OpenSSL 0.9.6 and 0.9.7. 
- *  Other than that, it is currently the same as ordinary strcmp(3).
+ *  Other than that, it is currently the same as ordinary strcasecmp(3)
+ *  (for consistency with EDG/LCG/EGEE gridmapdir case insensitivity.)
  */
 {
    int   ret;
@@ -96,7 +97,7 @@ int GRSTx509NameCmp(char *a, char *b)
           p[1] = 'E';
         }
 
-   ret = strcmp(aa, bb);
+   ret = strcasecmp(aa, bb);
 
    free(aa);
    free(bb);

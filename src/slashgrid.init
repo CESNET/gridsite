@@ -30,6 +30,7 @@ RETVAL=0
 start() {
         echo -n $"Starting $prog: "
         modprobe fuse
+        sleep 1
         daemon $slashgrid $OPTIONS
         RETVAL=$?
         echo

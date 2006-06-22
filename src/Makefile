@@ -65,12 +65,21 @@ build-lib: libgridsite_globus.so.$(VERSION) libgridsite_globus.a \
 
 # First, normal versions using system OpenSSL rather than Globus OpenSSL
 
-libgridsite.so.$(VERSION): grst_x509.o grst_gacl.o grst_xacml.o grst_http.o grst_asn1.o grst_htcp.o
+libgridsite.so.$(VERSION): grst_err.o grst_x509.o grst_gacl.o grst_xacml.o \
+                           grst_http.o grst_asn1.o grst_htcp.o
 	gcc -shared -Wl,-soname,libgridsite.so.$(MINOR_VERSION) \
-         -o libgridsite.so.$(PATCH_VERSION) grst_x509.o grst_gacl.o grst_xacml.o grst_http.o grst_asn1.o grst_htcp.o
+         -o libgridsite.so.$(PATCH_VERSION) -lcrypto `xml2-config --libs` \
+         grst_err.o grst_x509.o grst_gacl.o grst_xacml.o grst_http.o \
+         grst_asn1.o grst_htcp.o 
+	ln -sf libgridsite.so.$(VERSION) libgridsite.so
+	ln -sf libgridsite.so.$(VERSION) libgridsite.so.$(MINOR_VERSION)
 
-libgridsite.a: grst_x509.o grst_gacl.o grst_xacml.o grst_http.o grst_asn1.o grst_htcp.o
-	ar src libgridsite.a grst_x509.o grst_gacl.o grst_xacml.o grst_http.o grst_asn1.o grst_htcp.o
+libgridsite.a: grst_err.o grst_x509.o grst_gacl.o grst_xacml.o grst_http.o grst_asn1.o grst_htcp.o
+	ar src libgridsite.a grst_err.o grst_x509.o grst_gacl.o grst_xacml.o grst_http.o grst_asn1.o grst_htcp.o
+
+grst_err.o: grst_err.c ../interface/gridsite.h
+	gcc -g $(MYCFLAGS) \
+	    -c grst_err.c
 
 grst_x509.o: grst_x509.c ../interface/gridsite.h
 	gcc -g $(MYCFLAGS) \
@@ -100,16 +109,23 @@ grst_htcp.o: grst_htcp.c ../interface/gridsite.h
 
 ifdef OPENSSL_GLOBUS_LIBS
 
-libgridsite_globus.so.$(VERSION): \
+libgridsite_globus.so.$(VERSION): grst_err_globus.o \
                grst_x509_globus.o grst_gacl_globus.o grst_http_globus.o \
-               grst_asn1_globus.o grst_xacml_globus.o grst_htcp_globus.o
+               grst_asn1_globus.o grst_xacml_globus.o grst_htcp_globus.o 
 	gcc -shared -Wl,-soname,libgridsite_globus.so.$(MINOR_VERSION) \
          -o libgridsite_globus.so.$(PATCH_VERSION) \
-         grst_x509_globus.o grst_gacl_globus.o grst_xacml_globus.o grst_http_globus.o grst_asn1_globus.o
+         grst_err.o grst_x509_globus.o grst_gacl_globus.o grst_xacml_globus.o \
+         grst_http_globus.o grst_asn1_globus.o
+	ln -sf libgridsite_globus.so.$(VERSION) libgridsite_globus.so
 
-libgridsite_globus.a: grst_x509_globus.o grst_gacl_globus.o grst_http_globus.o grst_asn1_globus.o
+libgridsite_globus.a: grst_err_globus.o grst_x509_globus.o grst_gacl_globus.o grst_http_globus.o grst_asn1_globus.o
 	ar src libgridsite_globus.a \
-               grst_x509_globus.o grst_gacl_globus.o grst_http_globus.o grst_asn1_globus.o
+               grst_err_globus.o grst_x509_globus.o grst_gacl_globus.o grst_http_globus.o grst_asn1_globus.o
+
+grst_err_globus.o: grst_err.c ../interface/gridsite.h
+	gcc -g $(MYCFLAGS) $(OPENSSL_GLOBUS_FLAGS) \
+	    -c grst_err.c \
+	    -o grst_err_globus.o
 
 grst_x509_globus.o: grst_x509.c ../interface/gridsite.h
 	gcc -g $(MYCFLAGS) $(OPENSSL_GLOBUS_FLAGS) \
@@ -158,19 +174,22 @@ gsexec:	gsexec.c gsexec.h
 urlencode: urlencode.c libgridsite.a
 	gcc -g -DVERSION=\"$(PATCH_VERSION)\" $(MYCFLAGS) \
             -o urlencode urlencode.c -L. \
-            -I/usr/kerberos/include -lgridsite
+            -I/usr/kerberos/include \
+            -lgridsite
 
 htcp: htcp.c libgridsite.a
 	gcc -g -DVERSION=\"$(PATCH_VERSION)\" $(MYCFLAGS) \
 	    -o htcp htcp.c -L. \
 	    -I/usr/kerberos/include \
-            `curl-config --cflags` `curl-config --libs` -lgridsite
+            `curl-config --cflags` `curl-config --libs` \
+            -lgridsite
 
 gridsite-copy.cgi: gridsite-copy.c libgridsite.a
 	gcc -g -DVERSION=\"$(PATCH_VERSION)\" $(MYCFLAGS) \
 	    -o gridsite-copy.cgi gridsite-copy.c -L. \
 	    -I/usr/kerberos/include \
-            `curl-config --cflags` `curl-config --libs` -lgridsite
+            `curl-config --cflags` `curl-config --libs` \
+            -lgridsite
 
 mod_gridsite.so: mod_gridsite.c mod_ssl-private.h libgridsite.a
 	gcc -g $(MYCFLAGS) -shared -Wl,-soname=gridsite_module \
@@ -200,13 +219,15 @@ showx509exts: showx509exts.c libgridsite.a
             -I/usr/kerberos/include \
             -lgridsite \
             -lssl -lcrypto -lxml2 -lz -lm
+
+
  
-slashgrid: slashgrid.c
+slashgrid: slashgrid.c libgridsite.so.$(VERSION)
 	gcc -g -o slashgrid -lfuse -lpthread slashgrid.c \
+          $(MYCFLAGS) $(MYLDFLAGS) `xml2-config --cflags` \
           -D_FILE_OFFSET_BITS=64 -D_REENTRANT -DFUSE_USE_VERSION=22 \
-          $(MYCFLAGS) $(MYLDFLAGS) \
           -I/usr/kerberos/include `curl-config --cflags` \
-          `curl-config --libs` -lgridsite -lxml2
+          -L. `curl-config --libs` -lgridsite
 
 apidoc:
 	date

@@ -112,12 +112,13 @@ struct sitecast_group
 #define GRST_SITECAST_ALIASES 32
    
 struct sitecast_alias
-   { const char *sitecast_url; const char *local_path; server_rec *server; };
+   { const char *sitecast_url; const char *scheme; int port; 
+     const char *local_path; server_rec *server; };
 
 /* Globals, defined by main server directives in httpd.conf  
    These are assigned default values in create_gridsite_srv_config() */
 
-int			gridhttpport = 0;
+int gridhttpport = 0; /* set by create_gridsite_srv_config, used as flag */
 char                    *sessionsdir = NULL;
 char			*sitecastdnlists = NULL;
 struct sitecast_group	sitecastgroups[GRST_SITECAST_GROUPS+1];
@@ -1421,7 +1422,8 @@ static void *create_gridsite_srv_config(apr_pool_t *p, server_rec *s)
 {
     int i;
 
-    if (!(s->is_virtual))
+    /* only run once (in base server) */
+    if (!(s->is_virtual) && (gridhttpport == 0))
       {
         gridhttpport = GRST_HTTP_PORT;
       
@@ -1438,14 +1440,17 @@ static void *create_gridsite_srv_config(apr_pool_t *p, server_rec *s)
                                       /* GridSiteCastUniPort udp-port */
 
         for (i=1; i <= GRST_SITECAST_GROUPS; ++i)
-                   sitecastgroups[i].port = 0;
-                                      /* GridSiteCastGroup mcast-list */
+           {
+             sitecastgroups[i].port = 0; /* GridSiteCastGroup mcast-list */
+           }
 
         for (i=1; i <= GRST_SITECAST_ALIASES; ++i)
            {
              sitecastaliases[i].sitecast_url = NULL;
+             sitecastaliases[i].port         = 0;
+             sitecastaliases[i].scheme       = NULL;
              sitecastaliases[i].local_path   = NULL;
-             sitecastaliases[i].server       = NULL;                   
+             sitecastaliases[i].server       = NULL;
            }                              /* GridSiteCastAlias url path */
       }
 
@@ -1824,7 +1829,8 @@ static const char *mod_gridsite_take1_cmds(cmd_parms *a, void *cfg,
 static const char *mod_gridsite_take2_cmds(cmd_parms *a, void *cfg,
                                        const char *parm1, const char *parm2)
 {
-    int i;
+    int   i;
+    char *p, *q;
     
     if (strcasecmp(a->cmd->name, "GridSiteUserGroup") == 0)
     {
@@ -1864,9 +1870,34 @@ static const char *mod_gridsite_take2_cmds(cmd_parms *a, void *cfg,
          {
            if (sitecastaliases[i].sitecast_url == NULL)
              {
-               sitecastaliases[i].sitecast_url  = parm1;
-               sitecastaliases[i].local_path    = parm2;
-               sitecastaliases[i].server        = a->server;              
+               sitecastaliases[i].scheme = apr_pstrdup(a->pool, parm1);
+
+               if (((p = index(sitecastaliases[i].scheme, ':')) == NULL)
+                   || (p[1] != '/') || (p[2] != '/'))
+                 return "GridSiteCastAlias URL must begin with scheme (http/https/gsiftp/...) and ://";
+
+               *p = '\0';
+               ++p;
+               while (*p == '/') ++p;
+             
+               if ((q = index(p, '/')) == NULL)
+                return "GridSiteCastAlias URL must be of form scheme://domain:port/dirs";
+
+               *q = '\0';
+
+               p = index(p, ':');
+               if (p == NULL)
+                 {
+                   return "GridSiteCastAlias URL must include the port number";
+                 }
+
+               if (sscanf(p, ":%d", &(sitecastaliases[i].port)) != 1)
+                 return "Unable to parse numeric port number in GridSiteCastAlias";
+
+               sitecastaliases[i].sitecast_url  = apr_pstrdup(a->pool, parm1);
+               sitecastaliases[i].local_path    = apr_pstrdup(a->pool, parm2);
+               sitecastaliases[i].server        = a->server;
+
                break;
              }
          }
@@ -2735,42 +2766,13 @@ void sitecast_handle_TST_GET(server_rec *main_server,
                              GRSThtcpMessage *htcp_mesg, int igroup,
                              struct sockaddr_in *client_addr_ptr)
 {
-  int             i, outbuf_len, ialias, port;
+  int             i, outbuf_len, ialias;
   char            *filename, *outbuf, *location, *local_uri = NULL;
   struct stat     statbuf;
-  SSLSrvConfigRec *ssl_srv;
   
-  /* check sanity of requested uri */
-
-  if (strncmp(htcp_mesg->uri->text, "http://", 7) == 0)
-    {
-      for (i=7; i < GRSThtcpCountstrLen(htcp_mesg->uri); ++i)
-         if (htcp_mesg->uri->text[i] == '/') 
-           {
-             local_uri = &(htcp_mesg->uri->text[i]);
-             break;
-           }
-    }
-  else if (strncmp(htcp_mesg->uri->text, "https://", 8) == 0)
-    {
-      for (i=8; i < GRSThtcpCountstrLen(htcp_mesg->uri); ++i)
-         if (htcp_mesg->uri->text[i] == '/') 
-           {
-             local_uri = &(htcp_mesg->uri->text[i]);
-             break;
-           }
-    }
-
-  if (local_uri == NULL)
-    {
-      ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, main_server,
-              "SiteCast responder only handles http(s):// (%*s requested by %s:%d)",
-                        GRSThtcpCountstrLen(htcp_mesg->uri),
-                        htcp_mesg->uri->text,
-                        inet_ntoa(client_addr_ptr->sin_addr),
-                        ntohs(client_addr_ptr->sin_port));      
-      return;
-    }
+  ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, main_server,
+        "SiteCast responder received TST GET with uri %s", 
+        htcp_mesg->uri->text, GRSThtcpCountstrLen(htcp_mesg->uri));
 
   /* find if any GridSiteCastAlias lines match */
 
@@ -2796,9 +2798,9 @@ void sitecast_handle_TST_GET(server_rec *main_server,
       
       return; /* no match */
     }
-
+    
   /* convert URL to filename, using alias mapping */
-  
+
   asprintf(&filename, "%s%*s", 
            sitecastaliases[ialias].local_path,
            GRSThtcpCountstrLen(htcp_mesg->uri) 
@@ -2806,19 +2808,12 @@ void sitecast_handle_TST_GET(server_rec *main_server,
            &(htcp_mesg->uri->text[strlen(sitecastaliases[ialias].sitecast_url)]) );
 
   if (stat(filename, &statbuf) == 0) /* found file */
-    { 
-      ssl_srv = (SSLSrvConfigRec *)
-       ap_get_module_config(sitecastaliases[ialias].server->module_config,
-                                                             &ssl_module);
-
-      port = sitecastaliases[ialias].server->addrs->host_port;
-      if (port == 0) port = ((ssl_srv != NULL) && (ssl_srv->enabled))
-                                 ? GRST_HTTPS_PORT : GRST_HTTP_PORT;
-                
-      asprintf(&location, "Location: http%s://%s:%d%s\r\n",
-                  ((ssl_srv != NULL) && (ssl_srv->enabled)) ? "s" : "",
-                  sitecastaliases[ialias].server->server_hostname, port,
-                  local_uri);
+    {
+      asprintf(&location, "Location: %s://%s:%d/%s\r\n",
+                  sitecastaliases[ialias].scheme,
+                  sitecastaliases[ialias].server->server_hostname,
+                  sitecastaliases[ialias].port,
+      &(htcp_mesg->uri->text[strlen(sitecastaliases[ialias].sitecast_url)]) );
 
       ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, main_server,
             "SiteCast finds %*s at %s, redirects with %s",
@@ -2954,6 +2949,9 @@ void sitecast_responder(server_rec *main_server)
 
   /* initialise multicast listener sockets next */
 
+   ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, main_server,
+          "SiteCast UDP Responder group [1].port %d", sitecastgroups[1].port);
+
   for (i=1; (i <= GRST_SITECAST_GROUPS) && 
             (sitecastgroups[i].port != 0); ++i)
      {
@@ -2992,6 +2990,17 @@ void sitecast_responder(server_rec *main_server)
         "SiteCast UDP Responder listening on %d.%d.%d.%d:%d",
         sitecastgroups[i].quad1, sitecastgroups[i].quad2,
         sitecastgroups[i].quad3, sitecastgroups[i].quad4, sitecastgroups[i].port);
+     }
+
+  for (i=0; i < GRST_SITECAST_ALIASES ; ++i)
+     {
+       ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, main_server,
+                          "SiteCast alias for %s (%s,%d) to %s (%s)",
+                          sitecastaliases[i].sitecast_url,
+                          sitecastaliases[i].scheme,
+                          sitecastaliases[i].port,
+                          sitecastaliases[i].local_path,
+                          sitecastaliases[i].server->server_hostname);
      }
 
   while (1) /* **** main listening loop **** */
@@ -3152,7 +3161,7 @@ static void mod_gridsite_child_init(apr_pool_t *pPool, server_rec *pServer)
 
    /* expire old ssl creds files */
                                     
-   if (sc != NULL) // && sc->enabled)
+   if (sc != NULL)
      {
        cutoff_time = apr_time_now() 
                       - apr_time_from_sec(sc->session_cache_timeout);

@@ -113,7 +113,7 @@ struct sitecast_group
    
 struct sitecast_alias
    { const char *sitecast_url; const char *scheme; int port; 
-     const char *local_path; server_rec *server; };
+     const char *local_path; const char *local_hostname; };
 
 /* Globals, defined by main server directives in httpd.conf  
    These are assigned default values in create_gridsite_srv_config() */
@@ -1446,11 +1446,11 @@ static void *create_gridsite_srv_config(apr_pool_t *p, server_rec *s)
 
         for (i=1; i <= GRST_SITECAST_ALIASES; ++i)
            {
-             sitecastaliases[i].sitecast_url = NULL;
-             sitecastaliases[i].port         = 0;
-             sitecastaliases[i].scheme       = NULL;
-             sitecastaliases[i].local_path   = NULL;
-             sitecastaliases[i].server       = NULL;
+             sitecastaliases[i].sitecast_url   = NULL;
+             sitecastaliases[i].port           = 0;
+             sitecastaliases[i].scheme         = NULL;
+             sitecastaliases[i].local_path     = NULL;
+             sitecastaliases[i].local_hostname = NULL;
            }                              /* GridSiteCastAlias url path */
       }
 
@@ -1894,9 +1894,10 @@ static const char *mod_gridsite_take2_cmds(cmd_parms *a, void *cfg,
                if (sscanf(p, ":%d", &(sitecastaliases[i].port)) != 1)
                  return "Unable to parse numeric port number in GridSiteCastAlias";
 
-               sitecastaliases[i].sitecast_url  = apr_pstrdup(a->pool, parm1);
-               sitecastaliases[i].local_path    = apr_pstrdup(a->pool, parm2);
-               sitecastaliases[i].server        = a->server;
+               sitecastaliases[i].sitecast_url   = apr_pstrdup(a->pool, parm1);
+               sitecastaliases[i].local_path     = apr_pstrdup(a->pool, parm2);
+               sitecastaliases[i].local_hostname = apr_pstrdup(a->pool, 
+                                                   a->server->server_hostname);
 
                break;
              }
@@ -2811,7 +2812,7 @@ void sitecast_handle_TST_GET(server_rec *main_server,
     {
       asprintf(&location, "Location: %s://%s:%d/%s\r\n",
                   sitecastaliases[ialias].scheme,
-                  sitecastaliases[ialias].server->server_hostname,
+                  sitecastaliases[ialias].local_hostname,
                   sitecastaliases[ialias].port,
       &(htcp_mesg->uri->text[strlen(sitecastaliases[ialias].sitecast_url)]) );
 
@@ -2949,9 +2950,6 @@ void sitecast_responder(server_rec *main_server)
 
   /* initialise multicast listener sockets next */
 
-   ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, main_server,
-          "SiteCast UDP Responder group [1].port %d", sitecastgroups[1].port);
-
   for (i=1; (i <= GRST_SITECAST_GROUPS) && 
             (sitecastgroups[i].port != 0); ++i)
      {
@@ -2992,7 +2990,8 @@ void sitecast_responder(server_rec *main_server)
         sitecastgroups[i].quad3, sitecastgroups[i].quad4, sitecastgroups[i].port);
      }
 
-  for (i=0; i < GRST_SITECAST_ALIASES ; ++i)
+  for (i=0; (i < GRST_SITECAST_ALIASES) &&
+            (sitecastaliases[i].sitecast_url != NULL) ; ++i)
      {
        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, main_server,
                           "SiteCast alias for %s (%s,%d) to %s (%s)",
@@ -3000,7 +2999,7 @@ void sitecast_responder(server_rec *main_server)
                           sitecastaliases[i].scheme,
                           sitecastaliases[i].port,
                           sitecastaliases[i].local_path,
-                          sitecastaliases[i].server->server_hostname);
+                          sitecastaliases[i].local_hostname);
      }
 
   while (1) /* **** main listening loop **** */

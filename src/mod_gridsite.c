@@ -2980,14 +2980,16 @@ void sitecast_responder(server_rec *main_server)
                       IP_ADD_MEMBERSHIP, &mreq, sizeof(mreq)) < 0) 
          { 
            ap_log_error(APLOG_MARK, APLOG_ERR, 0, main_server,
-                "SiteCast UDP Responder fails on setting multicast");
+                "SiteCast UDP Responder fails on setting multicast (%s)",
+                strerror(errno));
            return; 
          }
          
        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, main_server,
         "SiteCast UDP Responder listening on %d.%d.%d.%d:%d",
         sitecastgroups[i].quad1, sitecastgroups[i].quad2,
-        sitecastgroups[i].quad3, sitecastgroups[i].quad4, sitecastgroups[i].port);
+        sitecastgroups[i].quad3, sitecastgroups[i].quad4, 
+        sitecastgroups[i].port);
      }
 
   for (i=0; (i < GRST_SITECAST_ALIASES) &&
@@ -3031,7 +3033,7 @@ void sitecast_responder(server_rec *main_server)
 
                   if ((reqbuf_len = recvfrom(sitecastgroups[igroup].socket, 
                                              reqbuf, GRST_SITECAST_MAXBUF, 0,
-                      (struct sockaddr *) &client_addr, &client_addr_len)) >= 0)
+                     (struct sockaddr *) &client_addr, &client_addr_len)) >= 0)
                     {
                       ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, main_server,
                         "SiteCast receives UDP message from %s:%d "

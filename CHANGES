@@ -1,8 +1,9 @@
 * Thu Jun 22 2006 Andrew McNab <Andrew.McNab@man.ac.uk>
 - Lots of additions to SiteCast/SlashGrid, including
-  /grid/local/ filesystem.
+  /grid/local/ filesystem with DNs from gridmapdir
 - GridSiteCastAlias now allows any URL scheme (gsiftp,
   xrootd, ...) not just HTTP(S).
+- Replace static gridsite.spec with make-gridsite-spec
 * Fri Jun  9 2006 Andrew McNab <Andrew.McNab@man.ac.uk>
 - Add patch from Jan Pospisil <honik@kma.zcu.cz> to
   Makefile, to allow standalone building of libraries.

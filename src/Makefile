@@ -229,6 +229,12 @@ slashgrid: slashgrid.c libgridsite.so.$(VERSION)
           -I/usr/kerberos/include `curl-config --cflags` \
           -L. `curl-config --libs` -lgridsite
 
+# This target is used by make-gridsite-spec to test for FUSE include+libs
+fuse-test: fuse-test.c
+	gcc -g -lfuse fuse-test.c \
+          $(MYCFLAGS) $(MYLDFLAGS) `xml2-config --cflags` \
+          -D_FILE_OFFSET_BITS=64 -D_REENTRANT -DFUSE_USE_VERSION=22
+
 apidoc:
 	date
 	doxygen Doxyfile
@@ -329,7 +335,7 @@ dist:
                  urlencode.c findproxyfile.c gaclexample.c mod_gridsite.c \
                  grst_admin.h mod_ssl-private.h \
                  gsexec.c gsexec.h gridsite-copy.c \
-                 roffit gridsite.spec \
+                 roffit make-gridsite-spec \
                  Doxyfile doxygen.css doxyheader.html \
                  ../dist/gridsite-$(PATCH_VERSION)/src
 	cp -f ../doc/*.html ../doc/*.1 ../doc/*.8 ../doc/*.conf ../doc/*.sh \
@@ -362,14 +368,17 @@ htcp-bin: htcp
 	rm -Rf ../htcp-bin-$(PATCH_VERSION)
 
 # RPM targets: build and RPMs go into subdirectories of ../RPMTMP/
-rpm: dist gridsite.spec
+rpm: dist
+	export PATCH_VERSION=$(PATCH_VERSION) ; \
+	 export MINOR_VERSION=$(MINOR_VERSION) ; \
+	 export MYPREFIX=/usr ; \
+	 ./make-gridsite-spec
 	rm -Rf $(MYRPMDIR)/BUILDROOT $(MYRPMDIR)/BUILD
 	mkdir -p $(MYRPMDIR)/SOURCES $(MYRPMDIR)/SPECS $(MYRPMDIR)/BUILD \
              $(MYRPMDIR)/SRPMS $(MYRPMDIR)/RPMS/i386 $(MYRPMDIR)/BUILDROOT
 	cp -f ../gridsite-$(PATCH_VERSION).src.tar.gz $(MYRPMDIR)/SOURCES
 	cp -f gridsite.spec $(MYRPMDIR)/SPECS
-	export MYPREFIX=/usr ; export MYVERSION=$(PATCH_VERSION) ; \
-         $(RPMCMD) --define "_topdir $(MYRPMDIR)" \
+	$(RPMCMD) --define "_topdir $(MYRPMDIR)" \
                   -ba --buildroot $(MYRPMDIR)/BUILDROOT gridsite.spec
 
 

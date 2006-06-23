@@ -410,6 +410,78 @@ char *check_x509_user_proxy(pid_t pid)
   return proxyfile;    
 }
 
+char *mapdir_uid_to_dn(uid_t uid)
+{
+     int            ret;
+     char           *firstlinkpath, *otherlinkpath, *dn, *buf = NULL;
+     struct dirent  *mapdirentry;
+     DIR            *mapdirstream;
+     ino_t          firstinode;
+     long           buflen;
+     struct stat    statbuf;
+     struct passwd  pw, *pwp;
+     
+     if (gridmapdir == NULL) return NULL;
+
+     buflen = sysconf(_SC_GETPW_R_SIZE_MAX);
+     buf = malloc(buflen);
+
+     if ((buflen <= 0) ||
+         (getpwuid_r(uid, &pw, buf, buflen, &pwp) != 0) ||
+         (pw.pw_name == NULL))
+       {
+         if (buf != NULL) free(buf);
+         return NULL;
+       }
+
+     asprintf(&firstlinkpath, "%s/%s", gridmapdir, pw.pw_name);
+     ret = stat(firstlinkpath, &statbuf);
+
+     free(firstlinkpath);
+
+     if ((ret != 0) || (statbuf.st_nlink != 2))
+       {
+         free(buf);
+         return NULL;
+       }
+
+     firstinode = statbuf.st_ino; /* save for comparisons */
+
+     mapdirstream = opendir(gridmapdir);
+
+     if (mapdirstream != NULL)
+       {
+         while ((mapdirentry = readdir(mapdirstream)) != NULL)
+              {
+                 if (strcmp(mapdirentry->d_name, pw.pw_name) == 0) continue;
+
+                 if (mapdirentry->d_ino == firstinode)
+                   {
+                      asprintf(&otherlinkpath, "%s/%s", gridmapdir,
+                                            mapdirentry->d_name);
+
+                      utime(otherlinkpath, (struct utimbuf *) NULL);
+                      free(otherlinkpath);
+                      
+                      dn = GRSThttpUrlDecode(mapdirentry->d_name);
+            
+                      if (debugmode) syslog(LOG_DEBUG, "mapdir_uid_to_dn "
+                                  "maps %s(%d) to %s", pw.pw_name, uid, dn);
+
+                      closedir(mapdirstream);
+                      free(buf);
+                      return dn;
+                   }
+              }
+
+         closedir(mapdirstream);
+       }
+
+     free(buf);
+     return NULL;
+}
+
+
 int perform_request(struct grst_request *request_data,
                     struct fuse_context *fuse_ctx)
 {
@@ -963,21 +1035,28 @@ GRSTgaclPerm get_gaclPerm(struct fuse_context *fuse_ctx, char *path)
 {
   GRSTgaclPerm perm = GRST_PERM_NONE; 
   GRSTgaclCred *cred;
-  GRSTgaclUser *user;
+  GRSTgaclUser *user = NULL;
   GRSTgaclAcl  *acl;
+  char *dn = NULL;
 
 // eventually want a UID cache here...
 
-// will check gridmapdir for DN and create user in future...
-  user = NULL; // but just anonymous user for now
+  dn = mapdir_uid_to_dn(fuse_ctx->uid);
   
-  acl  = GRSTgaclAclLoadforFile(path);
- 
+  if (dn != NULL)
+    {
+      cred = GRSTgaclCredNew("person");
+      GRSTgaclCredAddValue(cred, "dn", dn);
+      user = GRSTgaclUserNew(cred);
+      free(dn);
+    }   
+  
+  acl  = GRSTgaclAclLoadforFile(path); 
   perm = GRSTgaclAclTestUser(acl, user);
   GRSTgaclAclFree(acl);
   GRSTgaclUserFree(user);
   
-perm = 255;
+  if (strstr(path, GRST_ACL_FILE) != NULL) perm &= ~GRST_PERM_WRITE;
 
   if (debugmode) syslog(LOG_DEBUG, "get_gaclPerm returns perm=%d", perm);
 
@@ -1181,7 +1260,7 @@ static int slashgrid_readdir(const char *path, void *buf,
            free(dirlist[i]);
          }
          
-      free(dirlist);      
+      if (ilast >= 0) free(dirlist);      
       free(dirname);
     
       return 0;
@@ -1192,8 +1271,6 @@ static int slashgrid_readdir(const char *path, void *buf,
     {
       asprintf(&dirname, "%s%s/", local_root, &path[6]);
 
-  if (debugmode) syslog(LOG_DEBUG, "in slashgrid_readdir, dirname=%s", dirname);
-      
       perm = get_gaclPerm(&fuse_ctx, dirname);
 
       if (!GRSTgaclPermHasList(perm))
@@ -1207,12 +1284,12 @@ static int slashgrid_readdir(const char *path, void *buf,
 
       if (ilast < 0) return -ENOENT;
               
-      filler(buf, ".",     NULL, 0);
-      filler(buf, "..",    NULL, 0);
+//      filler(buf, ".",     NULL, 0);
+//      filler(buf, "..",    NULL, 0);
 
       for (i=0; i <= ilast; ++i)
          {
-           if (dirlist[i]->d_name[0] != '.')
+//           if (dirlist[i]->d_name[0] != '.')
                  filler(buf, dirlist[i]->d_name, NULL, 0);
            free(dirlist[i]);
          }
@@ -1841,8 +1918,7 @@ static int slashgrid_write(const char *path, const char *buf,
                          
   if ((local_root != NULL) && (strncmp(path, "/local/", 7) == 0))
     {
-      asprintf(&localpath, "%s/%s", local_root, &path[7]);
-      
+      asprintf(&localpath, "%s/%s", local_root, &path[7]);      
       perm = get_gaclPerm(&fuse_ctx, localpath);
       
       if (GRSTgaclPermHasWrite(perm))
@@ -1913,16 +1989,47 @@ static int slashgrid_write(const char *path, const char *buf,
 
 int slashgrid_rename(const char *oldpath, const char *newpath)
 {
-  int          anyerror = 0, thiserror, i, fd;
-  char        *s, *url, *p, *destination, errorbuffer[CURL_ERROR_SIZE+1] = "";
+  int          anyerror = 0, thiserror, i, fd, ret;
+  char        *s, *url, *p, *destination, errorbuffer[CURL_ERROR_SIZE+1] = "",
+              *oldlocalpath, *newlocalpath;
 
   struct grst_read_data read_data;
   struct fuse_context fuse_ctx;
   struct grst_request request_data;
+  GRSTgaclPerm oldperm, newperm;
 
   memcpy(&fuse_ctx, fuse_get_context(), sizeof(struct fuse_context));
 
-  if (strncmp(oldpath, "/http/", 6) == 0)
+  if ((local_root != NULL) && 
+      ((strncmp(oldpath, "/local/", 7) == 0) ||
+       (strncmp(newpath, "/local/", 7) == 0)))
+    {
+      if (strncmp(oldpath, newpath, 7) != 0)
+        {
+          return -EXDEV; /* not on same filesystem */
+        }
+    
+      asprintf(&oldlocalpath, "%s/%s", local_root, &oldpath[7]);
+      asprintf(&newlocalpath, "%s/%s", local_root, &newpath[7]);
+      
+      oldperm = get_gaclPerm(&fuse_ctx, oldlocalpath);
+      newperm = get_gaclPerm(&fuse_ctx, newlocalpath);
+      
+      if (GRSTgaclPermHasWrite(oldperm) &&
+          GRSTgaclPermHasWrite(newperm))
+        {
+          ret = rename(oldlocalpath, newlocalpath);
+          free(oldlocalpath);
+          free(newlocalpath);
+          
+          return (ret == 0) ? 0 : -errno;
+        }
+
+      free(oldlocalpath);
+      free(newlocalpath);
+      return -EACCES;
+    }
+  else if (strncmp(oldpath, "/http/", 6) == 0)
     {
       if (strncmp(newpath, "/http/", 6) != 0) return -EXDEV;
 
@@ -1979,19 +2086,40 @@ int slashgrid_rename(const char *oldpath, const char *newpath)
 
 int slashgrid_unlink(const char *path)
 {
-  int          anyerror = 0, thiserror, i, fd;
-  char        *s, *url, *p, errorbuffer[CURL_ERROR_SIZE+1] = "";
+  int   anyerror = 0, thiserror, i, fd, ret;
+  char *s, *url, *p, errorbuffer[CURL_ERROR_SIZE+1] = "",
+              *localpath;
 
   struct grst_read_data read_data;
   struct fuse_context fuse_ctx;
   struct grst_request request_data;
+  GRSTgaclPerm perm;
 
   memcpy(&fuse_ctx, fuse_get_context(), sizeof(struct fuse_context));
 
+  if (debugmode) syslog(LOG_DEBUG, "slashgrid_unlink called for %s", path);
+  
   if (strncmp(path, "/http/", 6) == 0)
     asprintf(&url, "http://%s", &path[6]);
   else if (strncmp(path, "/https/", 7) == 0)
     asprintf(&url, "https://%s", &path[7]);
+  else if ((local_root != NULL) && (strncmp(path, "/local/", 7) == 0))
+    {
+      asprintf(&localpath, "%s/%s", local_root, &path[7]);
+      
+      perm = get_gaclPerm(&fuse_ctx, localpath);
+      
+      if (GRSTgaclPermHasWrite(perm))
+        {
+          ret = remove(localpath);
+          free(localpath);
+          
+          return (ret == 0) ? 0 : -errno;
+        }
+
+      free(localpath);
+      return -EACCES;
+    }
   else return -ENOENT;
 
   read_data.buf     = "";
@@ -2034,8 +2162,8 @@ int slashgrid_unlink(const char *path)
 int slashgrid_rmdir(const char *path)
 {
   int   ret;
-  char *pathwithslash;
-  
+  char *pathwithslash, *localpath;
+
   asprintf(&pathwithslash, "%s/", path);
   ret = slashgrid_unlink(pathwithslash);  
   free(pathwithslash);
@@ -2059,8 +2187,33 @@ int slashgrid_mknod(const char *path, mode_t mode, dev_t dev)
 int slashgrid_mkdir(const char *path, mode_t mode)
 {
   int   ret;
-  char *pathwithslash;
+  char *pathwithslash, *localpath;
+  struct fuse_context fuse_ctx;
+  GRSTgaclPerm perm;
   
+  memcpy(&fuse_ctx, fuse_get_context(), sizeof(struct fuse_context));
+
+  if (debugmode) syslog(LOG_DEBUG, "slashgrid_mkdir, for %s", path);
+                                  
+  if ((local_root != NULL) && (strncmp(path, "/local/", 7) == 0))
+    {
+      asprintf(&localpath, "%s/%s", local_root, &path[7]);
+      
+      perm = get_gaclPerm(&fuse_ctx, localpath);
+      
+      if (GRSTgaclPermHasWrite(perm))
+        {
+          ret = mkdir(localpath, S_IRUSR | S_IWUSR | S_IXUSR);
+          chown(localpath, local_uid, local_gid);
+          free(localpath);
+          
+          return (ret == 0) ? 0 : -errno;
+        }
+
+      free(localpath);
+      return -EACCES;
+    }
+
   asprintf(&pathwithslash, "%s/", path);
   ret = slashgrid_write(pathwithslash, "", 0, 0, NULL);
   free(pathwithslash);
@@ -2110,7 +2263,7 @@ int slashgrid_truncate(const char *path, off_t offset)
           ret = truncate(localpath, offset);
           free(localpath);
           
-          return (ret == 0) ? 0 : -ENOENT;
+          return (ret == 0) ? 0 : -errno;
         }
 
       free(localpath);

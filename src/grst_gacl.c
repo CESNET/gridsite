@@ -876,7 +876,6 @@ int GRSTgaclUserHasCred(GRSTgaclUser *user, GRSTgaclCred *cred)
   GRSTgaclCred      *crediter;
   GRSTgaclNamevalue *usernamevalue, *crednamevalue;
 
-
   if (cred == NULL) return 0;
 
   if (strcmp(cred->type, "any-user") == 0) return 1;

@@ -206,7 +206,7 @@ SlashGrid daemon
 mkdir -p /grid
 
 %preun slashgrid
-/sbin/service slashgrid stop
+/sbin/service slashgrid stop ; :
 
 %files slashgrid
 %attr(0744, root, root) %{prefix}/sbin/slashgrid

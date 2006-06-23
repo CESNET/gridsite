@@ -1473,7 +1473,7 @@ static int slashgrid_getattr(const char *rawpath, struct stat *stbuf)
     {      
       asprintf(&path, "%s/%s", local_root, &rawpath[7]);
  
-      ret = lstat(path, &stat_tmp);
+      ret = stat(path, &stat_tmp);
 
       if (debugmode) syslog(LOG_DEBUG, "path=%s ret=%d", path, ret);
 

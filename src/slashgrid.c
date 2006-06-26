@@ -1041,6 +1041,16 @@ GRSTgaclPerm get_gaclPerm(struct fuse_context *fuse_ctx, char *path)
 
 // eventually want a UID cache here...
 
+/*
+// want root to be able to read anything, and to write to anything under
+// local_root - need to test if talking about a symbolic link??
+  if (fuse_ctx->uid == 0) 
+    {
+      if (debugmode) syslog(LOG_DEBUG, 
+              "get_gaclPerm returns perm=%d for root user", GRST_PERM_ALL);
+      return GRST_PERM_ALL;
+    }
+*/
   dn = mapdir_uid_to_dn(fuse_ctx->uid);
   
   if (dn != NULL)

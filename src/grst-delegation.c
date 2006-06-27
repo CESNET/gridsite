@@ -1,5 +1,5 @@
 /*
-   Copyright (c) 2002-4, Andrew McNab, University of Manchester
+   Copyright (c) 2002-6, Andrew McNab, University of Manchester
    All rights reserved.
 
    Redistribution and use in source and binary forms, with or
@@ -50,91 +50,12 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 
-#include <openssl/rsa.h>
-#include <openssl/pem.h>
-#include <openssl/err.h>
-#include <openssl/evp.h>
-#include <openssl/bio.h>    
-#include <openssl/des.h>    
-#include <openssl/rand.h>
-
-#include <curl/curl.h>
-/* #include <gacl.h> */
-
-#include "gridsite.h"
+#include <gridsite.h>
 
 #include "soapH.h"
-#include "delegation.nsmap"
+#include "DelegationSoapBinding.nsmap"
 
-#include <time.h>
-#include <stdlib.h>
-#include <stdarg.h>
-#include <string.h>
-#include <unistd.h>
-#include <dirent.h>
-#include <errno.h>
-#include <sys/types.h>
-#include <sys/stat.h>
-
-#include <openssl/rsa.h>
-#include <openssl/pem.h>
-#include <openssl/err.h>
-#include <openssl/evp.h>
-#include <openssl/bio.h>    
-#include <openssl/des.h>    
-#include <openssl/rand.h>
-
-#define GRST_KEYSIZE       512
 #define GRST_PROXYCACHE    "/../proxycache/"
-#define GRST_SUPPORT_G_HTTPS
-
-#ifdef GRST_SUPPORT_G_HTTPS
-void GRSThttpError(char *status)
-{
-  printf("Status: %s\n", status);
-  printf("Server-CGI: GridSite %s\n", VERSION);
-  printf("Content-Length: %d\n", 2 * strlen(status) + 58);
-  puts("Content-Type: text/html\n");
-   
-  printf("<head><title>%s</title></head>\n", status);
-  printf("<body><h1   >%s</h1   ></body>\n", status);
-   
-  exit(0);
-}
-
-int GRSTmethodPutProxy(char *delegation_id, char *user_dn)
-/* return 0 on success; non-zero on error */
-{
-  int   c, len = 0, i;
-  char *docroot, *contentlen, *contenttype, *proxychain, *proxydir;
-  FILE *fp;
-
-  if (((contenttype = getenv("CONTENT_TYPE")) == NULL) ||
-       (strcmp(contenttype, "application/x-x509-user-cert-chain") != 0))
-                               return 2;
-  
-  contentlen = getenv("CONTENT_LENGTH");
-  if (contentlen == NULL) return 2;
-  len = atoi(contentlen);
-  
-  if ((delegation_id == NULL) || (*delegation_id == '\0')) 
-                                                    delegation_id = "_";
-  
-  docroot = getenv("DOCUMENT_ROOT");
-  asprintf(&proxydir, "%s/%s", docroot, GRST_PROXYCACHE);
-
-  if ((user_dn == NULL) || (user_dn[0] == '\0') ||
-      (GRSTx509CacheProxy(proxydir, delegation_id, user_dn, proxychain) 
-                                                      != GRST_RET_OK))
-    {
-      return GRST_RET_FAILED;
-    }
-    
-  free(proxydir);
-      
-  return GRST_RET_OK;
-}
-#endif
 
 int main(int argn, char *argv[])
 {
@@ -142,156 +63,285 @@ int main(int argn, char *argv[])
             *delegation_id, *reqtxt, *proxydir;
   struct soap soap;
 
-chdir("/var/tmp");
-  
   method  = getenv("REQUEST_METHOD");
   if (strcmp(method, "POST") == 0)
     {
       soap_init(&soap);
       soap_serve(&soap); /* CGI application */
       return 0;
-    }
-    
-#ifdef GRST_SUPPORT_G_HTTPS
-  docroot = getenv("DOCUMENT_ROOT");
+    }    
 
-  request = strdup(getenv("REQUEST_URI"));
-  p = index(request, '?');
-  if (p != NULL) *p = '\0';
-
-      
-  /* non HTTP POST methods - ie special G-HTTPS methods */
-
-  delegation_id = getenv("HTTP_DELEGATION_ID");
-  if ((delegation_id == NULL) || (*delegation_id == '\0')) delegation_id = "_";
-
-  user_dn = NULL;
-  client_dn = getenv("SSL_CLIENT_S_DN"); 
-  if (client_dn != NULL) 
-    {
-      user_dn = strdup(client_dn);
-
-      /* we assume here that mod_ssl has verified proxy chain already ... */
-
-      p = strstr(user_dn, "/CN=proxy");
-      if (p != NULL) *p = '\0';      
-
-      p = strstr(user_dn, "/CN=limited proxy");
-      if (p != NULL) *p = '\0';      
-    }
-  
-  if (user_dn == NULL) /* all methods require client auth */
-    {
-      GRSThttpError("403 Forbidden");
-    }  
-  else if (strcmp(method, "GET-PROXY-REQ") == 0)
-    {
-      docroot = getenv("DOCUMENT_ROOT");
-      asprintf(&proxydir, "%s/%s", docroot, GRST_PROXYCACHE);
-    
-      if (GRSTx509MakeProxyRequest(&reqtxt, proxydir,
-                                   delegation_id, user_dn) == 0)
-        {
-          puts("Status: 200 OK");
-          puts("Content-Type: application/x-x509-cert-request");
-          printf("Content-Length: %d\n\n", strlen(reqtxt));
-          fputs(reqtxt, stdout);
-          free(proxydir);
-          return 0;
-        }
-      
-      puts("Status: 500 Internal Server Error\n");
-      free(proxydir);
-      return 0;
-    }  
-  else if (strcmp(method, "PUT-PROXY-CERT") == 0)
-    {
-      if (GRSTmethodPutProxy(delegation_id, user_dn) == 0)
-        {
-          puts("Status: 200 OK\n");
-          return 0;
-        }
-        
-      puts("Status: 500 Internal Server Error\n");
-      return 0;
-    }  
-  else 
-    {
-      GRSThttpError("501 Method Not Implemented");
-    }
-#endif
+  puts("Status: 501 Method Not Implemented\n");
+  return 0;
 }
 
-int ns__getProxyReq(struct soap *soap, char *delegation_id,                                        
-                                       char **request)
-{ 
-  char *p, *client_dn, *user_dn, *docroot, *proxydir;
+char *get_dn(void)
+{
+  int   i;
+  char *p, *s, *dn;
+  GRSTgaclCred *cred = NULL;
+   
+  for (i=0; ; ++i)
+     {  
+       asprintf(&p, "GRST_CRED_%d", i);
+       s = getenv(p);
+       free(p);
+       
+       if (s == NULL) break;
+       
+       if ((cred = GRSTx509CompactToCred(s)) == NULL) break;
+       
+       if ((strcmp(cred->type, "person") == 0) &&
+           (cred->firstname != NULL) &&
+           (cred->firstname->name != NULL) &&
+           (strcmp(cred->firstname->name, "dn") == 0) &&
+           (cred->firstname->value != NULL))
+         {
+           dn = strdup(cred->firstname->value);
+           GRSTgaclCredFree(cred);
+           return dn;
+         }
+       
+       GRSTgaclCredFree(cred);
+     }
   
-  user_dn = NULL;
-  client_dn = getenv("SSL_CLIENT_S_DN"); 
-  if (client_dn != NULL) 
-    {
-      user_dn = strdup(client_dn);
+  return NULL;  
+}
 
-      /* we assume here that mod_ssl has verified proxy chain already ... */
+int ns__getProxyReq(struct soap *soap, 
+                    char *delegation_id,
+                    struct ns__getProxyReqResponse *response)
+{ 
+  int   i;
+  char *p, *user_dn, *docroot, *proxydir, *request;
+  
+  if ((user_dn = get_dn()) == NULL) return SOAP_ERR;
 
-      p = strstr(user_dn, "/CN=proxy");
-      if (p != NULL) *p = '\0';      
-
-      p = strstr(user_dn, "/CN=limited proxy");
-      if (p != NULL) *p = '\0';      
-    }
-
-  if ((delegation_id == NULL) || (*delegation_id == '\0')) delegation_id = "_";
+  if ((delegation_id == NULL) || (*delegation_id == '\0')) 
+                               delegation_id = GRSTx509MakeDelegationID();
+  else for (i=0; delegation_id[i] != '\0'; ++i)
+          {
+            if (!isalnum(delegation_id[i]) && 
+                (delegation_id[i] != '.') &&
+                (delegation_id[i] != ',') &&
+                (delegation_id[i] != '_')) 
+              {
+                delegation_id = NULL;
+                break;
+              }
+          }
   
   docroot = getenv("DOCUMENT_ROOT");
   asprintf(&proxydir, "%s/%s", docroot, GRST_PROXYCACHE);
 
-  if ((user_dn != NULL) && (user_dn[0] != '\0') && 
-      (GRSTx509MakeProxyRequest(request, proxydir,  
+  if ((user_dn != NULL) && 
+      (user_dn[0] != '\0') && 
+      (delegation_id != NULL) &&
+      (GRSTx509MakeProxyRequest(&request, proxydir,
                                 delegation_id, user_dn) == 0))
     {
+      response->getProxyReqReturn = request;
+    
+      free(user_dn);
       return SOAP_OK;
     }
       
+  free(user_dn);
   return SOAP_ERR;
 } 
 
-int ns__putProxy(struct soap *soap, char *delegation_id, 
-                                    char *proxy,
-                                    struct ns__putProxyResponse *unused)
-{ 
-  int   fd, c, len = 0, i;
-  char *docroot, *proxydir, *p, *client_dn, *user_dn;
-  
-  user_dn = NULL;
-  client_dn = getenv("SSL_CLIENT_S_DN"); 
-  if (client_dn != NULL) 
-    {
-      user_dn = strdup(client_dn);
+int ns__getNewProxyReq(struct soap *soap, 
+                       struct ns__getNewProxyReqResponse *response)
+{
+  char *p, *user_dn, *docroot, *proxydir, *request, *delegation_id;
 
-      /* we assume here that mod_ssl has verified proxy chain already ... */
+  if ((user_dn = get_dn()) == NULL) return SOAP_ERR;
 
-      p = strstr(user_dn, "/CN=proxy");
-      if (p != NULL) *p = '\0';      
-
-      p = strstr(user_dn, "/CN=limited proxy");
-      if (p != NULL) *p = '\0';      
-    }
-  
-  if ((delegation_id == NULL) || (*delegation_id == '\0')) 
-                                                    delegation_id = "_";
+  delegation_id = GRSTx509MakeDelegationID();
   
   docroot = getenv("DOCUMENT_ROOT");
   asprintf(&proxydir, "%s/%s", docroot, GRST_PROXYCACHE);
 
-  if ((user_dn == NULL) || (user_dn[0] == '\0') ||
+  if ((user_dn != NULL) && 
+      (user_dn[0] != '\0') && 
+      (delegation_id != NULL) &&
+      (GRSTx509MakeProxyRequest(&request, proxydir,
+                                delegation_id, user_dn) == 0))
+    {
+      response->getNewProxyReqReturn = malloc(sizeof(struct ns__NewProxyReq));      
+      response->getNewProxyReqReturn->proxyRequest = request;
+      response->getNewProxyReqReturn->delegationID = delegation_id;
+    
+      free(user_dn);
+      return SOAP_OK;
+    }
+
+  free(user_dn);
+  return SOAP_ERR;
+} 
+                                 
+int ns__putProxy(struct soap *soap, char *delegation_id, 
+                                    char *proxy,
+                                    struct ns__putProxyResponse *response)
+{ 
+  int   fd, c, len = 0, i;
+  char *docroot, *proxydir, *p, *user_dn;
+  
+  if ((user_dn = get_dn()) == NULL) return SOAP_ERR;
+  
+  if ((delegation_id == NULL) || (*delegation_id == '\0')) 
+                               delegation_id = GRSTx509MakeDelegationID();
+  else for (i=0; delegation_id[i] != '\0'; ++i)
+          {
+            if (!isalnum(delegation_id[i]) && 
+                (delegation_id[i] != '.') &&
+                (delegation_id[i] != ',') &&
+                (delegation_id[i] != '_')) 
+              {
+                delegation_id = NULL;
+                break;
+              }
+          }
+  
+  docroot = getenv("DOCUMENT_ROOT");
+  asprintf(&proxydir, "%s/%s", docroot, GRST_PROXYCACHE);
+
+  if ((user_dn == NULL) || 
+      (user_dn[0] == '\0') ||
+      (delegation_id == NULL) ||  
       (GRSTx509CacheProxy(proxydir, delegation_id, user_dn, proxy) 
                                                       != GRST_RET_OK))
     {
+      free(proxydir);
+      free(user_dn);
       return SOAP_ERR;
     }
       
+  free(proxydir);
+  free(user_dn);
   return SOAP_OK;
 } 
 
+int ns__renewProxyReq(struct soap *soap, 
+                      char *delegation_id, 
+                      struct ns__renewProxyReqResponse *response)
+{ 
+  int   i;
+  char *p, *user_dn, *docroot, *proxydir, *request;
+  
+  if ((user_dn = get_dn()) == NULL) return SOAP_ERR;
+  
+  if (delegation_id == NULL)
+    {
+      free(user_dn);
+      return SOAP_ERR;
+    }
+    
+  for (i=0; delegation_id[i] != '\0'; ++i)
+          {
+            if (!isalnum(delegation_id[i]) && 
+                (delegation_id[i] != '.') &&
+                (delegation_id[i] != ',') &&
+                (delegation_id[i] != '_')) 
+              {
+                delegation_id = NULL;
+                break;
+              }
+          }
+  
+  if (*delegation_id == '\0')
+    {
+      free(user_dn);
+      return SOAP_ERR;
+    }
+    
+  docroot = getenv("DOCUMENT_ROOT");
+  asprintf(&proxydir, "%s/%s", docroot, GRST_PROXYCACHE);
+
+  if ((user_dn != NULL) && 
+      (user_dn[0] != '\0') && 
+      (delegation_id != NULL) &&
+      (GRSTx509MakeProxyRequest(&request, proxydir,
+                                delegation_id, user_dn) == 0))
+    {
+      response->_renewProxyReqReturn = request;
+    
+      free(user_dn);
+      return SOAP_OK;
+    }
+
+  free(user_dn);      
+  return SOAP_ERR;
+} 
+
+int ns__getTerminationTime(struct soap *soap, 
+                           char *delegation_id, 
+                           struct ns__getTerminationTimeResponse *response)
+{
+  char *p, *user_dn, *docroot, *proxydir;
+  time_t start, finish;
+
+  if ((user_dn = get_dn()) == NULL) return SOAP_ERR;  
+
+  delegation_id = GRSTx509MakeDelegationID();
+  
+  docroot = getenv("DOCUMENT_ROOT");
+  asprintf(&proxydir, "%s/%s", docroot, GRST_PROXYCACHE);
+
+  if ((user_dn != NULL) && 
+      (user_dn[0] != '\0') && 
+      (delegation_id != NULL) &&
+      (GRSTx509ProxyGetTimes(proxydir, delegation_id, user_dn,
+                             &start, &finish) == 0))
+    {
+      response->_getTerminationTimeReturn = finish;
+    
+      free(user_dn);
+      return SOAP_OK;
+    }
+
+  free(user_dn);
+  return SOAP_ERR;
+}
+
+int ns__destroy(struct soap *soap, 
+                char *delegation_id, 
+                struct ns__destroyResponse *response)
+{
+  int   fd, c, len = 0, i;
+  char *docroot, *proxydir, *p, *client_dn, *user_dn;
+  
+  if ((user_dn = get_dn()) == NULL) return SOAP_ERR;  
+  
+  if ((delegation_id == NULL) || (*delegation_id == '\0')) 
+                               delegation_id = GRSTx509MakeDelegationID();
+  else for (i=0; delegation_id[i] != '\0'; ++i)
+          {
+            if (!isalnum(delegation_id[i]) && 
+                (delegation_id[i] != '.') &&
+                (delegation_id[i] != ',') &&
+                (delegation_id[i] != '_')) 
+              {
+                delegation_id = NULL;
+                break;
+              }
+          }
+  
+  docroot = getenv("DOCUMENT_ROOT");
+  asprintf(&proxydir, "%s/%s", docroot, GRST_PROXYCACHE);
+
+  if ((user_dn == NULL) || 
+      (user_dn[0] == '\0') ||
+      (delegation_id == NULL) ||  
+      (GRSTx509ProxyDestroy(proxydir, delegation_id, user_dn) 
+                                                      != GRST_RET_OK))
+    {
+      free(proxydir);
+      free(user_dn);
+      return SOAP_ERR;
+    }
+      
+  free(proxydir);
+  free(user_dn);
+  return SOAP_OK;
+}

@@ -52,6 +52,8 @@ ifndef MYLDFLAGS
 export MYLDFLAGS=-L.
 endif
 
+
+
 #
 # Build
 #
@@ -219,8 +221,6 @@ showx509exts: showx509exts.c libgridsite.a
             -I/usr/kerberos/include \
             -lgridsite \
             -lssl -lcrypto -lxml2 -lz -lm
-
-
  
 slashgrid: slashgrid.c libgridsite.so.$(VERSION)
 	gcc -g -o slashgrid -lfuse -lpthread slashgrid.c \
@@ -252,7 +252,59 @@ xacmlexample: xacmlexample.c libgridsite.a
 	gcc -g -o xacmlexample xacmlexample.c -I. -L. \
             -I/usr/kerberos/include -lgridsite \
             -lssl -lcrypto -lxml2 -lz -lm
+#
+# Delegation machinery, including SOAP delegation portType. To build this
+# you either need to use the gLite build environment and set REPOSITORY
+# or install gSOAP and set GSOAPDIR to the directory containing
+# soapcpp2 and stdsoap2.h (unless GSOAPDIR is set already)
+#
 
+ifndef GSOAPDIR
+ export GSOAPDIR=/usr
+endif
+
+ifndef GRIDSITEDIR
+ export GRIDSITEDIR=/usr
+endif
+
+
+DelegationService.wsdl: delegation.h
+	$(GSOAPDIR)/bin/soapcpp2 -c delegation.h
+
+gridsite-delegation.cgi: grst-delegation.c delegation.h DelegationService.wsdl
+	gcc -g $(MYCFLAGS) $(MYLDFLAGS) -o gridsite-delegation.cgi \
+            grst-delegation.c \
+            -I/usr/kerberos/include -I. -I$(GSOAPDIR)/include \
+            -I$(GRIDSITEDIR)/include \
+            -DVERSION=\"$(VERSION)\" -L$(GSOAPDIR)/lib \
+            -L$(GRIDSITEDIR)/lib \
+            soapC.c soapServer.c -lgsoap \
+            -lgridsite -lcurl -lz -lssl -lcrypto -lxml2 -lm
+
+htproxyput: htproxyput.c delegation.h DelegationService.wsdl
+	gcc -g $(MYCFLAGS) $(MYLDFLAGS) -o htproxyput \
+            htproxyput.c \
+            -I/usr/kerberos/include -I. \
+            -g -DVERSION=\"$(VERSION)\" \
+            -I$(GSOAPDIR)/include \
+            -I$(GRIDSITEDIR)/include \
+            -DWITH_OPENSSL -L$(GSOAPDIR)/lib \
+            $(STDSOAP2) -L$(GRIDSITEDIR)/lib \
+            soapC.c soapClient.c -lgsoapssl \
+            -lgridsite -lcurl -lz -lssl -lcrypto -lxml2 -lm
+        
+# This target is used by make-gridsite-spec to test for gSOAP include+libs
+gsoap-test: gsoap-test.c 
+	gcc -g $(MYCFLAGS) $(MYLDFLAGS) -o gsoap-test \
+            gsoap-test.c \
+            -I/usr/kerberos/include -I. \
+            -g -DVERSION=\"$(VERSION)\" \
+            -I$(GSOAPDIR)/include \
+            -I$(GRIDSITEDIR)/include \
+            -DWITH_OPENSSL -L$(GSOAPDIR)/lib \
+            $(STDSOAP2) -L$(GRIDSITEDIR)/lib \
+            -lgsoapssl -lz -lssl -lcrypto -lxml2 -lm
+        
 clean:
 
 #
@@ -319,6 +371,31 @@ install-slashgrid: slashgrid
 	mkdir -p $(RPM_BUILD_ROOT)/var/spool/slashgrid/headers
 	mkdir -p $(RPM_BUILD_ROOT)/var/spool/slashgrid/blocks
 	mkdir -p $(RPM_BUILD_ROOT)/var/spool/slashgrid/tmp
+
+install-ws: gridsite-delegation.cgi htproxyput
+	mkdir -p $(prefix)/include \
+                 $(prefix)/lib \
+                 $(prefix)/bin \
+                 $(prefix)/sbin \
+                 $(prefix)/share/man/man1 \
+                 $(prefix)/share/man/man8 \
+                 $(prefix)/share/doc/gridsite-$(MINOR_VERSION)
+	for i in CHANGES README INSTALL LICENSE VERSION ; \
+         do cp -f ../$$i $(prefix)/share/doc/gridsite-$(MINOR_VERSION)/$$i-services ; done
+	for i in CHANGES README INSTALL LICENSE VERSION ; \
+         do cp -f ../$$i $(prefix)/share/doc/gridsite-$(MINOR_VERSION)/$$i-commands ; done
+	cp -f ../doc/*.1 ../doc/*.8 \
+               ../doc/*.wsdl $(prefix)/share/doc/gridsite-$(MINOR_VERSION)
+	cp -f ../doc/*.1 $(prefix)/share/man/man1
+	cp -f ../doc/*.8 $(prefix)/share/man/man8
+	gzip -f $(prefix)/share/man/man1/*.1
+	gzip -f $(prefix)/share/man/man8/*.8
+	cp -f htproxyput $(prefix)/bin
+	ln -sf htproxyput $(prefix)/bin/htproxydestroy
+	ln -sf htproxyput $(prefix)/bin/htproxytime
+	ln -sf htproxyput $(prefix)/bin/htproxyunixtime
+	ln -sf htproxyput $(prefix)/bin/htproxyrenew
+	cp -f gridsite-delegation.cgi $(prefix)/sbin
 	   
 #
 # Distributions
@@ -333,8 +410,8 @@ dist:
                  ../dist/gridsite-$(PATCH_VERSION)
 	cp -f Makefile grst*.c htcp.c slashgrid.c slashgrid.init \
                  urlencode.c findproxyfile.c gaclexample.c mod_gridsite.c \
-                 grst_admin.h mod_ssl-private.h \
-                 gsexec.c gsexec.h gridsite-copy.c \
+                 htproxyput.c grst_admin.h mod_ssl-private.h \
+                 gsexec.c gsexec.h gridsite-copy.c fuse-test.c gsoap-test.c \
                  roffit make-gridsite-spec \
                  Doxyfile doxygen.css doxyheader.html \
                  ../dist/gridsite-$(PATCH_VERSION)/src

@@ -1,3 +1,5 @@
+* Tue Jun 27 2006 Andrew McNab <Andrew.McNab@man.ac.uk>
+- Merge delegation services back into core.
 * Thu Jun 22 2006 Andrew McNab <Andrew.McNab@man.ac.uk>
 - Lots of additions to SiteCast/SlashGrid, including
   /grid/local/ filesystem with DNs from gridmapdir

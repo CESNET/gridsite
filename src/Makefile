@@ -328,13 +328,19 @@ install: apidoc install-lib
 	cp -f gridsite-copy.cgi $(prefix)/sbin
 	cp -f ../CHANGES ../README ../INSTALL ../LICENSE ../VERSION \
                $(prefix)/share/doc/gridsite-$(MINOR_VERSION)
-	cp -f ../doc/*.html ../doc/*.conf ../doc/*.1 ../doc/*.8 ../doc/*.sh \
-	      ../doc/*.spec \
+	cp -f ../doc/index.html ../doc/*.conf ../doc/*.sh ../doc/*.spec \
                $(prefix)/share/doc/gridsite-$(MINOR_VERSION)
-	cp -f ../doc/*.1 $(prefix)/share/man/man1
-	cp -f ../doc/*.8 $(prefix)/share/man/man8
-	gzip -f $(prefix)/share/man/man1/*.1
-	gzip -f $(prefix)/share/man/man8/*.8
+	for i in htcp.1 htfind.1 htll.1 htls.1 htmkdir.1 htmv.1 htping.1 \
+	 htrm.1 urlencode.1 findproxyfile.1 ; do \
+	 cp -f ../doc/$$i.html $(prefix)/share/doc/gridsite-$(MINOR_VERSION) ; \
+         cp -f ../doc/$$i $(prefix)/share/doc/gridsite-$(MINOR_VERSION) ; \
+         cp -f ../doc/$$i $(prefix)/share/man/man1 ; \
+         gzip -f $(prefix)/share/man/man1/$$i ; done
+	for i in mod_gridsite.8 gsexec.8 ; do \
+	 cp -f ../doc/$$i.html $(prefix)/share/doc/gridsite-$(MINOR_VERSION) ; \
+         cp -f ../doc/$$i $(prefix)/share/doc/gridsite-$(MINOR_VERSION) ; \
+         cp -f ../doc/$$i $(prefix)/share/man/man8 ; \
+         gzip -f $(prefix)/share/man/man8/$$i ; done
 	cp -f htcp $(prefix)/bin
 	ln -sf htcp $(prefix)/bin/htls
 	ln -sf htcp $(prefix)/bin/htll
@@ -380,16 +386,18 @@ install-ws: gridsite-delegation.cgi htproxyput
                  $(prefix)/share/man/man1 \
                  $(prefix)/share/man/man8 \
                  $(prefix)/share/doc/gridsite-$(MINOR_VERSION)
-	for i in CHANGES README INSTALL LICENSE VERSION ; \
-         do cp -f ../$$i $(prefix)/share/doc/gridsite-$(MINOR_VERSION)/$$i-services ; done
-	for i in CHANGES README INSTALL LICENSE VERSION ; \
-         do cp -f ../$$i $(prefix)/share/doc/gridsite-$(MINOR_VERSION)/$$i-commands ; done
-	cp -f ../doc/*.1 ../doc/*.8 \
-               ../doc/*.wsdl $(prefix)/share/doc/gridsite-$(MINOR_VERSION)
-	cp -f ../doc/*.1 $(prefix)/share/man/man1
-	cp -f ../doc/*.8 $(prefix)/share/man/man8
-	gzip -f $(prefix)/share/man/man1/*.1
-	gzip -f $(prefix)/share/man/man8/*.8
+	cp -f ../doc/*.wsdl $(prefix)/share/doc/gridsite-$(MINOR_VERSION)
+	for i in htproxyput.1 htproxytime.1 htproxyrenew.1 htproxydestroy.1 \
+	 htproxyunixtime.1 ; do \
+	 cp -f ../doc/$$i.html $(prefix)/share/doc/gridsite-$(MINOR_VERSION) ; \
+         cp -f ../doc/$$i $(prefix)/share/doc/gridsite-$(MINOR_VERSION) ; \
+         cp -f ../doc/$$i $(prefix)/share/man/man1 ; \
+         gzip -f $(prefix)/share/man/man1/$$i ; done
+	for i in gridsite-delegation.8 ; do \
+	 cp -f ../doc/$$i.html $(prefix)/share/doc/gridsite-$(MINOR_VERSION) ; \
+         cp -f ../doc/$$i $(prefix)/share/doc/gridsite-$(MINOR_VERSION) ; \
+         cp -f ../doc/$$i $(prefix)/share/man/man8 ; \
+         gzip -f $(prefix)/share/man/man8/$$i ; done
 	cp -f htproxyput $(prefix)/bin
 	ln -sf htproxyput $(prefix)/bin/htproxydestroy
 	ln -sf htproxyput $(prefix)/bin/htproxytime
@@ -411,12 +419,12 @@ dist:
 	cp -f Makefile grst*.c htcp.c slashgrid.c slashgrid.init \
                  urlencode.c findproxyfile.c gaclexample.c mod_gridsite.c \
                  htproxyput.c grst_admin.h mod_ssl-private.h \
-                 gsexec.c gsexec.h gridsite-copy.c fuse-test.c gsoap-test.c \
+                 gsexec.c gsexec.h gridsite-copy.c delegation.h \
                  roffit make-gridsite-spec \
                  Doxyfile doxygen.css doxyheader.html \
                  ../dist/gridsite-$(PATCH_VERSION)/src
 	cp -f ../doc/*.html ../doc/*.1 ../doc/*.8 ../doc/*.conf ../doc/*.sh \
-              ../doc/*.spec \
+              ../doc/*.spec ../doc/*.wsdl \
                ../dist/gridsite-$(PATCH_VERSION)/doc
 	cp -f ../interface/*.h \
                  ../dist/gridsite-$(PATCH_VERSION)/interface

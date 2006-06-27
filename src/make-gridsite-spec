@@ -1,6 +1,6 @@
 #!/bin/sh
 
-# test to see if fuse-devel (or fuse.h and libfuse) are installed
+# test to see if fuse-devel (or fuse.h and libfuse) is installed
 #
 cat <<EOF >fuse-test.c
 #include <fuse.h>
@@ -9,6 +9,17 @@ return fuse_main(0, (char **) 0, (struct fuse_operations *) 0); }
 EOF
 make fuse-test
 if [ $? = 0 ] ; then have_fuse=1 ; fi
+
+# test to see if gsoap-devel (or stdsoap2.h and libgsoapssl) is installed
+#
+cat <<EOF >gsoap-test.c
+#include <stdsoap2.h>
+#ifdef SOAP_BEGIN  
+main() { return; }
+#endif
+EOF
+make GSOAPDIR=$GSOAPDIR gsoap-test
+if [ $? = 0 ] ; then have_gsoap=1 ; fi
 
 cat <<EOF >gridsite.spec
 #
@@ -109,7 +120,19 @@ if [ $have_fuse ] ; then
 cat <<EOF >>gridsite.spec
 make prefix=\$RPM_BUILD_ROOT/%{prefix} \
  GSOAPDIR=\$GSOAPDIR OPENSSL_FLAGS=\$OPENSSL_FLAGS \
- OPENSSL_LIBS=\$OPENSSL_LIBS FLAVOR_EXT=\$FLAVOR_EXT slashgrid
+ OPENSSL_LIBS=\$OPENSSL_LIBS FLAVOR_EXT=\$FLAVOR_EXT \
+ slashgrid
+
+EOF
+fi
+
+if [ $have_gsoap ] ; then
+cat <<EOF >>gridsite.spec
+make prefix=\$RPM_BUILD_ROOT/%{prefix} \
+ GSOAPDIR=\$GSOAPDIR OPENSSL_FLAGS=\$OPENSSL_FLAGS \
+ OPENSSL_LIBS=\$OPENSSL_LIBS FLAVOR_EXT=\$FLAVOR_EXT \
+ gridsite-delegation.cgi htproxyput
+
 EOF
 fi
 
@@ -128,7 +151,17 @@ cat <<EOF >>gridsite.spec
 
 mkdir -p \$RPM_BUILD_ROOT/etc/rc.d/init.d
 make install-slashgrid prefix=\$RPM_BUILD_ROOT/%{prefix} \
-  OPENSSL_FLAGS=\$OPENSSL_FLAGS \
+  GSOAPDIR=\$GSOAPDIR OPENSSL_FLAGS=\$OPENSSL_FLAGS \
+  OPENSSL_LIBS=\$OPENSSL_LIBS FLAVOR_EXT=\$FLAVOR_EXT
+EOF
+fi
+
+if [ $have_gsoap ] ; then
+
+cat <<EOF >>gridsite.spec
+
+make install-ws prefix=\$RPM_BUILD_ROOT/%{prefix} \
+  GSOAPDIR=$GSOAPDIR OPENSSL_FLAGS=\$OPENSSL_FLAGS \
   OPENSSL_LIBS=\$OPENSSL_LIBS FLAVOR_EXT=\$FLAVOR_EXT
 EOF
 fi
@@ -212,6 +245,52 @@ mkdir -p /grid
 %attr(0744, root, root) %{prefix}/sbin/slashgrid
 %attr(0744, root, root) /etc/rc.d/init.d/slashgrid
 %attr(0700, root, root) /var/spool/slashgrid
+EOF
+
+fi
+
+if [ $have_gsoap ] ; then
+
+cat <<EOF >>gridsite.spec
+%package services
+Group: Applications/Internet
+Summary: GridSite WS gridsite-delegation.cgi
+
+%description services
+GridSite WS delegation service, gridsite-delegation.cgi
+
+%files services
+%attr(-, root, root) %{prefix}/sbin/gridsite-delegation.cgi
+%attr(-, root, root) %{prefix}/share/man/man8/gridsite-delegation.8.gz
+%attr(-, root, root) %{prefix}/share/doc/gridsite-${MINOR_VERSION:-1.x}/delegation-1.1.0.wsdl
+%attr(-, root, root) %{prefix}/share/doc/gridsite-${MINOR_VERSION:-1.x}/gridsite-delegation.8
+
+%package service-clients
+Group: Applications/Internet
+Summary: GridSite WS htproxyput
+Requires: curl, gridsite-shared
+
+%description service-clients
+GridSite WS delegation client, htproxyput
+
+See http://www.gridsite.org/ for details.
+
+%files service-clients
+%attr(-, root, root) %{prefix}/bin/htproxyput
+%attr(-, root, root) %{prefix}/bin/htproxydestroy
+%attr(-, root, root) %{prefix}/bin/htproxytime
+%attr(-, root, root) %{prefix}/bin/htproxyunixtime
+%attr(-, root, root) %{prefix}/bin/htproxyrenew
+%attr(-, root, root) %{prefix}/share/man/man1/htproxyput.1.gz
+%attr(-, root, root) %{prefix}/share/man/man1/htproxydestroy.1.gz
+%attr(-, root, root) %{prefix}/share/man/man1/htproxytime.1.gz
+%attr(-, root, root) %{prefix}/share/man/man1/htproxyunixtime.1.gz
+%attr(-, root, root) %{prefix}/share/man/man1/htproxyrenew.1.gz
+%attr(-, root, root) %{prefix}/share/doc/gridsite-${MINOR_VERSION:-1.x}/htproxyput.1
+%attr(-, root, root) %{prefix}/share/doc/gridsite-${MINOR_VERSION:-1.x}/htproxydestroy.1
+%attr(-, root, root) %{prefix}/share/doc/gridsite-${MINOR_VERSION:-1.x}/htproxytime.1
+%attr(-, root, root) %{prefix}/share/doc/gridsite-${MINOR_VERSION:-1.x}/htproxyunixtime.1
+%attr(-, root, root) %{prefix}/share/doc/gridsite-${MINOR_VERSION:-1.x}/htproxyrenew.1
 EOF
 
 fi

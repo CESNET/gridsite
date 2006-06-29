@@ -1121,13 +1121,88 @@ static void mkdir_printf(mode_t mode, char *fmt, ...)
   free(path);
 }
 
+/// Create a X.509 request for a GSI proxy and its private key
+/**
+ *  Returns GRST_RET_OK on success, non-zero otherwise. Request string
+ *  and private key are PEM encoded strings
+ */ 
+ 
+int GRSTx509CreateProxyRequest(char **reqtxt, char **keytxt, char *ocspurl)
+{
+  int              i;
+  char            *ptr;
+  size_t           ptrlen;
+  RSA             *keypair;
+  X509_NAME       *subject;
+  X509_NAME_ENTRY *ent;
+  EVP_PKEY        *pkey;
+  X509_REQ        *certreq;
+  BIO             *reqmem, *keymem;
+  const EVP_MD    *digest;
+  struct stat      statbuf;
+
+  /* create key pair and put it in a PEM string */
+
+  if ((keypair = RSA_generate_key(GRST_KEYSIZE, 65537, NULL, NULL)) == NULL)
+                                                               return 1;
+
+  keymem = BIO_new(BIO_s_mem());
+  if (!PEM_write_bio_RSAPrivateKey(keymem, keypair, NULL, NULL, 0, NULL, NULL))
+    {
+      BIO_free(keymem);
+      return 3;
+    }
+
+  ptrlen = BIO_get_mem_data(keymem, &ptr);
+  
+  *keytxt = malloc(ptrlen + 1);
+  memcpy(*keytxt, ptr, ptrlen);
+  (*keytxt)[ptrlen] = '\0';
+
+  BIO_free(keymem);
+  
+  /* now create the certificate request */
+
+  certreq = X509_REQ_new();
+
+  OpenSSL_add_all_algorithms();
+
+  pkey = EVP_PKEY_new();
+  EVP_PKEY_assign_RSA(pkey, keypair);
+
+  X509_REQ_set_pubkey(certreq, pkey);
+  
+  subject = X509_NAME_new();
+  ent = X509_NAME_ENTRY_create_by_NID(NULL, OBJ_txt2nid("organizationName"), 
+                                      MBSTRING_ASC, "Dummy", -1);
+  X509_NAME_add_entry (subject, ent, -1, 0);
+  X509_REQ_set_subject_name (certreq, subject);
+  
+  digest = EVP_md5();
+  X509_REQ_sign(certreq, pkey, digest);
+
+  reqmem = BIO_new(BIO_s_mem());
+  PEM_write_bio_X509_REQ(reqmem, certreq);
+  ptrlen = BIO_get_mem_data(reqmem, &ptr);
+  
+  *reqtxt = malloc(ptrlen + 1);
+  memcpy(*reqtxt, ptr, ptrlen);
+  (*reqtxt)[ptrlen] = '\0';
+
+  BIO_free(reqmem);
+
+  X509_REQ_free(certreq);
+  
+  return 0;
+}
+
 /// Make and store a X.509 request for a GSI proxy
 /**
  *  Returns GRST_RET_OK on success, non-zero otherwise. Request string
  *  is PEM encoded, and the key is stored in the temporary cache under
  *  proxydir
  */ 
-
+ 
 int GRSTx509MakeProxyRequest(char **reqtxt, char *proxydir, 
                              char *delegation_id, char *user_dn)
 {

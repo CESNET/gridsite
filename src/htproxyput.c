@@ -55,6 +55,10 @@ http://www.gridpp.ac.uk/authz/gridsite/
 #include <sys/stat.h>
 #include <unistd.h>
 
+#include <openssl/x509.h>
+#include <openssl/x509v3.h>
+#include <openssl/pem.h>
+
 #include <getopt.h>
 
 #include <gridsite.h>
@@ -68,6 +72,7 @@ http://www.gridpp.ac.uk/authz/gridsite/
 #define HTPROXY_DESTROY		2
 #define HTPROXY_TIME		3
 #define HTPROXY_UNIXTIME	4
+#define HTPROXY_MAKE		5
 
 void printsyntax(char *argv0)
 {
@@ -85,10 +90,10 @@ int main(int argc, char *argv[])
 {
   char  *delegation_id = "", *reqtxt, *certtxt, *valid = NULL, 
         *cert = NULL, *key = NULL, *capath = NULL, *keycert, timestr[81],
-        *executable;
+        *executable, *keytxt, *proxychain, *ptr;
   struct ns__putProxyResponse *unused;
   struct tm *finish_tm;
-  int    option_index, c, noverify = 0, 
+  int    option_index, c, noverify = 0, i, 
          method = HTPROXY_PUT, verbose = 0, fd, minutes;
   struct soap soap_get, soap_put;
   struct ns__getProxyReqResponse        getProxyReqResponse;
@@ -97,6 +102,10 @@ int main(int argc, char *argv[])
   struct ns__destroyResponse            destroyResponse;
   struct ns__getTerminationTimeResponse getTerminationTimeResponse;
   FILE   *ifp, *ofp;
+  STACK_OF(X509) *x509_certstack;
+  X509   *x509_cert;
+  BIO    *certmem;
+  long   ptrlen;
   struct stat statbuf;
   struct passwd *userpasswd; 
   struct option long_options[] = {      {"verbose",     0, 0, 'v'},
@@ -111,6 +120,7 @@ int main(int argc, char *argv[])
                                         {"put",         0, 0, 0},
                                         {"renew",       0, 0, 0},
                                         {"unixtime",	0, 0, 0},
+                                        {"make",	0, 0, 0},
                                         {0, 0, 0, 0}  };
 
   if (argc == 1)
@@ -139,15 +149,10 @@ int main(int argc, char *argv[])
              else if (option_index ==  9) method          = HTPROXY_PUT;
              else if (option_index == 10) method          = HTPROXY_RENEW;
              else if (option_index == 11) method          = HTPROXY_UNIXTIME;
+             else if (option_index == 12) method          = HTPROXY_MAKE;
            }
          else if (c == 'v') ++verbose;
        }
-
-  if (optind + 1 != argc)
-    {
-      fprintf(stderr, "Must specify a delegation service URL!\n");
-      return 1;
-    }
 
   executable = rindex(argv[0], '/');
   if (executable != NULL) executable++;
@@ -158,6 +163,13 @@ int main(int argc, char *argv[])
   else if (strcmp(executable, "htproxytime") == 0)  method = HTPROXY_TIME;
   else if (strcmp(executable, "htproxyunixtime") == 0) 
                                                     method = HTPROXY_UNIXTIME;
+  else if (strcmp(executable, "htproxymake") == 0)  method = HTPROXY_MAKE;
+
+  if ((method != HTPROXY_MAKE) && (optind + 1 != argc))
+    {
+      fprintf(stderr, "Must specify a delegation service URL!\n");
+      return 1;
+    }
 
   if ((method == HTPROXY_RENEW) && (delegation_id[0] == '\0'))
     {
@@ -177,12 +189,14 @@ int main(int argc, char *argv[])
   else if ((cert != NULL) && (key == NULL)) key = cert;
   else if ((cert == NULL) && (key == NULL))
     {
-      cert = getenv("X509_USER_PROXY");
+      if (method != HTPROXY_MAKE) cert = getenv("X509_USER_PROXY");
+
       if (cert != NULL) key = cert;
       else
         {
-          asprintf(&(cert), "/tmp/x509up_u%d", geteuid());
-                                                                                
+          if (method != HTPROXY_MAKE) 
+               asprintf(&(cert), "/tmp/x509up_u%d", geteuid());
+
           /* one fine day, we will check the proxy file for 
              expiry too to avoid suprises when we try to use it ... */
 
@@ -421,6 +435,61 @@ int main(int argc, char *argv[])
         
       return 0;
     }  
+  else if (method == HTPROXY_MAKE)
+    {
+      if (GRSTx509CreateProxyRequest(&reqtxt, &keytxt, NULL) != GRST_RET_OK)
+        {
+          fprintf(stderr, "Failed to create internal proxy cert request\n");
+          return 1;
+        }
+      
+      if (GRSTx509MakeProxyCert(&proxychain, NULL, reqtxt, cert, key, minutes)
+            != GRST_RET_OK)
+        {
+          fprintf(stderr, "Failed to sign internal proxy cert request\n");
+          return 2;
+        }
+        
+      if (GRSTx509StringToChain(&x509_certstack, proxychain) != GRST_RET_OK)
+        {
+          fprintf(stderr, "Failed to convert internal proxy chain\n");
+          return 3;
+        }
+                                
+      if (x509_cert = sk_X509_value(x509_certstack, 0))
+        {
+          certmem = BIO_new(BIO_s_mem());
+          if (PEM_write_bio_X509(certmem, x509_cert) == 1)
+            {
+              ptrlen = BIO_get_mem_data(certmem, &ptr);
+              fwrite(ptr, 1, ptrlen, stdout);
+            }
+                                                          
+          BIO_free(certmem);
+        }
+                                                                    
+      fputs(keytxt, stdout);
+
+      for (i=1; i <= sk_X509_num(x509_certstack) - 1; ++i)
+        /* loop through the proxy chain starting at 2nd most recent proxy */
+         {
+           if (x509_cert = sk_X509_value(x509_certstack, i))
+             {
+               certmem = BIO_new(BIO_s_mem());
+               if (PEM_write_bio_X509(certmem, x509_cert) == 1)
+                 {
+                   ptrlen = BIO_get_mem_data(certmem, &ptr);
+                   fwrite(ptr, 1, ptrlen, stdout);
+                 }
+
+               BIO_free(certmem);
+             }
+         }
+
+      sk_X509_free(x509_certstack);
+      
+      return 0;
+    }
 
   /* weirdness */
 }

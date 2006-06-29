@@ -823,11 +823,10 @@ int http_gridhttp(request_rec *r, mod_gridsite_dir_cfg *conf)
 
 int http_put_method(request_rec *r, mod_gridsite_dir_cfg *conf)
 {
-  char        buf[2048];
+  char        buf[2048], *filename;
   size_t      block_length, length_sent;
   int         retcode, stat_ret;
   apr_file_t *fp;
-  apr_int32_t open_flag;
   struct stat statbuf;
   int       has_range = 0, is_done = 0;
   apr_off_t range_start, range_end, range_length, length_to_send;
@@ -872,23 +871,29 @@ int http_put_method(request_rec *r, mod_gridsite_dir_cfg *conf)
            else return OK;
          }
     
-       open_flag = APR_WRITE | APR_CREATE | APR_BUFFERED;
-    }
-  else open_flag = APR_WRITE | APR_CREATE | APR_BUFFERED | APR_TRUNCATE;
+       filename = r->filename;
 
-  if (apr_file_open(&fp, r->filename, open_flag,
-      conf->diskmode, r->pool) != 0) return HTTP_INTERNAL_SERVER_ERROR;
-   
+       if (apr_file_open(&fp, filename, APR_WRITE | APR_CREATE | APR_BUFFERED,
+            conf->diskmode, r->pool) != 0) return HTTP_INTERNAL_SERVER_ERROR;
+    }
+  else /* use temporary file if not a partial transfer */ 
+    {
+      filename = apr_psprintf(r->pool, "%s.tmpXXXXXX", r->filename);
+
+      if (apr_file_mktemp(&fp, filename, 
+                    APR_CREATE | APR_WRITE | APR_BUFFERED | APR_EXCL, r->pool)
+                    != APR_SUCCESS) return HTTP_INTERNAL_SERVER_ERROR;
+    }
+       
   /* we force the permissions, rather than accept any existing ones */
 
-  apr_file_perms_set(r->filename, conf->diskmode);
+  apr_file_perms_set(filename, conf->diskmode);
 
   if (has_range)
     {
       if (apr_file_seek(fp, APR_SET, &range_start) != 0) 
         {
           retcode = HTTP_INTERNAL_SERVER_ERROR;
-          //break;
           return retcode;
         }
 
@@ -925,7 +930,15 @@ int http_put_method(request_rec *r, mod_gridsite_dir_cfg *conf)
       ap_set_content_type(r, "text/html");
     }
 
-  if (apr_file_close(fp) != 0) return HTTP_INTERNAL_SERVER_ERROR;
+  if ((apr_file_close(fp) != 0) || (retcode == HTTP_INTERNAL_SERVER_ERROR))
+    {
+      if (strcmp(filename, r->filename) != 0) remove(filename);
+      return HTTP_INTERNAL_SERVER_ERROR;
+    }
+
+  if ((strcmp(filename, r->filename) != 0) &&
+      (apr_file_rename(filename, r->filename, r->pool) != 0))
+      return HTTP_FORBIDDEN; /* best guess as to the problem ... */
 
   if ((retcode == OK) && (stat_ret != 0))
     {

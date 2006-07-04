@@ -121,6 +121,7 @@ struct sitecast_alias
 int gridhttpport = 0; /* set by create_gridsite_srv_config, used as flag */
 char                    *sessionsdir = NULL;
 char			*sitecastdnlists = NULL;
+char 			*ocspmodes = NULL;
 struct sitecast_group	sitecastgroups[GRST_SITECAST_GROUPS+1];
 struct sitecast_alias	sitecastaliases[GRST_SITECAST_ALIASES];
 
@@ -823,13 +824,14 @@ int http_gridhttp(request_rec *r, mod_gridsite_dir_cfg *conf)
 
 int http_put_method(request_rec *r, mod_gridsite_dir_cfg *conf)
 {
-  char        buf[2048], *filename;
+  char        buf[2048], *filename, *dirname, *basename;
+  const char  *p;
   size_t      block_length, length_sent;
   int         retcode, stat_ret;
   apr_file_t *fp;
   struct stat statbuf;
   int       has_range = 0, is_done = 0;
-  apr_off_t range_start, range_end, range_length, length_to_send;
+  apr_off_t range_start, range_end, range_length, length_to_send, length = 0;
   
   /* ***  check if directory creation: PUT /.../  *** */
 
@@ -878,13 +880,38 @@ int http_put_method(request_rec *r, mod_gridsite_dir_cfg *conf)
     }
   else /* use temporary file if not a partial transfer */ 
     {
-      filename = apr_psprintf(r->pool, "%s.tmpXXXXXX", r->filename);
+      dirname = apr_pstrdup(r->pool, r->filename);
+      basename = rindex(dirname, '/');
+      if (basename == NULL) return HTTP_INTERNAL_SERVER_ERROR;
+        
+      *basename = '\0';
+      ++basename;
 
-      if (apr_file_mktemp(&fp, filename, 
+      filename = apr_psprintf(r->pool,
+                             "%s/.grsttmp-%s-XXXXXX", dirname, basename);
+
+      if (apr_file_mktemp(&fp, filename,
                     APR_CREATE | APR_WRITE | APR_BUFFERED | APR_EXCL, r->pool)
                     != APR_SUCCESS) return HTTP_INTERNAL_SERVER_ERROR;
+/*
+      p = apr_table_get(r->headers_in, "Content-Length");
+      if (p != NULL) 
+        {
+          length = (apr_off_t) atol(p);
+          if (length > 16384)
+            {
+              if (apr_file_seek(fp, APR_SET, &length) == 0)
+                {
+                  block_length = 1;
+                  apr_file_write(fp, "0", &block_length);
+                }
+
+              apr_file_seek(fp, APR_SET, 0);
+            }
+        }
+*/
     }
-       
+
   /* we force the permissions, rather than accept any existing ones */
 
   apr_file_perms_set(filename, conf->diskmode);
@@ -1775,6 +1802,14 @@ static const char *mod_gridsite_take1_cmds(cmd_parms *a, void *cfg,
            *p != '\0';
            ++p) if (*p == '\t') *p = ' ';
     }
+    else if (strcasecmp(a->cmd->name, "GridSiteOCSP") == 0)
+    {
+      ocspmodes = apr_psprintf(a->pool, " %s ", parm);
+       
+      for (p = ocspmodes; *p != '\0'; ++p)
+               if (*p == '\t') *p = ' ';
+               else *p = tolower(*p);
+    }
     else if (strcasecmp(a->cmd->name, "GridSiteEditable") == 0)
     {
       ((mod_gridsite_dir_cfg *) cfg)->editable =
@@ -1987,6 +2022,8 @@ static const command_rec mod_gridsite_cmds[] =
 
     AP_INIT_RAW_ARGS("GridSiteMethods", mod_gridsite_take1_cmds,
                    NULL, OR_FILEINFO, "permitted HTTP methods"),
+    AP_INIT_RAW_ARGS("GridSiteOCSP", mod_gridsite_take1_cmds,
+                 NULL, RSRC_CONF, "Set OCSP lookups"),
     AP_INIT_RAW_ARGS("GridSiteEditable", mod_gridsite_take1_cmds,
                    NULL, OR_FILEINFO, "editable file extensions"),
     AP_INIT_TAKE1("GridSiteHeadFile", mod_gridsite_take1_cmds,
@@ -2104,6 +2141,14 @@ int GRST_load_ssl_creds(SSL *ssl, conn_rec *conn)
                          apr_psprintf(conn->pool, "GRST_CRED_%d", i),
                          apr_pstrdup(conn->pool, &p[1]));
             }
+          else if (sscanf(line, "GRST_OCSP_URL_%d=", &i) == 1)
+            {
+              p = index(line, '=');
+
+              apr_table_setn(conn->notes,
+                         apr_psprintf(conn->pool, "GRST_OCSP_URL_%d", i),
+                         apr_pstrdup(conn->pool, &p[1]));
+            }
         }
         
    apr_file_close(fp);
@@ -2179,6 +2224,48 @@ void GRST_save_ssl_creds(conn_rec *conn,
                                    
        /* free remaining dup'd certs? */
      }
+
+   /* this needs to be merged into compactcreds in grst_x509? */
+
+   if (ocspmodes != NULL)
+   {
+     int   j;
+     const char *ex_sn;
+     char s[80];
+     X509 *cert;     
+     X509_EXTENSION *ex;
+     
+     for (j=sk_X509_num(certstack)-1; j >= 0; --j)
+        {
+          cert = sk_X509_value(certstack, j);
+          
+          for (i=0; i < X509_get_ext_count(cert); ++i)
+             {
+               ex = X509_get_ext(cert, i);
+
+               OBJ_obj2txt(s, sizeof(s), X509_EXTENSION_get_object(ex), 0);
+
+               if (strcmp(s, "authorityInfoAccess") == 0) /* OCSP */
+                 {
+                   apr_table_setn(conn->notes, "GRST_OCSP_URL",
+                                  (const char *) X509_EXTENSION_get_data(ex));
+
+                   /* strategy is to remove what has been checked, 
+                      for this connnection */
+                   apr_table_set(conn->notes, "GRST_OCSP_UNCHECKED",
+                                 ocspmodes);
+
+                   ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, conn->base_server,
+                "store GRST_OCSP_URL_%d=%s", i, X509_EXTENSION_get_data(ex));
+
+                   if (fp != NULL) apr_file_printf(fp, "GRST_OCSP_URL_%d=%s\n",
+                                             i, X509_EXTENSION_get_data(ex));
+                 }
+             }
+        }   
+   }
+         
+   /* end of bit that needs to go into grst_x509 */
      
    if (fp != NULL)
      {
@@ -2283,6 +2370,11 @@ static int mod_gridsite_perm_handler(request_rec *r)
                    }
                  else break; /* GRST_CRED_i are numbered consecutively */
                }
+
+            cred = GRSTgaclCredNew("level");
+            if (proxylevel == 0) GRSTgaclCredAddValue(cred, "nist-loa", "3");
+            else                 GRSTgaclCredAddValue(cred, "nist-loa", "2");
+            GRSTgaclUserAddCred(user, cred);
           }
       }
 
@@ -2625,7 +2717,7 @@ static int mod_gridsite_perm_handler(request_rec *r)
     return retcode;
 }
 
-int GRST_X509_check_issued_wrapper(X509_STORE_CTX *ctx,X509 *x,X509 *issuer)
+int GRST_X509_check_issued_wrapper(X509_STORE_CTX *ctx, X509 *x, X509 *issuer)
 /* We change the default callback to use our wrapper and discard errors
    due to GSI proxy chains (ie where users certs act as CAs) */
 {

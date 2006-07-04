@@ -142,6 +142,24 @@ struct GRSTasn1TagList { char treecoords[GRST_ASN1_MAXCOORDLEN+1];
                          int  length;
                          int  tag; } ;
 
+typedef struct { int    type;		/* CA, user, proxy, VOMS, ... */
+                 int    status;		/* unchecked, bad sig, bad time */
+                 char   *ca;		/* Cert CA DN, or VOMS issuer CA */
+                 char   *dn;		/* Cert DN, or VOMS issuer DN */
+                 char   *value;		/* VOMS FQAN or NULL */
+                 time_t start;
+                 time_t finish;
+                 int    serial;
+                 char   *ocsp;		/* accessLocation field */
+                 void   *raw;		/* X509 or VOMS Extension object */
+                 void   *next; } GRSTx509Cert;
+
+typedef struct { GRSTx509Cert *firstcert; } GRSTx509Chain;
+
+int GRSTx509CertLoad(GRSTx509Cert *, X509 *);
+int GRSTx509ChainLoad(GRSTx509Chain *, STACK_OF(X509) *, X509 *);
+int GRSTx509ChainFree(GRSTx509Chain *);
+
 #define GRST_HTTP_PORT		777
 #define GRST_HTTPS_PORT		488
 #define GRST_HTCP_PORT		777
@@ -310,6 +328,7 @@ int GRSTx509MakeProxyCert(char **, FILE *, char *, char *, char *, int);
 char *GRSTx509CachedProxyKeyFind(char *, char *, char *);
 int GRSTx509ProxyDestroy(char *, char *, char *);
 int GRSTx509ProxyGetTimes(char *, char *, char *, time_t *, time_t *);
+int GRSTx509CreateProxyRequest(char **, char **, char *);
 int GRSTx509MakeProxyRequest(char **, char *, char *, char *);
 int GRSTx509StringToChain(STACK_OF(X509) **, char *);
 char *GRSTx509MakeDelegationID(void);

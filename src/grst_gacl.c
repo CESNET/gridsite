@@ -950,6 +950,11 @@ int GRSTgaclUserHasCred(GRSTgaclUser *user, GRSTgaclCred *cred)
                   if (GRSTx509NameCmp(usernamevalue->value, 
                                       crednamevalue->value) != 0) break;
                 }
+              else if (strcmp(cred->type, "level") == 0)
+                {
+                  if (atoi(usernamevalue->value) 
+                        < atoi(crednamevalue->value)) break;
+                }              
               else if (strcmp(usernamevalue->value,
                               crednamevalue->value) != 0) break;
               

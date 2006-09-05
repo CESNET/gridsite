@@ -1,6 +1,6 @@
 /*
-   Copyright (c) 2003-6, Andrew McNab and Shiv Kaushal, 
-   University of Manchester. All rights reserved.
+   Copyright (c) 2003-6, Andrew McNab, Shiv Kaushal, Joseph Dada,
+   and Yibiao Li, University of Manchester. All rights reserved.
 
    Redistribution and use in source and binary forms, with or
    without modification, are permitted provided that the following
@@ -2072,6 +2072,19 @@ static const command_rec mod_gridsite_cmds[] =
     {NULL}
 };
 
+/*  Blank unset these HTTP headers, to prevent injection attacks.
+    This is run before mod_shib's check_user_id hook, which may
+    legitimately create such headers.                           */
+
+static int mod_gridsite_check_user_id(request_rec *r)
+{
+    ap_table_unset(r->headers_in, "User-Distinguished-Name");
+    ap_table_unset(r->headers_in, "Nist-LoA");
+    ap_table_unset(r->headers_in, "VOMS-Attribute");
+
+    return DECLINED; /* ie carry on processing request */
+}
+
 static int mod_gridsite_first_fixups(request_rec *r)
 {
     mod_gridsite_dir_cfg *conf;
@@ -2289,6 +2302,7 @@ static int mod_gridsite_perm_handler(request_rec *r)
                 *gridauthpasscode = NULL, *cookiefile, oneline[1025], *key_i,
                 *destination = NULL, *destination_uri = NULL, *querytmp, 
                 *destination_prefix = NULL, *destination_translated = NULL;
+    char        *vomsAttribute, *loa;
     const char  *content_type;
     time_t       now, notbefore, notafter;
     apr_table_t *env;
@@ -2314,6 +2328,49 @@ static int mod_gridsite_perm_handler(request_rec *r)
                return DECLINED; /* if not turned on, look invisible */
 
     env = r->subprocess_env;
+    
+    /* Get the user's attributes from Shibboleth and set up user credential
+       based on the attributes if authentication has been carried out using
+       a Shibboleth Identity Provider.*/
+
+    /* Get DN from a Shibboleth attribute */
+    if (vomsAttribute == NULL)
+      {
+        dn = (char *) apr_table_get(r->headers_in, "User-Distinguished-Name");
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server, "DN: %s", dn);
+      }                                            
+#if 0                                                                    
+    /* Get the NIST LoA attribute */
+    loa = (char *) apr_table_get(r->headers_in, "nist-loa");
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server, "Nist-LoA: %d", loa);
+#endif
+    /* Set up user credential based on the DN and LoA attributes */
+                                  
+    if (dn != NULL)
+      {
+        cred = GRSTgaclCredNew("person");
+        GRSTgaclCredAddValue(cred, "dn", dn);
+        user = GRSTgaclUserNew(cred);
+        cred = GRSTgaclCredNew("level");
+#if 0
+        GRSTgaclCredAddValue(cred, "nist-loa", loa);
+#endif
+        GRSTgaclCredAddValue(cred, "nist-loa", "2"); /* hardcoded for now */
+        GRSTgaclUserAddCred(user, cred);
+      }
+
+    vomsAttribute = (char *) apr_table_get(r->headers_in, "VOMS-Attribute");
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server, 
+                 "VOMS-Attribute: %s", vomsAttribute);
+            
+    /* Set up user credential based on VOMS Attribute */
+    if (vomsAttribute != NULL)
+      {
+        cred = GRSTgaclCredNew("voms");
+        GRSTgaclCredAddValue(cred, "fqan", vomsAttribute);
+        if (user == NULL) user = GRSTgaclUserNew(cred);
+        else GRSTgaclUserAddCred(user, cred);
+      }
 
     p = (char *) apr_table_get(r->subprocess_env, "HTTPS");
     if ((p != NULL) && (strcmp(p, "on") == 0)) ishttps = 1;
@@ -3349,6 +3406,9 @@ static void register_hooks(apr_pool_t *p)
     ap_hook_post_config(mod_gridsite_server_post_config, NULL, NULL, 
                                                               APR_HOOK_LAST);
     ap_hook_child_init(mod_gridsite_child_init, NULL, NULL, APR_HOOK_MIDDLE);
+    
+    ap_hook_check_user_id(mod_gridsite_check_user_id, NULL, NULL, 
+                                                      APR_HOOK_REALLY_FIRST);
 
     ap_hook_fixups(mod_gridsite_first_fixups,NULL,NULL,APR_HOOK_FIRST);
     

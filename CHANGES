@@ -1,3 +1,6 @@
+* Mon Jul 17 2006 Andrew McNab <Andrew.McNab@man.ac.uk>
+- Add Shibboleth handling from Joseph Dada's branch to
+  mod_gridsite in main GridSite tree.
 * Tue Jun 27 2006 Andrew McNab <Andrew.McNab@man.ac.uk>
 - Merge delegation services back into core.
 - Add OCSP options

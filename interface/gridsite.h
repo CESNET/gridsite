@@ -143,7 +143,7 @@ struct GRSTasn1TagList { char treecoords[GRST_ASN1_MAXCOORDLEN+1];
                          int  tag; } ;
 
 typedef struct { int    type;		/* CA, user, proxy, VOMS, ... */
-                 int    status;		/* unchecked, bad sig, bad time */
+                 int    errors;		/* unchecked, bad sig, bad time */
                  char   *ca;		/* Cert CA DN, or VOMS issuer CA */
                  char   *dn;		/* Cert DN, or VOMS issuer DN */
                  char   *value;		/* VOMS FQAN or NULL */
@@ -154,10 +154,22 @@ typedef struct { int    type;		/* CA, user, proxy, VOMS, ... */
                  void   *raw;		/* X509 or VOMS Extension object */
                  void   *next; } GRSTx509Cert;
 
+#define GRST_CERT_BAD_FORMAT 1
+#define GRST_CERT_BAD_CHAIN  2
+#define GRST_CERT_BAD_SIG    4
+#define GRST_CERT_BAD_TIME   8
+#define GRST_CERT_BAD_OCSP  16
+
+#define GRST_CERT_TYPE_CA    1
+#define GRST_CERT_TYPE_EEC   2
+#define GRST_CERT_TYPE_PROXY 3
+#define GRST_CERT_TYPE_VOMS  4
+
+/* a chain of certs, starting from the first CA */
 typedef struct { GRSTx509Cert *firstcert; } GRSTx509Chain;
 
 int GRSTx509CertLoad(GRSTx509Cert *, X509 *);
-int GRSTx509ChainLoad(GRSTx509Chain *, STACK_OF(X509) *, X509 *);
+int GRSTx509ChainLoadCheck(GRSTx509Chain **, STACK_OF(X509) *, X509 *, char *);
 int GRSTx509ChainFree(GRSTx509Chain *);
 
 #define GRST_HTTP_PORT		777

@@ -161,6 +161,177 @@ int GRSTx509IsCA(X509 *cert)
    else return GRST_RET_FAILED;
 }   
 
+int GRSTx509ChainFree(GRSTx509Chain *chain)
+{
+   GRSTx509Cert *grst_cert;
+
+   if (chain == NULL) return GRST_RET_OK;
+   
+// delete the various stuff in the chain members....      
+
+   return GRST_RET_OK;
+}
+
+/// Check certificate chain for GSI proxy acceptability.
+/**
+ *  Returns GRST_RET_OK if valid; OpenSSL X509 errors otherwise.
+ *
+ *  The GridSite version handles old and new style Globus proxies, and
+ *  proxies derived from user certificates issued with "X509v3 Basic
+ *  Constraints: CA:FALSE" (eg UK e-Science CA)
+ *
+ *  TODO: we do not yet check ProxyCertInfo and ProxyCertPolicy extensions
+ *        (although via GRSTx509KnownCriticalExts() we can accept them.)
+ */
+
+int GRSTx509ChainLoadCheck(GRSTx509Chain **chain, 
+                           STACK_OF(X509) *certstack, X509 *lastcert,
+                           char *capath)
+{
+   X509 *cert;                  /* Points to the current cert in the loop */
+   int depth = 0;               /* Depth of cert chain */
+   int chain_errors = 0;	/* records previous errors */
+   int first_non_ca;
+   size_t len,len2;             /* Lengths of issuer and cert DN */
+   int IsCA;                    /* Holds whether cert is allowed to sign */
+   int prevIsCA;                /* Holds whether previous cert in chain is 
+                                   allowed to sign */
+   int prevIsLimited;		/* previous cert was proxy and limited */
+   int i,j;                     /* Iteration variables */
+   char *cert_DN;               /* Pointer to current-certificate-in-chain's 
+                                   DN */
+   char *issuer_DN;             /* Pointer to 
+                                   issuer-of-current-cert-in-chain's DN */
+   char *proxy_part_DN;         /* Pointer to end part of current-cert-in-chain
+                                   maybe eg "/CN=proxy" */
+   time_t now;
+   GRSTx509Cert *grst_cert, *new_grst_cert;
+   
+   GRSTerrorLog(GRST_LOG_DEBUG, "GRSTx509ChainLoadCheck() starts");
+printf("GRSTx509ChainLoadCheck() starts");
+
+   time(&now);
+
+   first_non_ca = 0; /* set to something predictable if things fail */
+ 
+   /* Set necessary preliminary values */
+   IsCA          = TRUE;           /* =prevIsCA - start from a CA */
+   prevIsLimited = 0;
+ 
+
+   /* Get the client cert chain */
+   if (certstack != NULL) 
+     depth = sk_X509_num(certstack); /* How deep is that chain? */
+   
+printf("depth=%d\n", depth);
+
+   if ((depth == 0) && (lastcert == NULL)) 
+     {
+       *chain = NULL;
+       return GRST_RET_FAILED;
+     }
+
+   *chain = malloc(sizeof(GRSTx509Chain));
+   bzero(*chain, sizeof(GRSTx509Chain));
+       
+   /* Check the client chain */
+   for (i = depth - 1; i >= (lastcert == NULL) ? 0 : -1; --i) 
+      /* loop through client-presented chain starting at CA end */
+      {
+        prevIsCA=IsCA;
+
+        new_grst_cert = malloc(sizeof(GRSTx509Cert));
+        bzero(new_grst_cert, sizeof(GRSTx509Cert));
+        new_grst_cert->errors = chain_errors;
+        
+        if (i == depth - 1) (*chain)->firstcert = new_grst_cert;
+        else grst_cert->next = new_grst_cert;
+
+        /* Check for X509 certificate and point to it with 'cert' */
+        if (i < 0) cert = lastcert;
+        else cert = sk_X509_value(certstack, i);
+
+        if (cert != NULL)
+          {
+            /* we check times and record if invalid */
+          
+            if (now <
+           GRSTasn1TimeToTimeT(ASN1_STRING_data(X509_get_notBefore(cert)),0))
+                new_grst_cert->errors |= GRST_CERT_BAD_TIME;
+                
+            if (now > 
+           GRSTasn1TimeToTimeT(ASN1_STRING_data(X509_get_notAfter(cert)),0))
+                new_grst_cert->errors |= GRST_CERT_BAD_TIME;
+
+            /* If any forebear certificate is not allowed to sign we must 
+               assume all decendents are proxies and cannot sign either */
+            if (prevIsCA)
+              {
+                /* always treat the first cert (from the CA files) as a CA */
+                if (i == depth - 1) IsCA = TRUE;
+                /* check if this cert is valid CA for signing certs */
+                else IsCA = (GRSTx509IsCA(cert) == GRST_RET_OK);
+                
+                if (!IsCA) first_non_ca = i;
+              } 
+            else 
+              {
+                IsCA = FALSE; 
+                /* Force proxy check next iteration. Important because I can
+                   sign any CA I create! */
+              }
+ 
+            cert_DN   = X509_NAME_oneline(X509_get_subject_name(cert),NULL,0);
+            issuer_DN = X509_NAME_oneline(X509_get_issuer_name(cert),NULL,0);
+            len       = strlen(cert_DN);
+            len2      = strlen(issuer_DN);
+
+            if (!prevIsCA)
+              {
+                /* issuer didn't have CA status, so this is (at best) a proxy:
+                   check for bad proxy extension*/
+
+                if (prevIsLimited) /* we reject proxies of limited proxies! */
+                  {
+                    new_grst_cert->errors  |= GRST_CERT_BAD_CHAIN;
+                    chain_errors |= GRST_CERT_BAD_CHAIN;
+                  }
+              
+                /* User not allowed to sign shortened DN */
+                if (len2 > len) 
+                  {
+                    new_grst_cert->errors  |= GRST_CERT_BAD_CHAIN;
+                    chain_errors |= GRST_CERT_BAD_CHAIN;
+                  }
+                  
+                /* Proxy subject must begin with issuer. */
+                if (strncmp(cert_DN, issuer_DN, len2) != 0) 
+                  {
+                    new_grst_cert->errors  |= GRST_CERT_BAD_CHAIN;
+                    chain_errors |= GRST_CERT_BAD_CHAIN;
+                  }
+
+                /* Set pointer to end of base DN in cert_DN */
+                proxy_part_DN = &cert_DN[len2];
+
+                /* First attempt at support for Old and New style GSI
+                   proxies: /CN=anything is ok for now */
+                if (strncmp(proxy_part_DN, "/CN=", 4) != 0)
+                  {
+                    new_grst_cert->errors  |= GRST_CERT_BAD_CHAIN;
+                    chain_errors |= GRST_CERT_BAD_CHAIN;
+                  }
+                                         
+                if (strncmp(proxy_part_DN, "/CN=limited proxy", 17) == 0)
+                        prevIsLimited = 1; /* ready for next cert ... */
+              } 
+          }
+      }
+
+ 
+   return GRST_RET_OK; /* this is also GRST_RET_OK, of course - by choice */
+}
+
 /// Check certificate chain for GSI proxy acceptability.
 /**
  *  Returns X509_V_OK/GRST_RET_OK if valid; OpenSSL X509 errors otherwise.

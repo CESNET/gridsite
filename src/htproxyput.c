@@ -73,6 +73,7 @@ http://www.gridpp.ac.uk/authz/gridsite/
 #define HTPROXY_TIME		3
 #define HTPROXY_UNIXTIME	4
 #define HTPROXY_MAKE		5
+#define HTPROXY_INFO		6
 
 void printsyntax(char *argv0)
 {
@@ -85,6 +86,20 @@ void printsyntax(char *argv0)
   fprintf(stderr, "%s [options] URL\n"
           "(Version: %s)\n", p, VERSION);
 }
+
+void htproxy_logfunc(char *file, int line, int level, char *fmt, ...)
+{
+  char *mesg;
+  va_list ap;
+
+  va_start(ap, fmt);
+  vasprintf(&mesg, fmt, ap);
+  va_end(ap);
+
+  fprintf(stderr, "%s(%d) %s\n", file, line, mesg);
+
+  free(mesg);
+}
   
 int main(int argc, char *argv[])
 {
@@ -93,7 +108,7 @@ int main(int argc, char *argv[])
         *executable, *keytxt, *proxychain, *ptr;
   struct ns__putProxyResponse *unused;
   struct tm *finish_tm;
-  int    option_index, c, noverify = 0, i, 
+  int    option_index, c, noverify = 0, i, ret,
          method = HTPROXY_PUT, verbose = 0, fd, minutes;
   struct soap soap_get, soap_put;
   struct ns__getProxyReqResponse        getProxyReqResponse;
@@ -105,6 +120,8 @@ int main(int argc, char *argv[])
   STACK_OF(X509) *x509_certstack;
   X509   *x509_cert;
   BIO    *certmem;
+  GRSTx509Chain *grst_chain = NULL;
+  GRSTx509Cert  *grst_cert = NULL;
   long   ptrlen;
   struct stat statbuf;
   struct passwd *userpasswd; 
@@ -121,6 +138,7 @@ int main(int argc, char *argv[])
                                         {"renew",       0, 0, 0},
                                         {"unixtime",	0, 0, 0},
                                         {"make",	0, 0, 0},
+                                        {"info",	0, 0, 0},
                                         {0, 0, 0, 0}  };
 
   if (argc == 1)
@@ -150,8 +168,13 @@ int main(int argc, char *argv[])
              else if (option_index == 10) method          = HTPROXY_RENEW;
              else if (option_index == 11) method          = HTPROXY_UNIXTIME;
              else if (option_index == 12) method          = HTPROXY_MAKE;
+             else if (option_index == 13) method          = HTPROXY_INFO;
            }
-         else if (c == 'v') ++verbose;
+         else if (c == 'v') 
+                {
+                  GRSTerrorLogFunc = htproxy_logfunc;
+                  ++verbose;
+                }
        }
 
   executable = rindex(argv[0], '/');
@@ -164,8 +187,10 @@ int main(int argc, char *argv[])
   else if (strcmp(executable, "htproxyunixtime") == 0) 
                                                     method = HTPROXY_UNIXTIME;
   else if (strcmp(executable, "htproxymake") == 0)  method = HTPROXY_MAKE;
+  else if (strcmp(executable, "htproxyinfo") == 0)  method = HTPROXY_INFO;
 
-  if ((method != HTPROXY_MAKE) && (optind + 1 != argc))
+  if ((method != HTPROXY_MAKE) && 
+      (method != HTPROXY_INFO) && (optind + 1 != argc))
     {
       fprintf(stderr, "Must specify a delegation service URL!\n");
       return 1;
@@ -201,7 +226,7 @@ int main(int argc, char *argv[])
              expiry too to avoid suprises when we try to use it ... */
 
           if (stat(cert, &statbuf) == 0) key = cert;
-          else
+          else if (method != HTPROXY_INFO)
             {
               cert = getenv("X509_USER_CERT");
               key  = getenv("X509_USER_KEY");
@@ -230,7 +255,8 @@ int main(int argc, char *argv[])
   if (verbose) fprintf(stderr, "key=%s\ncert=%s\ncapath=%s\n",
                        key, cert, capath);
 
-  if (strcmp(key, cert) != 0) /* we have to concatenate for gSOAP */
+  if ((key != NULL) && (cert != NULL) &&
+      (strcmp(key, cert) != 0)) /* we have to concatenate for gSOAP */
     {
       keycert = strdup("/tmp/.XXXXXX");
         
@@ -490,7 +516,91 @@ int main(int argc, char *argv[])
       
       return 0;
     }
+  else if (method == HTPROXY_INFO)
+    {
+      if (cert != NULL) 
+        {
+          if (verbose) fprintf(stderr, "Getting proxy info from %s\n", cert);
+    
+          ifp = fopen(cert, "r");
+          if (ifp == NULL)
+            {
+              fprintf(stderr, "Failed to open proxy file\n");
+              return 2;              
+            }
+        }
+      else  
+        {
+          if (verbose) fprintf(stderr, "Getting proxy info from stdin\n");
+          ifp = stdin;
+        }
+      
+      ptrlen = 4096;
+      ptr = malloc(ptrlen);
+      i = 0;
+      
+      while ((c = fgetc(ifp)) != EOF)
+           {
+             ptr[i] = c;
+             ++i;
+             
+             if (i >= ptrlen) 
+               {
+                 ptrlen += 4096;
+                 ptr = realloc(ptr, ptrlen);
+               }
+           }
+           
+      ptr[i] = '\0';
+      if (cert != NULL) fclose(ifp);
+      
+      if ((GRSTx509StringToChain(&x509_certstack, ptr) != GRST_RET_OK) ||
+          (x509_certstack == NULL))
+        {
+          fprintf(stderr, "Failed to parse proxy file for certificate chain\n");
+          free(ptr);
+          return 2;
+        }
+        
+// fprintf(stderr, "%s\n", ptr);
 
+      free(ptr);
+
+      if (verbose) fprintf(stderr, "Parsing certificate chain\n");
+      
+      ret = GRSTx509ChainLoadCheck(&grst_chain, x509_certstack, NULL, capath);
+      
+      if ((ret != GRST_RET_OK) || 
+          (grst_chain == NULL) || (grst_chain->firstcert == NULL))
+        {
+          fprintf(stderr, "Failed parsing certificate chain\n");
+          return 3;
+        }
+      
+      grst_cert = grst_chain->firstcert;
+
+// printf("%lu\n", grst_cert);
+// printf("%lu\n", grst_cert->type);
+// printf("%lu\n", grst_cert->dn);
+// printf("%lu\n", grst_cert->next);
+       
+// printf("before for\n");      
+      for (i=0; 
+      grst_cert != NULL; 
+      grst_cert = grst_cert->next)
+         {
+// printf("inside for %i\n", grst_cert == NULL);         
+
+           printf("%d %d %s\n", i, grst_cert->type, grst_cert->dn);
+           printf("%lu\n", grst_cert->next);
+
+           grst_cert = grst_cert->next;
+           ++i;             
+         }
+      
+
+      GRSTx509ChainFree(grst_chain);
+    }
   /* weirdness */
 }
 

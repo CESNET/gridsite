@@ -173,27 +173,27 @@ gsexec:	gsexec.c gsexec.h
 	gcc -g -DVERSION=\"$(PATCH_VERSION)\" $(MYCFLAGS) \
 	    -o gsexec gsexec.c
 
-urlencode: urlencode.c libgridsite.a
+urlencode: urlencode.c libgridsite.so.$(VERSION)
 	gcc -g -DVERSION=\"$(PATCH_VERSION)\" $(MYCFLAGS) \
             -o urlencode urlencode.c -L. \
             -I/usr/kerberos/include \
             -lgridsite
 
-htcp: htcp.c libgridsite.a
+htcp: htcp.c libgridsite.so.$(VERSION)
 	gcc -g -DVERSION=\"$(PATCH_VERSION)\" $(MYCFLAGS) \
 	    -o htcp htcp.c -L. \
 	    -I/usr/kerberos/include \
             `curl-config --cflags` `curl-config --libs` \
             -lgridsite
 
-gridsite-copy.cgi: gridsite-copy.c libgridsite.a
+gridsite-copy.cgi: gridsite-copy.c libgridsite.so.$(VERSION)
 	gcc -g -DVERSION=\"$(PATCH_VERSION)\" $(MYCFLAGS) \
 	    -o gridsite-copy.cgi gridsite-copy.c -L. \
 	    -I/usr/kerberos/include \
             `curl-config --cflags` `curl-config --libs` \
             -lgridsite
 
-mod_gridsite.so: mod_gridsite.c mod_ssl-private.h libgridsite.a
+mod_gridsite.so: mod_gridsite.c mod_ssl-private.h libgridsite.so.$(VERSION)
 	gcc -g $(MYCFLAGS) -shared -Wl,-soname=gridsite_module \
            -I/usr/kerberos/include \
            -I/usr/include/libxml2 \
@@ -209,13 +209,13 @@ real-gridsite-admin.cgi: grst_admin_main.c grst_admin_gacl.c \
             -I/usr/kerberos/include \
             -DVERSION=\"$(VERSION)\" -lgridsite -lssl -lcrypto -lxml2 -lz -lm
 
-findproxyfile: findproxyfile.c libgridsite.a
+findproxyfile: findproxyfile.c libgridsite.so.$(VERSION)
 	gcc -g -DVERSION=\"$(PATCH_VERSION)\" $(MYCFLAGS) $(MYLDFLAGS) \
             -o findproxyfile findproxyfile.c -L. \
             -I/usr/kerberos/include -lgridsite \
             -lssl -lcrypto -lxml2 -lz -lm
 
-showx509exts: showx509exts.c libgridsite.a
+showx509exts: showx509exts.c libgridsite.so.$(VERSION)
 	gcc -g -DVERSION=\"$(PATCH_VERSION)\" $(MYCFLAGS) $(MYLDFLAGS) \
             -o showx509exts showx509exts.c -L. \
             -I/usr/kerberos/include \
@@ -271,25 +271,26 @@ endif
 DelegationService.wsdl: delegation.h
 	$(GSOAPDIR)/bin/soapcpp2 -c delegation.h
 
-gridsite-delegation.cgi: grst-delegation.c delegation.h DelegationService.wsdl
+gridsite-delegation.cgi: grst-delegation.c delegation.h \
+                         DelegationService.wsdl libgridsite.so.$(VERSION)
 	gcc -g $(MYCFLAGS) $(MYLDFLAGS) -o gridsite-delegation.cgi \
             grst-delegation.c \
             -I/usr/kerberos/include -I. -I$(GSOAPDIR)/include \
             -I$(GRIDSITEDIR)/include \
-            -DVERSION=\"$(VERSION)\" -L$(GSOAPDIR)/lib \
+            -DVERSION=\"$(VERSION)\" -L. -L$(GSOAPDIR)/lib \
             -L$(GRIDSITEDIR)/lib \
             soapC.c soapServer.c -lgsoap \
             -lgridsite -lcurl -lz -lssl -lcrypto -lxml2 -lm
 
-htproxyput: htproxyput.c delegation.h DelegationService.wsdl
+htproxyput: htproxyput.c delegation.h DelegationService.wsdl libgridsite.so.$(VERSION)
 	gcc -g $(MYCFLAGS) $(MYLDFLAGS) -o htproxyput \
             htproxyput.c \
             -I/usr/kerberos/include -I. \
             -g -DVERSION=\"$(VERSION)\" \
             -I$(GSOAPDIR)/include \
             -I$(GRIDSITEDIR)/include \
-            -DWITH_OPENSSL -L$(GSOAPDIR)/lib \
-            $(STDSOAP2) -L$(GRIDSITEDIR)/lib \
+            -DWITH_OPENSSL -L. -L$(GSOAPDIR)/lib \
+            $(STDSOAP2) \
             soapC.c soapClient.c -lgsoapssl \
             -lgridsite -lcurl -lz -lssl -lcrypto -lxml2 -lm
         

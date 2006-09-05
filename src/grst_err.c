@@ -37,7 +37,5 @@
 
 #include "gridsite.h"
 
-/* Little piece of GRSTerror in GRSTgacl */
-
 void (*GRSTerrorLogFunc)(char *, int, int, char *, ...) = NULL;
 

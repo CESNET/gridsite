@@ -2078,9 +2078,9 @@ static const command_rec mod_gridsite_cmds[] =
 
 static int mod_gridsite_check_user_id(request_rec *r)
 {
-    ap_table_unset(r->headers_in, "User-Distinguished-Name");
-    ap_table_unset(r->headers_in, "Nist-LoA");
-    ap_table_unset(r->headers_in, "VOMS-Attribute");
+    apr_table_unset(r->headers_in, "User-Distinguished-Name");
+    apr_table_unset(r->headers_in, "Nist-LoA");
+    apr_table_unset(r->headers_in, "VOMS-Attribute");
 
     return DECLINED; /* ie carry on processing request */
 }

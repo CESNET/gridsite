@@ -1,5 +1,5 @@
 * Wed Aug  6 2006 Andrew McNab <Andrew.McNab@man.ac.uk>
-- ==== GridSite version 1.3.3 ====
+- ==== GridSite version 1.3.4 ====
 * Mon Jul 17 2006 Andrew McNab <Andrew.McNab@man.ac.uk>
 - Add Shibboleth handling from Joseph Dada's branch to
   mod_gridsite in main GridSite tree.

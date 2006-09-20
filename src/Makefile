@@ -116,7 +116,7 @@ libgridsite_globus.so.$(VERSION): grst_err_globus.o \
                grst_asn1_globus.o grst_xacml_globus.o grst_htcp_globus.o 
 	gcc -shared -Wl,-soname,libgridsite_globus.so.$(MINOR_VERSION) \
          -o libgridsite_globus.so.$(PATCH_VERSION) \
-         grst_err.o grst_x509_globus.o grst_gacl_globus.o grst_xacml_globus.o \
+         grst_err_globus.o grst_x509_globus.o grst_gacl_globus.o grst_xacml_globus.o \
          grst_http_globus.o grst_asn1_globus.o
 	ln -sf libgridsite_globus.so.$(VERSION) libgridsite_globus.so
 

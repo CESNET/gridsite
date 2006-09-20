@@ -81,6 +81,7 @@ libgridsite.a: grst_err.o grst_x509.o grst_gacl.o grst_xacml.o grst_http.o grst_
 
 grst_err.o: grst_err.c ../interface/gridsite.h
 	gcc -g $(MYCFLAGS) \
+	    -I/usr/kerberos/include \
 	    -c grst_err.c
 
 grst_x509.o: grst_x509.c ../interface/gridsite.h
@@ -126,6 +127,7 @@ libgridsite_globus.a: grst_err_globus.o grst_x509_globus.o grst_gacl_globus.o gr
 
 grst_err_globus.o: grst_err.c ../interface/gridsite.h
 	gcc -g $(MYCFLAGS) $(OPENSSL_GLOBUS_FLAGS) \
+	    -I/usr/kerberos/include \
 	    -c grst_err.c \
 	    -o grst_err_globus.o
 

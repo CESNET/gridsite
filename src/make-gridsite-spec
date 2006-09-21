@@ -18,7 +18,7 @@ cat <<EOF >gsoap-test.c
 main() { return; }
 #endif
 EOF
-make GSOAPDIR=$GSOAPDIR gsoap-test
+make GSOAPDIR=$GSOAPDIR STDSOAP2=$STDSOAP2 gsoap-test
 if [ $? = 0 ] ; then have_gsoap=1 ; fi
 
 cat <<EOF >gridsite.spec

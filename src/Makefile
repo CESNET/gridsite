@@ -297,7 +297,9 @@ htproxyput: htproxyput.c delegation.h DelegationService.wsdl libgridsite.so.$(VE
             -lgridsite -lcurl -lz -lssl -lcrypto -lxml2 -lm
         
 # This target is used by make-gridsite-spec to test for gSOAP include+libs
-gsoap-test: gsoap-test.c 
+gsoap-test: gridsite-delegation.cgi
+
+gsoap-test-xxx: gsoap-test.c 
 	gcc -g $(MYCFLAGS) $(MYLDFLAGS) -o gsoap-test \
             gsoap-test.c \
             -I/usr/kerberos/include -I. \

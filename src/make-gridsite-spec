@@ -12,7 +12,7 @@ if [ $? = 0 ] ; then have_fuse=1 ; fi
 
 # test to see if gsoap-devel (or stdsoap2.h and libgsoapssl) is installed
 #
-cat <<EOF >gsoap-test.c
+cat <<EOF >gsoap-test-xxx.c
 #include <stdsoap2.h>
 #ifdef SOAP_BEGIN  
 main() { return; }

@@ -1,4 +1,4 @@
-/*
+/*5~
    Copyright (c) 2002-6, Andrew McNab, University of Manchester
    All rights reserved.
 
@@ -382,6 +382,7 @@ static int GRSTx509VerifyVomsSig(time_t *time1_time, time_t *time2_time,
 static int GRSTx509ChainVomsAdd(GRSTx509Cert **grst_cert, 
                          time_t time1_time, time_t time2_time,
                          X509_EXTENSION *ex, 
+                         int chain_errors,
                          char *ucuserdn, char *vomsdir)
 {
 #define MAXTAG 500
@@ -395,7 +396,7 @@ static int GRSTx509ChainVomsAdd(GRSTx509Cert **grst_cert,
                       dn_coords[200], fqan_coords[200], time1_coords[200],
                       time2_coords[200];
    long               asn1length;
-   int                lasttag=-1, itag, i, acnumber = 1, chain_errors = 0;
+   int                lasttag=-1, itag, i, acnumber = 1;
    struct GRSTasn1TagList taglist[MAXTAG+1];
    time_t             actime1 = 0, actime2 = 0, time_now;
    GRSTx509Cert      *new_grst_cert;
@@ -408,8 +409,6 @@ static int GRSTx509ChainVomsAdd(GRSTx509Cert **grst_cert,
 
    for (acnumber = 1; ; ++acnumber) /* go through ACs one by one */
       {
-        chain_errors = 0;
-      
         snprintf(dn_coords, sizeof(dn_coords), GRST_ASN1_COORDS_USER_DN, acnumber);
         if (GRSTasn1GetX509Name(acuserdn, sizeof(acuserdn), dn_coords,
                                 asn1string, taglist, lasttag) != GRST_RET_OK)
@@ -483,13 +482,21 @@ static int GRSTx509ChainVomsAdd(GRSTx509Cert **grst_cert,
    return GRST_RET_OK;
 }
 
-/// Check certificate chain for GSI proxy acceptability.
+/// Load and check X.509 chain, include Proxy Certificates and VOMS Attributes
 /**
- *  Returns GRST_RET_OK if valid; OpenSSL X509 errors otherwise.
+ *  Returns GRST_RET_OK if valid; GRST_xxx errors otherwise.
  *
- *  The GridSite version handles old and new style Globus proxies, and
- *  proxies derived from user certificates issued with "X509v3 Basic
- *  Constraints: CA:FALSE" (eg UK e-Science CA)
+ *  This function fills the GridSite linked list **chain with summaries
+ *  of the X.509 certificates, and any VOMS attributes they contain
+ * 
+ *  o If the root CA cert is not present, it is added from the capath
+ *    directory of hashed-DN.
+ *  o The chain list starts from the CA end.
+ *  o Certs are included even if they are invalid, but are flagged in their
+ *    errors field (0 = OK)
+ *  o If lastcert is not NULL, then it is included at the end of the chain.
+ *  o If vomsdir is not NULL, it used as the top of a hierarchy of VOMS
+ *    cert directories.
  *
  *  TODO: we do not yet check ProxyCertInfo and ProxyCertPolicy extensions
  *        (although via GRSTx509KnownCriticalExts() we can accept them.)
@@ -542,30 +549,36 @@ int GRSTx509ChainLoadCheck(GRSTx509Chain **chain,
        return GRST_RET_FAILED;
      }
 
-   cert = sk_X509_value(certstack, depth - 1);
-   subjecthash = X509_NAME_hash(X509_get_subject_name(cert));
-   issuerhash = X509_NAME_hash(X509_get_issuer_name(cert));
-   asprintf(&cacertpath, "%s/%.8x.0", capath, issuerhash);
-   
-   GRSTerrorLog(GRST_LOG_DEBUG, "Look for CA root file %s", cacertpath);
-
-   fp = fopen(cacertpath, "r");
-   free(cacertpath);
-
-   if (fp == NULL) chain_errors |= GRST_CERT_BAD_CHAIN;
-   else
+   if (capath != NULL)
      {
-       cacert = PEM_read_X509(fp, NULL, NULL, NULL);
-       fclose(fp);
-       if (cacert != NULL) 
-        GRSTerrorLog(GRST_LOG_DEBUG, " Loaded CA root cert from file");
+       cert = sk_X509_value(certstack, depth - 1);
+       subjecthash = X509_NAME_hash(X509_get_subject_name(cert));
+       issuerhash = X509_NAME_hash(X509_get_issuer_name(cert));
+       asprintf(&cacertpath, "%s/%.8x.0", capath, issuerhash);
+   
+       GRSTerrorLog(GRST_LOG_DEBUG, "Look for CA root file %s", cacertpath);
+
+       fp = fopen(cacertpath, "r");
+       free(cacertpath);
+
+       if (fp == NULL) chain_errors |= GRST_CERT_BAD_CHAIN;
+       else
+         {
+           cacert = PEM_read_X509(fp, NULL, NULL, NULL);
+           fclose(fp);
+           if (cacert != NULL) 
+            GRSTerrorLog(GRST_LOG_DEBUG, " Loaded CA root cert from file");
+         }
      }
+   
+   if (cacert == NULL)
+         chain_errors |= GRST_CERT_BAD_CHAIN; /* never good without CA */
 
    *chain = malloc(sizeof(GRSTx509Chain));
    bzero(*chain, sizeof(GRSTx509Chain));
        
    /* Check the client chain */
-   for (i = depth - ((subjecthash == issuerhash) ? 1 : 0);
+   for (i = depth - (((subjecthash == issuerhash) || (cacert == NULL)) ? 1 : 0);
         i >= ((lastcert == NULL) ? 0 : -1); 
         --i) 
       /* loop through client-presented chain starting at CA end */
@@ -591,13 +604,17 @@ int GRSTx509ChainLoadCheck(GRSTx509Chain **chain,
         if (i < 0) cert = lastcert;
         else if (i == depth)
              cert = cacert; /* the self-signed CA from the store*/
-        else if ((i == depth - 1) && (subjecthash == issuerhash))
+        else if ((i == depth - 1) && 
+                 (subjecthash == issuerhash) &&
+                 (cacert != NULL))
              cert = cacert; /* ie claims to be a copy of a self-signed CA */
         else cert = sk_X509_value(certstack, i);
 
         if (cert != NULL)
           {
-            if ((i == depth - 1) && (subjecthash != issuerhash))
+            if ((i == depth - 1) && 
+                (subjecthash != issuerhash) && 
+                (cacert != NULL))
               {
                 /* if first cert does not claim to be a self-signed copy 
                    of a CA root cert in the store, we check the signature */
@@ -610,7 +627,9 @@ int GRSTx509ChainLoadCheck(GRSTx509Chain **chain,
                 if (ret != X509_V_OK) 
                              new_grst_cert->errors |= GRST_CERT_BAD_SIG;
               }
-            else if ((i == depth - 2) && (subjecthash == issuerhash))
+            else if ((i == depth - 2) && 
+                     (subjecthash == issuerhash) && 
+                     (cacert != NULL))
               {
                 /* first cert claimed to be a self-signed copy of a CA root
                 cert in the store, we check the signature of the second
@@ -731,22 +750,26 @@ int GRSTx509ChainLoadCheck(GRSTx509Chain **chain,
                 if (strncmp(proxy_part_DN, "/CN=limited proxy", 17) == 0)
                         prevIsLimited = 1; /* ready for next cert ... */
 
-                for (j=0; j < X509_get_ext_count(cert); ++j)
-                   {
-                     ex = X509_get_ext(cert, j);
-                     OBJ_obj2txt(s,sizeof(s),X509_EXTENSION_get_object(ex),1);
-
-                     if (strcmp(s, GRST_VOMS_OID) == 0) /* a VOMS extension */
+                if (vomsdir != NULL)
+                  {
+                    for (j=0; j < X509_get_ext_count(cert); ++j)
                        {
-                         GRSTx509ChainVomsAdd(&grst_cert, 
+                         ex = X509_get_ext(cert, j);
+                         OBJ_obj2txt(s, sizeof(s), 
+                                     X509_EXTENSION_get_object(ex), 1);
+
+                         if (strcmp(s, GRST_VOMS_OID) == 0) /* VOMS ext */
+                           {
+                             GRSTx509ChainVomsAdd(&grst_cert, 
                                               new_grst_cert->start,
                                               new_grst_cert->finish,                                              
                                               ex,
+                                              chain_errors,
                                               ucuserdn, 
                                               vomsdir);
+                           }
                        }
-                   }
-                        
+                  } 
               } 
           }
           

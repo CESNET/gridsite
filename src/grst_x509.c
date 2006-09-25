@@ -495,8 +495,11 @@ static int GRSTx509ChainVomsAdd(GRSTx509Cert **grst_cert,
  *  o Certs are included even if they are invalid, but are flagged in their
  *    errors field (0 = OK)
  *  o If lastcert is not NULL, then it is included at the end of the chain.
+ *  o If capath is not NULL, then it is used as a source of CA root
+ *    certificates. (If capath is NULL, or a root cert in capath cannot
+ *    be found, then all EEC/PC/AC certs are flagged with BAD CHAIN errors.)
  *  o If vomsdir is not NULL, it used as the top of a hierarchy of VOMS
- *    cert directories.
+ *    cert directories. (VOMS ACs are ignored if vomsdir is NULL.)
  *
  *  TODO: we do not yet check ProxyCertInfo and ProxyCertPolicy extensions
  *        (although via GRSTx509KnownCriticalExts() we can accept them.)

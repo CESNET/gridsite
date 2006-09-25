@@ -83,6 +83,8 @@ int GRSTx509NameCmp(char *a, char *b)
    int   ret;
    char *aa, *bb, *p;
 
+   if ((a == NULL) || (b == NULL)) return 1; /* NULL never matches */
+
    aa = strdup(a);
    while ((p = strstr(aa, "/emailAddress=")) != NULL)
         {
@@ -163,11 +165,26 @@ int GRSTx509IsCA(X509 *cert)
 
 int GRSTx509ChainFree(GRSTx509Chain *chain)
 {
-   GRSTx509Cert *grst_cert;
+   GRSTx509Cert *grst_cert, *next_grst_cert;
 
    if (chain == NULL) return GRST_RET_OK;
+
+   next_grst_cert = chain->firstcert; 
    
-// delete the various stuff in the chain members....      
+   while (next_grst_cert != NULL)
+      {
+        grst_cert = next_grst_cert;
+        
+        if (grst_cert->issuer != NULL) free(grst_cert->issuer);
+        if (grst_cert->dn     != NULL) free(grst_cert->dn);
+        if (grst_cert->value  != NULL) free(grst_cert->value);
+        if (grst_cert->ocsp   != NULL) free(grst_cert->ocsp);
+        
+        next_grst_cert = grst_cert->next;
+        free(grst_cert);        
+      }
+   
+   free(chain);
 
    return GRST_RET_OK;
 }
@@ -182,20 +199,10 @@ static int GRSTx509VerifySig(time_t *time1_time, time_t *time2_time,
                              unsigned char *sig, int sig_len, 
                              X509 *cert)
 {   
-   int            ret, isig, iinfo;
-   char           acvomsdn[200], dn_coords[200],
-                  info_coords[200], sig_coords[200];
-   unsigned char *q;
+   int            ret;
    EVP_PKEY      *prvkey;
-   FILE          *fp;
    EVP_MD_CTX     ctx;
    time_t         voms_service_time1, voms_service_time2;
-
-   if (GRSTx509NameCmp(acvomsdn, 
-                   X509_NAME_oneline(X509_get_subject_name(cert),NULL,0)) != 0)
-     {
-       return GRST_RET_FAILED;
-     }
 
    prvkey = X509_extract_key(cert);
    if (prvkey == NULL) return GRST_RET_FAILED;
@@ -282,22 +289,31 @@ static int GRSTx509VerifyVomsSig(time_t *time1_time, time_t *time2_time,
    
    while ((vomsdirent = readdir(vomsDIR)) != NULL)
         {        
+          if (vomsdirent->d_name[0] == '.') continue;
+        
           asprintf(&certpath, "%s/%s", vomsdir, vomsdirent->d_name);
           stat(certpath, &statbuf);
           
           if (S_ISDIR(statbuf.st_mode))
             {
               vomsDIR2 = opendir(certpath);
+              GRSTerrorLog(GRST_LOG_DEBUG, 
+                           "Descend VOMS subdirectory %s", certpath);
               free(certpath);
               
               if (vomsDIR2 == NULL) continue;
                 
+
               while ((vomsdirent2 = readdir(vomsDIR2)) != NULL)
                 {
+                  if (vomsdirent2->d_name[0] == '.') continue;
+                  
                   asprintf(&certpath2, "%s/%s/%s", 
                            vomsdir, vomsdirent->d_name, vomsdirent2->d_name);
                 
                   fp = fopen(certpath2, "r");
+                  GRSTerrorLog(GRST_LOG_DEBUG, 
+                               "Examine VOMS cert %s", certpath2);
                   free(certpath2);
                   if (fp == NULL) continue;
 
@@ -309,10 +325,11 @@ static int GRSTx509VerifyVomsSig(time_t *time1_time, time_t *time2_time,
                             &asn1string[taglist[iinfo].start], 
                             taglist[iinfo].length+taglist[iinfo].headerlength,
                             &asn1string[taglist[isig].start+
-                                                taglist[isig].headerlength]+1,
+                                                taglist[isig].headerlength+1],
                             taglist[isig].length - 1,
                             cert) == GRST_RET_OK)
                     {
+                      GRSTerrorLog(GRST_LOG_DEBUG, " VOMS cert signature match");
                       X509_free(cert);
                       closedir(vomsDIR2);
                       closedir(vomsDIR);
@@ -327,6 +344,7 @@ static int GRSTx509VerifyVomsSig(time_t *time1_time, time_t *time2_time,
           else
             {
               fp = fopen(certpath, "r");
+              GRSTerrorLog(GRST_LOG_DEBUG, "Examine VOMS cert %s", certpath);
               free(certpath);
               if (fp == NULL) continue;
 
@@ -338,7 +356,7 @@ static int GRSTx509VerifyVomsSig(time_t *time1_time, time_t *time2_time,
                             &asn1string[taglist[iinfo].start], 
                             taglist[iinfo].length+taglist[iinfo].headerlength,
                             &asn1string[taglist[isig].start+
-                                                taglist[isig].headerlength]+1,
+                                                taglist[isig].headerlength+1],
                             taglist[isig].length - 1,
                             cert) == GRST_RET_OK)
                 {
@@ -361,10 +379,10 @@ static int GRSTx509VerifyVomsSig(time_t *time1_time, time_t *time2_time,
  *  - even for invalid credentials, which are flagged in errors field
  */
 
-int GRSTx509ChainVomsAdd(GRSTx509Cert **grst_cert, 
+static int GRSTx509ChainVomsAdd(GRSTx509Cert **grst_cert, 
                          time_t time1_time, time_t time2_time,
                          X509_EXTENSION *ex, 
-                         char *ucuserdn, char *uccadn, char *vomsdir)
+                         char *ucuserdn, char *vomsdir)
 {
 #define MAXTAG 500
 #define GRST_ASN1_COORDS_FQAN    "-1-1-%d-1-7-1-2-1-2-%d"
@@ -373,7 +391,7 @@ int GRSTx509ChainVomsAdd(GRSTx509Cert **grst_cert,
 #define GRST_ASN1_COORDS_TIME1   "-1-1-%d-1-6-1"
 #define GRST_ASN1_COORDS_TIME2   "-1-1-%d-1-6-2"
    ASN1_OCTET_STRING *asn1data;
-   char              *asn1string, acuserdn[200], acvomsdn[200],
+   char              *asn1string, acuserdn[200], accadn[200], acvomsdn[200],
                       dn_coords[200], fqan_coords[200], time1_coords[200],
                       time2_coords[200];
    long               asn1length;
@@ -405,8 +423,6 @@ int GRSTx509ChainVomsAdd(GRSTx509Cert **grst_cert,
         if (GRSTx509NameCmp(ucuserdn, acuserdn) != 0)
                              chain_errors |= GRST_CERT_BAD_CHAIN;
 
-// also check CA names match
-
         if (GRSTx509VerifyVomsSig(&time1_time, &time2_time,
                               asn1string, taglist, lasttag, vomsdir, acnumber)
                               != GRST_RET_OK)
@@ -429,8 +445,6 @@ int GRSTx509ChainVomsAdd(GRSTx509Cert **grst_cert,
                                                taglist[itag].headerlength],
                                    taglist[itag].length);
         else actime2 = 0;
-
-        GRSTerrorLog(GRST_LOG_DEBUG, "actime1=%lu actime2=%lu\n", actime1, actime2);
         
         if (actime1 > time1_time) time1_time = actime1;
         if (actime2 < time2_time) time2_time = actime2;
@@ -459,9 +473,8 @@ int GRSTx509ChainVomsAdd(GRSTx509Cert **grst_cert,
                                       
                  (*grst_cert)->errors = chain_errors; /* ie may be invalid */
                  (*grst_cert)->type = GRST_CERT_TYPE_VOMS;
-                 (*grst_cert)->ca = strdup(acvomsdn);
+                 (*grst_cert)->issuer = strdup(acvomsdn);
                  (*grst_cert)->dn = strdup(acuserdn);
-//                 (*grst_cert)->serial = ???;
                }
              else break;
            }
@@ -487,18 +500,24 @@ int GRSTx509ChainLoadCheck(GRSTx509Chain **chain,
                            char *capath, char *vomsdir)
 {
    X509 *cert;                  /* Points to the current cert in the loop */
+   X509 *cacert = NULL;         /* The CA root cert */
    int depth = 0;               /* Depth of cert chain */
    int chain_errors = 0;	/* records previous errors */
-   int first_non_ca;
+   int first_non_ca;		/* number of the EEC issued to user by CA */
+   char *ucuserdn = NULL;	/* DN of EEC issued to user by CA */
    size_t len,len2;             /* Lengths of issuer and cert DN */
    int IsCA;                    /* Holds whether cert is allowed to sign */
    int prevIsCA;                /* Holds whether previous cert in chain is 
                                    allowed to sign */
    int prevIsLimited;		/* previous cert was proxy and limited */
-   int i,j;                     /* Iteration variables */
+   int i,j,ret;                 /* Iteration/temp variables */
    char *proxy_part_DN;         /* Pointer to end part of current-cert-in-chain
                                    maybe eg "/CN=proxy" */
    char s[80];
+   char *cacertpath;
+   unsigned long subjecthash = 0;	/* hash of the name of first cert */
+   unsigned long issuerhash = 0;	/* hash of issuer name of first cert */
+   FILE *fp;
    X509_EXTENSION *ex;
    time_t now;
    GRSTx509Cert *grst_cert, *new_grst_cert;
@@ -523,31 +542,106 @@ int GRSTx509ChainLoadCheck(GRSTx509Chain **chain,
        return GRST_RET_FAILED;
      }
 
+   cert = sk_X509_value(certstack, depth - 1);
+   subjecthash = X509_NAME_hash(X509_get_subject_name(cert));
+   issuerhash = X509_NAME_hash(X509_get_issuer_name(cert));
+   asprintf(&cacertpath, "%s/%.8x.0", capath, issuerhash);
+   
+   GRSTerrorLog(GRST_LOG_DEBUG, "Look for CA root file %s", cacertpath);
+
+   fp = fopen(cacertpath, "r");
+   free(cacertpath);
+
+   if (fp == NULL) chain_errors |= GRST_CERT_BAD_CHAIN;
+   else
+     {
+       cacert = PEM_read_X509(fp, NULL, NULL, NULL);
+       fclose(fp);
+       if (cacert != NULL) 
+        GRSTerrorLog(GRST_LOG_DEBUG, " Loaded CA root cert from file");
+     }
+
    *chain = malloc(sizeof(GRSTx509Chain));
    bzero(*chain, sizeof(GRSTx509Chain));
        
    /* Check the client chain */
-   for (i = depth - 1; i >= ((lastcert == NULL) ? 0 : -1); --i) 
+   for (i = depth - ((subjecthash == issuerhash) ? 1 : 0);
+        i >= ((lastcert == NULL) ? 0 : -1); 
+        --i) 
       /* loop through client-presented chain starting at CA end */
       {
+        GRSTerrorLog(GRST_LOG_DEBUG, "Process cert at depth %d in chain", i);
+
         prevIsCA=IsCA;
 
         new_grst_cert = malloc(sizeof(GRSTx509Cert));
         bzero(new_grst_cert, sizeof(GRSTx509Cert));
         new_grst_cert->errors = chain_errors;
         
-        if (i == depth - 1) 
-         (*chain)->firstcert = new_grst_cert;
+        if ((*chain)->firstcert == NULL)
+          {
+            GRSTerrorLog(GRST_LOG_DEBUG, "Initialise chain");
+            (*chain)->firstcert = new_grst_cert;
+          }
         else grst_cert->next = new_grst_cert;
 
         grst_cert = new_grst_cert;
 
-        /* Check for X509 certificate and point to it with 'cert' */
+        /* Choose X509 certificate and point to it with 'cert' */
         if (i < 0) cert = lastcert;
+        else if (i == depth)
+             cert = cacert; /* the self-signed CA from the store*/
+        else if ((i == depth - 1) && (subjecthash == issuerhash))
+             cert = cacert; /* ie claims to be a copy of a self-signed CA */
         else cert = sk_X509_value(certstack, i);
 
         if (cert != NULL)
           {
+            if ((i == depth - 1) && (subjecthash != issuerhash))
+              {
+                /* if first cert does not claim to be a self-signed copy 
+                   of a CA root cert in the store, we check the signature */
+              
+                ret = X509_check_issued(cacert, cert);
+
+                GRSTerrorLog(GRST_LOG_DEBUG, 
+                             "Cert sig check %d returns %d", i, ret);
+
+                if (ret != X509_V_OK) 
+                             new_grst_cert->errors |= GRST_CERT_BAD_SIG;
+              }
+            else if ((i == depth - 2) && (subjecthash == issuerhash))
+              {
+                /* first cert claimed to be a self-signed copy of a CA root
+                cert in the store, we check the signature of the second
+                cert, using OUR copy of the CA cert DIRECT from the store */
+              
+                ret = X509_check_issued(cacert, cert);
+
+                GRSTerrorLog(GRST_LOG_DEBUG, 
+                             "Cert sig check %d returns %d", i, ret);
+                
+                if (ret != X509_V_OK)
+                             new_grst_cert->errors |= GRST_CERT_BAD_SIG;
+              }
+            else if (i < depth - 1)
+              {
+                /* otherwise a normal part of the chain: note that if the
+                   first cert claims to be a self-signed copy of a CA root
+                   cert in the store, we never use it for sig checking */
+              
+                ret = X509_check_issued(sk_X509_value(certstack, i + 1), cert);
+                
+                GRSTerrorLog(GRST_LOG_DEBUG, 
+                             "Cert sig check %d returns %d", i, ret);
+
+                if ((ret != X509_V_OK) &&
+                    (ret != X509_V_ERR_KEYUSAGE_NO_CERTSIGN))                
+                          new_grst_cert->errors |= GRST_CERT_BAD_SIG;
+                          
+                /* NO_CERTSIGN can still be ok due to Proxy Certificates */
+              }
+
             new_grst_cert->serial = (int) ASN1_INTEGER_get(
                                X509_get_serialNumber(cert));
             new_grst_cert->start  = GRSTasn1TimeToTimeT(
@@ -563,17 +657,22 @@ int GRSTx509ChainLoadCheck(GRSTx509Chain **chain,
             if (now > new_grst_cert->finish)
                  new_grst_cert->errors |= GRST_CERT_BAD_TIME;
 
-            IsCA = (GRSTx509IsCA(cert) == GRST_RET_OK);
+            new_grst_cert->dn = X509_NAME_oneline(X509_get_subject_name(cert),NULL,0);
+            new_grst_cert->issuer = X509_NAME_oneline(X509_get_issuer_name(cert),NULL,0);
+            len       = strlen(new_grst_cert->dn);
+            len2      = strlen(new_grst_cert->issuer);
+
+            /* always treat a first cert from the CA files as a 
+               CA: this is really for lousy CAs that dont create 
+               proper v3 root certificates */
+                
+            if (i == depth) IsCA == TRUE;
+            else IsCA = (GRSTx509IsCA(cert) == GRST_RET_OK);
 
             /* If any forebear certificate is not allowed to sign we must 
                assume all decendents are proxies and cannot sign either */
             if (prevIsCA)
               {
-                /* always treat the first cert (from the CA files) as a 
-                   CA: this is really for lousy CAs that dont create proper
-                   v3 root certificates */
-//                if (i == depth - 1) IsCA = TRUE;
-                
                 if (IsCA)
                   {               
                     new_grst_cert->type = GRST_CERT_TYPE_CA;
@@ -582,6 +681,7 @@ int GRSTx509ChainLoadCheck(GRSTx509Chain **chain,
                   {
                     new_grst_cert->type = GRST_CERT_TYPE_EEC;
                     first_non_ca = i;
+                    ucuserdn = new_grst_cert->dn;
                   }
               } 
             else 
@@ -591,11 +691,6 @@ int GRSTx509ChainLoadCheck(GRSTx509Chain **chain,
                 /* Force proxy check next iteration. Important because I can
                    sign any CA I create! */
               }
-
-            new_grst_cert->dn = X509_NAME_oneline(X509_get_subject_name(cert),NULL,0);
-            new_grst_cert->ca = X509_NAME_oneline(X509_get_issuer_name(cert),NULL,0);
-            len       = strlen(new_grst_cert->dn);
-            len2      = strlen(new_grst_cert->ca);
 
             if (!prevIsCA)
               {
@@ -616,7 +711,7 @@ int GRSTx509ChainLoadCheck(GRSTx509Chain **chain,
                   }
                   
                 /* Proxy subject must begin with issuer. */
-                if (strncmp(new_grst_cert->dn, new_grst_cert->ca, len2) != 0) 
+                if (strncmp(new_grst_cert->dn, new_grst_cert->issuer, len2) != 0) 
                   {
                     new_grst_cert->errors  |= GRST_CERT_BAD_CHAIN;
                     chain_errors |= GRST_CERT_BAD_CHAIN;
@@ -647,8 +742,7 @@ int GRSTx509ChainLoadCheck(GRSTx509Chain **chain,
                                               new_grst_cert->start,
                                               new_grst_cert->finish,                                              
                                               ex,
-                                              new_grst_cert->dn, 
-                                              new_grst_cert->ca,
+                                              ucuserdn, 
                                               vomsdir);
                        }
                    }
@@ -658,6 +752,8 @@ int GRSTx509ChainLoadCheck(GRSTx509Chain **chain,
           
 
       } /* end of for loop */
+
+   if (cacert != NULL) X509_free(cacert);
  
    return GRST_RET_OK;
 }

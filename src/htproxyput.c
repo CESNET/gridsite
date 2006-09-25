@@ -587,26 +587,30 @@ int main(int argc, char *argv[])
            else if (grst_cert->type == GRST_CERT_TYPE_VOMS)  p = "(AC) ";
            else p = "";
                               
+           printf("%d %s%s\n", i, p,
+                  (grst_cert->type == GRST_CERT_TYPE_VOMS) 
+                    ? grst_cert->value : grst_cert->dn);
+ 
+           printf(" Status  : %d ( %s%s%s%s%s%s)\n", grst_cert->errors,
+                 (grst_cert->errors == 0) ? "OK " : "",
+                 (grst_cert->errors & GRST_CERT_BAD_FORMAT) ? "BAD_FORMAT ":"",
+                 (grst_cert->errors & GRST_CERT_BAD_CHAIN)  ? "BAD_CHAIN ":"",
+                 (grst_cert->errors & GRST_CERT_BAD_SIG)    ? "BAD_SIG ":"",
+                 (grst_cert->errors & GRST_CERT_BAD_TIME)   ? "BAD_TIME ":"",
+                 (grst_cert->errors & GRST_CERT_BAD_OCSP)   ? "BAD_OCSP ":"");
+
+           printf(" Start   : %s", ctime(&(grst_cert->start)));
+           printf(" Finish  : %s", ctime(&(grst_cert->finish)));
+
            if (grst_cert->type == GRST_CERT_TYPE_VOMS)
              {
-               printf("%d %s%s\n", i, p, grst_cert->value);
-               
-               printf(" Status  : %d\n", grst_cert->errors);
-               printf(" Start   : %s", ctime(&(grst_cert->start)));
-               printf(" Finish  : %s", ctime(&(grst_cert->finish)));
-               printf(" Serial  : %d\n", grst_cert->serial);
                printf(" User DN : %s\n", grst_cert->dn);
-               printf(" VOMS DN : %s\n\n", grst_cert->ca);
+               printf(" VOMS DN : %s\n\n", grst_cert->issuer);
              }
            else
              {
-               printf("%d %s%s\n", i, p, grst_cert->dn);
-             
-               printf(" Status : %d\n", grst_cert->errors);
-               printf(" Start  : %s", ctime(&(grst_cert->start)));
-               printf(" Finish : %s", ctime(&(grst_cert->finish)));
                printf(" Serial : %d\n", grst_cert->serial);
-               printf(" CA     : %s\n\n", grst_cert->ca);
+               printf(" Issuer : %s\n\n", grst_cert->issuer);              
              }
          }
       

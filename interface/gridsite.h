@@ -144,8 +144,8 @@ struct GRSTasn1TagList { char treecoords[GRST_ASN1_MAXCOORDLEN+1];
 
 typedef struct { int    type;		/* CA, user, proxy, VOMS, ... */
                  int    errors;		/* unchecked, bad sig, bad time */
-                 char   *ca;		/* Cert CA DN, or VOMS issuer CA */
-                 char   *dn;		/* Cert DN, or VOMS issuer DN */
+                 char   *issuer;	/* Cert CA DN, EEC of PC, or VOMS DN */
+                 char   *dn;		/* Cert DN, or VOMS AC holder DN */
                  char   *value;		/* VOMS FQAN or NULL */
                  time_t start;
                  time_t finish;

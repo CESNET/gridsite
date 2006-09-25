@@ -2302,7 +2302,7 @@ static int mod_gridsite_perm_handler(request_rec *r)
                 *gridauthpasscode = NULL, *cookiefile, oneline[1025], *key_i,
                 *destination = NULL, *destination_uri = NULL, *querytmp, 
                 *destination_prefix = NULL, *destination_translated = NULL;
-    char        *vomsAttribute, *loa;
+    char        *vomsAttribute = NULL, *loa;
     const char  *content_type;
     time_t       now, notbefore, notafter;
     apr_table_t *env;
@@ -2334,15 +2334,12 @@ static int mod_gridsite_perm_handler(request_rec *r)
        a Shibboleth Identity Provider.*/
 
     /* Get DN from a Shibboleth attribute */
-    if (vomsAttribute == NULL)
-      {
-        dn = (char *) apr_table_get(r->headers_in, "User-Distinguished-Name");
-        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server, "DN: %s", dn);
-      }                                            
+    dn = (char *) apr_table_get(r->headers_in, "User-Distinguished-Name");
+    if (dn != NULL) ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server, "DN: %s", dn);
 #if 0                                                                    
     /* Get the NIST LoA attribute */
     loa = (char *) apr_table_get(r->headers_in, "nist-loa");
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server, "Nist-LoA: %d", loa);
+    if (loa != NULL) ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server, "Nist-LoA: %d", loa);
 #endif
     /* Set up user credential based on the DN and LoA attributes */
                                   

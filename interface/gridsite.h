@@ -169,7 +169,7 @@ typedef struct { int    type;		/* CA, user, proxy, VOMS, ... */
 typedef struct { GRSTx509Cert *firstcert; } GRSTx509Chain;
 
 int GRSTx509CertLoad(GRSTx509Cert *, X509 *);
-int GRSTx509ChainLoadCheck(GRSTx509Chain **, STACK_OF(X509) *, X509 *, char *);
+int GRSTx509ChainLoadCheck(GRSTx509Chain **, STACK_OF(X509) *, X509 *, char *, char *);
 int GRSTx509ChainFree(GRSTx509Chain *);
 
 #define GRST_HTTP_PORT		777

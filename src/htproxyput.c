@@ -105,7 +105,8 @@ int main(int argc, char *argv[])
 {
   char  *delegation_id = "", *reqtxt, *certtxt, *valid = NULL, 
         *cert = NULL, *key = NULL, *capath = NULL, *keycert, timestr[81],
-        *executable, *keytxt, *proxychain, *ptr;
+        *vomsdir = "/etc/grid-security/vomsdir",
+        *executable, *keytxt, *proxychain, *ptr, *p;
   struct ns__putProxyResponse *unused;
   struct tm *finish_tm;
   int    option_index, c, noverify = 0, i, ret,
@@ -561,14 +562,13 @@ int main(int argc, char *argv[])
           free(ptr);
           return 2;
         }
-        
-// fprintf(stderr, "%s\n", ptr);
 
       free(ptr);
 
       if (verbose) fprintf(stderr, "Parsing certificate chain\n");
       
-      ret = GRSTx509ChainLoadCheck(&grst_chain, x509_certstack, NULL, capath);
+      ret = GRSTx509ChainLoadCheck(&grst_chain, x509_certstack, NULL,  
+                                   capath, vomsdir);
       
       if ((ret != GRST_RET_OK) || 
           (grst_chain == NULL) || (grst_chain->firstcert == NULL))
@@ -579,26 +579,37 @@ int main(int argc, char *argv[])
       
       grst_cert = grst_chain->firstcert;
 
-// printf("%lu\n", grst_cert);
-// printf("%lu\n", grst_cert->type);
-// printf("%lu\n", grst_cert->dn);
-// printf("%lu\n", grst_cert->next);
-       
-// printf("before for\n");      
-      for (i=0; 
-      grst_cert != NULL; 
-      grst_cert = grst_cert->next)
+      for (i=0; grst_cert != NULL; grst_cert = grst_cert->next, ++i)
          {
-// printf("inside for %i\n", grst_cert == NULL);         
-
-           printf("%d %d %s\n", i, grst_cert->type, grst_cert->dn);
-           printf("%lu\n", grst_cert->next);
-
-           grst_cert = grst_cert->next;
-           ++i;             
+           if      (grst_cert->type == GRST_CERT_TYPE_CA)    p = "(CA) ";
+           else if (grst_cert->type == GRST_CERT_TYPE_EEC)   p = "(EEC) ";
+           else if (grst_cert->type == GRST_CERT_TYPE_PROXY) p = "(PC) ";
+           else if (grst_cert->type == GRST_CERT_TYPE_VOMS)  p = "(AC) ";
+           else p = "";
+                              
+           if (grst_cert->type == GRST_CERT_TYPE_VOMS)
+             {
+               printf("%d %s%s\n", i, p, grst_cert->value);
+               
+               printf(" Status  : %d\n", grst_cert->errors);
+               printf(" Start   : %s", ctime(&(grst_cert->start)));
+               printf(" Finish  : %s", ctime(&(grst_cert->finish)));
+               printf(" Serial  : %d\n", grst_cert->serial);
+               printf(" User DN : %s\n", grst_cert->dn);
+               printf(" VOMS DN : %s\n\n", grst_cert->ca);
+             }
+           else
+             {
+               printf("%d %s%s\n", i, p, grst_cert->dn);
+             
+               printf(" Status : %d\n", grst_cert->errors);
+               printf(" Start  : %s", ctime(&(grst_cert->start)));
+               printf(" Finish : %s", ctime(&(grst_cert->finish)));
+               printf(" Serial : %d\n", grst_cert->serial);
+               printf(" CA     : %s\n\n", grst_cert->ca);
+             }
          }
       
-
       GRSTx509ChainFree(grst_chain);
     }
   /* weirdness */

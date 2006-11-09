@@ -38,6 +38,7 @@
 //        script COPY /cgi-bin/gridsite-copy.cgi
 //
 ///////////////////////////////////////////////////////////////////
+#include <fcgi_stdio.h>
 #include <stdio.h>
 #include <time.h>
 #include <string.h>
@@ -54,7 +55,7 @@ size_t write_data(void *ptr, size_t size, size_t nmemb, void *stream)
   return written;
 }
 
-int main( int argn, char **argv )
+int gridsite_copy()
 {
 	char *getenv();
 
@@ -99,7 +100,7 @@ int main( int argn, char **argv )
 	  // the segmenty of code is tested on 19th sep. 2005
 	  if( (ptr=curl_getenv("HTTP_COOKIE")) != NULL)
 	    {
-	      ptr += 17;
+	      ptr += 20;
 	      strcpy( passcode, ptr );
 	    }
 
@@ -153,3 +154,12 @@ int main( int argn, char **argv )
 		printf("</body></html>\n");
 	return 0;
 }
+
+int main( void )
+{
+                                                                                          
+    while(FCGI_Accept() >= 0){
+        gridsite_copy();
+    }
+}
+ 

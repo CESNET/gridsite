@@ -6,11 +6,18 @@
 .B htproxyput, htproxydestroy, htproxytime, htproxyunixtime, htproxyrenew
 [options] Service-URL
 
+.B htproxyinfo
+[options]
+
 .SH DESCRIPTION
 .B htproxyput
 is a client to perform GSI proxy delegations using the GridSite/gLite
 delegation Web Service portType. The gridsite-delegation(8) CGI program is
 the complementary server-side implementation. 
+
+.B htproxyinfo
+examines a local copy of a GSI proxy, and outputs a summary of its X.509 and 
+VOMS contents.
 
 .SH OPTIONS
 .IP "-v/--verbose"
@@ -37,6 +44,11 @@ htproxyunixtime has the same effect.
 Delegate an updated version of an existing proxy. The Delegation ID 
 .B must
 be given when using this option. Calling the program as htproxyrenew has the
+same effect.
+
+.IP "--info"
+Examine a local proxy file, and output a summary of the X.509 certificates
+and VOMS attributes it contains. Calling the program as htproxyinfo has the
 same effect.
 
 .IP "--cert <X.509 cert path>  and  --key <X.509 key path>"

@@ -182,6 +182,15 @@ HTTPS requests following a session restart.
 Format to use when writing .gacl files. (Both formats are automatically
 recognised when reading.) (Default: GACL)
 
+.IP "GridSiteACLPath path"
+Specify the absolute or relative (to ServerRoot) path of the ACL file
+governing this section of the server's URL space. This can be applied to
+virtual URL spaces provided by other modules, such as DAV or SVN, using
+the Apache <Location> container. If the path contains %0, it is replaced
+by this virtual server's hostname. If it contains %1, %2, ... it is replaced
+with the 1st, 2nd, ... component of the request's URI, separated by slashes
+and counting from immediately after the initial slash.
+
 .IP "GridSiteExecMethod nosetuid|suexec|X509DN|directory"
 Execution strategy for CGI scripts and executables. For options other
 than nosetuid, suexec (or gsexec renamed suexec) must installed. For

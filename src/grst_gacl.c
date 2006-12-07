@@ -928,6 +928,25 @@ int GRSTgaclUserHasCred(GRSTgaclUser *user, GRSTgaclCred *cred)
       return 0;    
     }
   
+  if (strcmp(cred->type, "level") == 0)
+    {
+      if ((user->firstcred == NULL) ||
+          ((user->firstcred)->firstname == NULL)) return 0;
+      
+      for (crediter=user->firstcred; 
+           crediter != NULL; 
+           crediter = crediter->next)
+        if (strcmp(crediter->type, "level") == 0) 
+          {
+            if (atoi(user->firstcred->firstname->value) 
+                        >= atoi(crediter->firstname->value)) return 1;
+
+            return 0;
+          } 
+                
+      return 0;    
+    }
+
   for (crediter=user->firstcred; crediter != NULL; crediter = crediter->next)
        {
          if (strcmp(crediter->type, cred->type) != 0) continue;
@@ -950,11 +969,13 @@ int GRSTgaclUserHasCred(GRSTgaclUser *user, GRSTgaclCred *cred)
                   if (GRSTx509NameCmp(usernamevalue->value, 
                                       crednamevalue->value) != 0) break;
                 }
+/*
               else if (strcmp(cred->type, "level") == 0)
                 {
                   if (atoi(usernamevalue->value) 
                         < atoi(crednamevalue->value)) break;
                 }              
+*/
               else if (strcmp(usernamevalue->value,
                               crednamevalue->value) != 0) break;
               

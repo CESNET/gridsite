@@ -91,7 +91,7 @@
 #endif
  
 #ifndef CURLOPT_READDATA
-#define CURLOPT_READDATA CURLOPT_FILE
+#define CURLOPT_READDATA CURLOPT_INFILE
 #endif
 
 #ifndef CURLE_HTTP_RETURNED_ERROR
@@ -599,12 +599,18 @@ int perform_request(struct grst_request *request_data,
       curl_easy_setopt(handles[i].curl_handle, CURLOPT_SSL_VERIFYHOST, 2);
     }   
 
+  curl_easy_setopt(handles[i].curl_handle, CURLOPT_READFUNCTION, request_data->readfunction);
+  curl_easy_setopt(handles[i].curl_handle, CURLOPT_READDATA, request_data->readdata);
+  curl_easy_setopt(handles[i].curl_handle, CURLOPT_WRITEFUNCTION, request_data->writefunction);
+  curl_easy_setopt(handles[i].curl_handle, CURLOPT_WRITEDATA, request_data->writedata);
+
   if (request_data->method == GRST_SLASH_GET)
     {
       curl_easy_setopt(handles[i].curl_handle, CURLOPT_CUSTOMREQUEST, NULL);
       curl_easy_setopt(handles[i].curl_handle, CURLOPT_NOBODY,  0);
       curl_easy_setopt(handles[i].curl_handle, CURLOPT_HTTPGET, 1);
       curl_easy_setopt(handles[i].curl_handle, CURLOPT_UPLOAD,  0);
+      curl_easy_setopt(handles[i].curl_handle, CURLOPT_INFILESIZE, -1);
     }
   else if ((request_data->method == GRST_SLASH_PUT) || 
            (request_data->method == GRST_SLASH_TRUNC))
@@ -622,6 +628,7 @@ int perform_request(struct grst_request *request_data,
       curl_easy_setopt(handles[i].curl_handle, CURLOPT_HTTPGET, 0);
       curl_easy_setopt(handles[i].curl_handle, CURLOPT_UPLOAD,  0);
       curl_easy_setopt(handles[i].curl_handle, CURLOPT_CUSTOMREQUEST, "DELETE");
+      curl_easy_setopt(handles[i].curl_handle, CURLOPT_INFILESIZE, -1);
     }
   else if (request_data->method == GRST_SLASH_MOVE)
     {
@@ -629,6 +636,7 @@ int perform_request(struct grst_request *request_data,
       curl_easy_setopt(handles[i].curl_handle, CURLOPT_HTTPGET, 0);
       curl_easy_setopt(handles[i].curl_handle, CURLOPT_UPLOAD,  0);
       curl_easy_setopt(handles[i].curl_handle, CURLOPT_CUSTOMREQUEST, "MOVE");
+      curl_easy_setopt(handles[i].curl_handle, CURLOPT_INFILESIZE, -1);
     }
   else /* default or GRST_SLASH_HEAD */
     {
@@ -636,6 +644,7 @@ int perform_request(struct grst_request *request_data,
       curl_easy_setopt(handles[i].curl_handle, CURLOPT_NOBODY,  1);
       curl_easy_setopt(handles[i].curl_handle, CURLOPT_HTTPGET, 0);
       curl_easy_setopt(handles[i].curl_handle, CURLOPT_UPLOAD,  0);
+      curl_easy_setopt(handles[i].curl_handle, CURLOPT_INFILESIZE, -1);
     }
 
   curl_easy_setopt(handles[i].curl_handle, CURLOPT_WRITEHEADER, request_data);
@@ -647,11 +656,12 @@ int perform_request(struct grst_request *request_data,
   if (debugmode)
         curl_easy_setopt(handles[i].curl_handle, CURLOPT_DEBUGDATA, &i);
 
+/* Move to higher up
   curl_easy_setopt(handles[i].curl_handle, CURLOPT_READFUNCTION, request_data->readfunction);
   curl_easy_setopt(handles[i].curl_handle, CURLOPT_READDATA, request_data->readdata);
   curl_easy_setopt(handles[i].curl_handle, CURLOPT_WRITEFUNCTION, request_data->writefunction);
   curl_easy_setopt(handles[i].curl_handle, CURLOPT_WRITEDATA, request_data->writedata);
-
+*/
   if ((request_data->start >= 0) && 
       (request_data->finish >= request_data->start))
     {
@@ -1433,7 +1443,7 @@ static int slashgrid_getattr(const char *rawpath, struct stat *stbuf)
   memcpy(&fuse_ctx, fuse_get_context(), sizeof(struct fuse_context));
 
   if (debugmode) syslog(LOG_DEBUG, 
-                         "in slashgrid_getattr, rawpath=%s, UID=%d\n",
+                         "in slashgrid_getattr, rawpath=%s UID=%d\n",
                          rawpath, fuse_ctx.uid);
 
   memset(stbuf, 0, sizeof(struct stat));
@@ -1566,10 +1576,14 @@ static int slashgrid_getattr(const char *rawpath, struct stat *stbuf)
       free(path);
       return 0;    
     }
+  
+  if (debugmode) syslog(LOG_DEBUG, "Get details for %s over network\n", url);
 
   bzero(&request_data, sizeof(struct grst_request));
   request_data.writefunction = null_callback;
   request_data.writedata     = NULL;
+  request_data.readfunction  = null_callback;
+  request_data.readdata      = NULL;
   request_data.errorbuffer   = errorbuffer;
   request_data.url           = url;
   request_data.method        = GRST_SLASH_HEAD;
@@ -1577,6 +1591,9 @@ static int slashgrid_getattr(const char *rawpath, struct stat *stbuf)
   request_data.finish        = -1;
 
   thiserror = perform_request(&request_data, &fuse_ctx);
+
+  if (debugmode) syslog(LOG_DEBUG, "perform_request returns error=%d (%s)\n",
+                        thiserror, errorbuffer);
 
   if ((thiserror != 0) ||
            (request_data.retcode < 200) ||
@@ -2333,11 +2350,18 @@ int slashgrid_statfs(const char *path, struct statfs *fs)
 void *slashgrid_init(void)
 {
   FILE *fp;
+  struct rlimit unlimited = { RLIM_INFINITY, RLIM_INFINITY };
   
   if ((fp = fopen(GRST_SLASH_PIDFILE, "w")) != NULL)
     {
       fprintf(fp, "%d\n", (int) getpid());
       fclose(fp);
+    }
+
+  if (debugmode)
+    {
+      chdir("/var/tmp"); /* fuse changes to / in demonize: undo this */
+      setrlimit(RLIMIT_CORE, &unlimited);
     }
 
   return NULL;
@@ -2386,7 +2410,6 @@ int main(int argc, char *argv[])
                         "-s", "-d" };
   int   i, ret, fuse_argc = 4; /* by default, ignore the final 2 args */
   struct passwd *pw;
-  struct rlimit unlimited = { RLIM_INFINITY, RLIM_INFINITY };
   
   for (i=1; i < argc; ++i)
      {
@@ -2449,7 +2472,7 @@ int main(int argc, char *argv[])
 
   openlog("slashgrid", 0, LOG_DAEMON);
     
-  umount("/grid"); /* in case of a crash, but will fail if still busy */
+  umount("/grid"); /* in case of previous crash - will fail if still busy */
 
   for (i=0; i < GRST_SLASH_MAX_HANDLES; ++i)
      {
@@ -2458,12 +2481,6 @@ int main(int argc, char *argv[])
        handles[i].proxyfile   = NULL;
        handles[i].last_used   = 0;
      }
-
-  if (debugmode) 
-    {
-      chdir("/var/tmp");
-      setrlimit(RLIMIT_CORE, &unlimited);
-    }
 
 //  GRSTerrorLogFunc = slashgrid_logfunc;
  

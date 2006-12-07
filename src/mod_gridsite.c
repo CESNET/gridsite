@@ -147,6 +147,7 @@ typedef struct
    char			*footfile;
    int			gridhttp;
    char			*aclformat;
+   char			*aclpath;
    char			*execmethod;
    char			*delegationuri;
    ap_unix_identity_t	execugid;
@@ -1532,6 +1533,7 @@ static void *create_gridsite_dir_config(apr_pool_t *p, char *path)
         conf->gridhttp      = 0;     /* GridSiteGridHTTP      on/off       */
 	conf->aclformat     = apr_pstrdup(p, "GACL");
                                      /* GridSiteACLFormat     gacl/xacml   */
+	conf->aclpath       = NULL;  /* GridSiteACLPath       acl-path     */
 	conf->delegationuri = NULL;  /* GridSiteDelegationURI URI-value    */
 	conf->execmethod    = NULL;
                /* GridSiteExecMethod  nosetuid/suexec/X509DN/directory */
@@ -1566,6 +1568,7 @@ static void *create_gridsite_dir_config(apr_pool_t *p, char *path)
         conf->footfile      = NULL;  /* GridSiteFootFile      file name    */
         conf->gridhttp      = UNSET; /* GridSiteGridHTTP      on/off       */
 	conf->aclformat     = NULL;  /* GridSiteACLFormat     gacl/xacml   */
+	conf->aclpath       = NULL;  /* GridSiteACLPath       acl-path     */
 	conf->delegationuri = NULL;  /* GridSiteDelegationURI URI-value    */
 	conf->execmethod    = NULL;  /* GridSiteExecMethod */
         conf->execugid.uid     = UNSET;	/* GridSiteUserGroup User Group */
@@ -1647,6 +1650,9 @@ static void *merge_gridsite_dir_config(apr_pool_t *p, void *vserver,
         
     if (direct->aclformat != NULL) conf->aclformat = direct->aclformat;
     else                           conf->aclformat = server->aclformat;
+
+    if (direct->aclpath != NULL)   conf->aclpath = direct->aclpath;
+    else                           conf->aclpath = server->aclpath;
 
     if (direct->delegationuri != NULL) conf->delegationuri = direct->delegationuri;
     else                               conf->delegationuri = server->delegationuri;
@@ -1845,7 +1851,10 @@ static const char *mod_gridsite_take1_cmds(cmd_parms *a, void *cfg,
       
       ((mod_gridsite_dir_cfg *) cfg)->aclformat = apr_pstrdup(a->pool, parm);
     }
-
+    else if (strcasecmp(a->cmd->name, "GridSiteACLPath") == 0)
+    {
+      ((mod_gridsite_dir_cfg *) cfg)->aclpath = apr_pstrdup(a->pool, parm);
+    }
     else if (strcasecmp(a->cmd->name, "GridSiteDelegationURI") == 0)
     {
       if (*parm != '/') return "GridSiteDelegationURI must begin with /";
@@ -2054,6 +2063,8 @@ static const command_rec mod_gridsite_cmds[] =
 
     AP_INIT_TAKE1("GridSiteACLFormat", mod_gridsite_take1_cmds,
                  NULL, OR_FILEINFO, "format to save access control lists in"),
+    AP_INIT_TAKE1("GridSiteACLPath", mod_gridsite_take1_cmds,
+                 NULL, OR_FILEINFO, "explicit location of access control file"),
 
     AP_INIT_TAKE1("GridSiteDelegationURI", mod_gridsite_take1_cmds,
                  NULL, OR_FILEINFO, "URI of the delegation service CGI"),
@@ -2079,7 +2090,11 @@ static const command_rec mod_gridsite_cmds[] =
 static int mod_gridsite_check_user_id(request_rec *r)
 {
     apr_table_unset(r->headers_in, "User-Distinguished-Name");
+#if 0
+    apr_table_unset(r->headers_in, "User-Distinguished-Name-2");
+#endif
     apr_table_unset(r->headers_in, "Nist-LoA");
+    apr_table_unset(r->headers_in, "LoA");
     apr_table_unset(r->headers_in, "VOMS-Attribute");
 
     return DECLINED; /* ie carry on processing request */
@@ -2287,6 +2302,79 @@ void GRST_save_ssl_creds(conn_rec *conn,
      }
 }
 
+static char *get_aclpath_component(request_rec *r, int n)
+/*
+    Get the nth component of REQUEST_URI, or component 0
+    which is the server name.
+
+*/
+{
+    int ii, i, nn;
+
+    if (n == 0) return r->server->server_hostname;
+
+    if (r->uri == NULL) return NULL; /* some kind of internal error? */
+
+    i  = 1; /* start of first component */
+    nn = 1;
+    
+    for (ii=1; r->uri[ii] != '\0'; ++ii) /* look for this component */
+       {
+         if (r->uri[ii] == '/') /* end of a component */
+           {
+             if (nn == n) break;
+             
+             ++nn;
+             i = ii + 1;
+           }
+         else if ((r->uri[ii] == '.') && (r->uri[ii+1] == '.'))
+           {
+             return NULL; /* can this happen? dont allow anyway */
+           }         
+       }
+       
+    if (nn != n) return NULL; /* no component for this number */
+    
+    return apr_psprintf(r->pool, "%.*s", ii - i, &(r->uri[i]));
+}
+
+static char *make_aclpath(request_rec *r, char *format)
+{
+    int i, n;
+    char *formatted, *p;
+    
+    formatted = apr_pstrdup(r->pool, format);
+
+    while (1)
+         {
+           for (i=0; (formatted[i] != '\0') && (formatted[i] != '%'); ++i) ;
+    
+           if (formatted[i] == '\0') break;
+           
+           if ((formatted[i] == '%') && (formatted[i+1] == '%')) 
+             {
+               ++i;
+               continue;
+             }
+            
+           if (sscanf(&formatted[i+1], "%d", &n) != 1)
+             {
+               return NULL; /* not %% or %0,%1,... */
+             }
+           
+           formatted[i] = '\0';
+           
+           for (i++; isdigit(formatted[i]); ++i) ;
+           
+           if ((p = get_aclpath_component(r, n)) == NULL) return NULL;
+           
+           formatted = apr_pstrcat(r->pool, formatted, p, &formatted[i],NULL);                                   
+           i += strlen(p);
+         }
+            
+    return ap_server_root_relative(r->pool, formatted);
+}
+
 static int mod_gridsite_perm_handler(request_rec *r)
 /*
     Do authentication/authorization here rather than in the normal module
@@ -2301,7 +2389,8 @@ static int mod_gridsite_perm_handler(request_rec *r)
                 *remotehost, s[99], *grst_cred_i, *cookies, *file, *https,
                 *gridauthpasscode = NULL, *cookiefile, oneline[1025], *key_i,
                 *destination = NULL, *destination_uri = NULL, *querytmp, 
-                *destination_prefix = NULL, *destination_translated = NULL;
+                *destination_prefix = NULL, *destination_translated = NULL,
+                *aclpath = NULL;
     char        *vomsAttribute = NULL, *loa;
     const char  *content_type;
     time_t       now, notbefore, notafter;
@@ -2334,13 +2423,27 @@ static int mod_gridsite_perm_handler(request_rec *r)
        a Shibboleth Identity Provider.*/
 
     /* Get DN from a Shibboleth attribute */
+
     dn = (char *) apr_table_get(r->headers_in, "User-Distinguished-Name");
+#if 0
+    if ((dn == NULL) || (*dn == '\0'))
+     dn = (char *) apr_table_get(r->headers_in, "User-Distinguished-Name-2");
+#endif
+
+    if ((dn != NULL) && (*dn == '\0')) dn = NULL;
+    
     if (dn != NULL) ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server, "DN: %s", dn);
-#if 0                                                                    
+
     /* Get the NIST LoA attribute */
     loa = (char *) apr_table_get(r->headers_in, "nist-loa");
-    if (loa != NULL) ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server, "Nist-LoA: %d", loa);
-#endif
+
+    if ((loa == NULL) || (*loa == '\0'))
+     loa = (char *) apr_table_get(r->headers_in, "loa");
+    
+    if ((loa != NULL) && (*loa == '\0')) loa = NULL;
+
+    if (loa != NULL) ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server, "nist-loa: %s", loa);
+
     /* Set up user credential based on the DN and LoA attributes */
                                   
     if (dn != NULL)
@@ -2349,20 +2452,21 @@ static int mod_gridsite_perm_handler(request_rec *r)
         GRSTgaclCredAddValue(cred, "dn", dn);
         user = GRSTgaclUserNew(cred);
         cred = GRSTgaclCredNew("level");
-#if 0
-        GRSTgaclCredAddValue(cred, "nist-loa", loa);
-#endif
-        GRSTgaclCredAddValue(cred, "nist-loa", "2"); /* hardcoded for now */
+
+        if (loa != NULL) GRSTgaclCredAddValue(cred, "nist-loa", loa);
+        else GRSTgaclCredAddValue(cred, "nist-loa", "2");
+
         GRSTgaclUserAddCred(user, cred);
       }
+            
+    /* Set up user credential based on VOMS Attribute from Shibboleth? */
 
     vomsAttribute = (char *) apr_table_get(r->headers_in, "VOMS-Attribute");
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server, 
-                 "VOMS-Attribute: %s", vomsAttribute);
-            
-    /* Set up user credential based on VOMS Attribute */
     if (vomsAttribute != NULL)
       {
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server, 
+                 "VOMS-Attribute: %s", vomsAttribute);
+
         cred = GRSTgaclCredNew("voms");
         GRSTgaclCredAddValue(cred, "fqan", vomsAttribute);
         if (user == NULL) user = GRSTgaclUserNew(cred);
@@ -2376,13 +2480,14 @@ static int mod_gridsite_perm_handler(request_rec *r)
 
     sslconn = (SSLConnRec *) ap_get_module_config(r->connection->conn_config, 
                                                   &ssl_module);
-    if ((sslconn != NULL) && 
+    if ((user == NULL) &&
+        (sslconn != NULL) && 
         (sslconn->ssl != NULL) &&
         (sslconn->ssl->session != NULL) &&
         (r->connection->notes != NULL) &&
         (apr_table_get(r->connection->notes, "GRST_save_ssl_creds") == NULL))
       {
-        if (GRST_load_ssl_creds(sslconn->ssl, r->connection) == GRST_RET_OK)        
+        if (GRST_load_ssl_creds(sslconn->ssl, r->connection) == GRST_RET_OK)
             ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
                          "Restored SSL session data from session cache file");
       }
@@ -2453,6 +2558,9 @@ static int mod_gridsite_perm_handler(request_rec *r)
     if ((destination = (char *) apr_table_get(r->headers_in,
                                               "Destination")) != NULL)
       {
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                     "Destination header found, value=%s", destination);
+
         destination_prefix = apr_psprintf(r->pool, "https://%s:%d/", 
                          r->server->server_hostname, (int) r->server->port);
 
@@ -2501,7 +2609,24 @@ static int mod_gridsite_perm_handler(request_rec *r)
       }
     else
       {
-        acl = GRSTgaclAclLoadforFile(r->filename);
+        if (((mod_gridsite_dir_cfg *) cfg)->aclpath != NULL)
+          {
+            aclpath = make_aclpath(r,((mod_gridsite_dir_cfg *) cfg)->aclpath);
+          
+            if (aclpath != NULL) 
+              {
+                ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                        "Examine ACL file %s (from ACL path %s)",
+                        aclpath, ((mod_gridsite_dir_cfg *) cfg)->aclpath);
+
+                acl = GRSTgaclAclLoadFile(aclpath);
+              }
+            else ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                        "Failed to make ACL file from ACL path %s, URI %s)",
+                        ((mod_gridsite_dir_cfg *) cfg)->aclpath, r->uri);
+          }
+        else acl = GRSTgaclAclLoadforFile(r->filename);
+
         if (acl != NULL) perm = GRSTgaclAclTestUser(acl, user);
         GRSTgaclAclFree(acl);
         
@@ -2674,6 +2799,10 @@ static int mod_gridsite_perm_handler(request_rec *r)
 	          apr_table_setn(env, "GRST_ACL_FORMAT",
                               ((mod_gridsite_dir_cfg *) cfg)->aclformat);
 
+        if (((mod_gridsite_dir_cfg *) cfg)->aclpath != NULL)
+	          apr_table_setn(env, "GRST_ACL_PATH",
+                              ((mod_gridsite_dir_cfg *) cfg)->aclpath);
+
 	if (((mod_gridsite_dir_cfg *) cfg)->delegationuri != NULL)
 	          apr_table_setn(env, "GRST_DELEGATION_URI",
                               ((mod_gridsite_dir_cfg *) cfg)->delegationuri);
@@ -2763,7 +2892,21 @@ static int mod_gridsite_perm_handler(request_rec *r)
 
             (((r->method_number == M_PUT) || 
               (r->method_number == M_DELETE)) &&
-             !GRSTgaclPermHasAdmin(perm) && file_is_acl) 
+             !GRSTgaclPermHasAdmin(perm) && file_is_acl) ||
+
+            /* for WebDAV/Subversion */
+             
+            (((r->method_number == M_PROPFIND) ||
+              (r->method_number == M_REPORT)) &&
+             !GRSTgaclPermHasRead(perm)) ||
+
+            (((r->method_number == M_CHECKOUT) ||
+              (r->method_number == M_MERGE) ||
+              (r->method_number == M_MKACTIVITY) ||
+              (r->method_number == M_MKCOL) ||
+              (r->method_number == M_LOCK) ||
+              (r->method_number == M_UNLOCK)) &&
+             !GRSTgaclPermHasWrite(perm))
              
              ) retcode = HTTP_FORBIDDEN;
       }

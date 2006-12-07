@@ -836,8 +836,9 @@ void editdnlistaction(char *dn, GRSTgaclPerm perm, char *help_uri, char *dir_pat
 void printfile(char *dn, GRSTgaclPerm perm, char *help_uri, char *dir_path, 
                   char *file, char *dir_uri, char *admin_file)
 {
-  int   fd;
+  int   c;
   char *dir_path_file;
+  FILE *fp;
   struct stat statbuf;
   
   if (!GRSTgaclPermHasRead(perm)) GRSThttpError("403 Forbidden");
@@ -849,19 +850,20 @@ void printfile(char *dn, GRSTgaclPerm perm, char *help_uri, char *dir_path,
   strcpy(dir_path_file, dir_path);
   strcat(dir_path_file, "/");
   strcat(dir_path_file, file);
-  
-  fd = open(dir_path_file, O_RDONLY);  
-  if (fd == -1) GRSThttpError("500 Internal server error");
-
-  if ((fstat(fd, &statbuf) != 0) ||
+ 
+  if ((stat(dir_path_file, &statbuf) != 0) ||
         !S_ISREG(statbuf.st_mode)) GRSThttpError("403 Forbidden");
        
+  fp = fopen(dir_path_file, "r");
+  if (fp == NULL) GRSThttpError("500 Internal server error");
+ 
   printf("Status: 200 OK\nContent-Type: text/html\nContent-Length: %d\n\n",
          statbuf.st_size);
 
-  fflush(stdout);
+  while ((c = fgetc(fp)) != EOF) putchar(c);
 
-  sendfile(1, fd, 0, statbuf.st_size);  
+  fflush(stdout);
+  fclose(fp);
 }
 
 void filehistory(char *dn, GRSTgaclPerm perm, char *help_uri, char *dir_path,
@@ -1463,7 +1465,7 @@ void managedir(char *dn, GRSTgaclPerm perm, char *help_uri, char *dir_path,
                  }
                else /* regular directory, not DN Lists */
                  {        
-                   d_name   = namelist[n]->d_name;
+                   d_name = namelist[n]->d_name;
 
                    GRSThttpPrintf(&bp,
                           "<tr><td><a href=\"%s%s\">%s</a></td>"
@@ -1475,7 +1477,7 @@ void managedir(char *dn, GRSTgaclPerm perm, char *help_uri, char *dir_path,
                    GRSThttpPrintf(&bp,
                      "<td><a href=\"%s%s?cmd=history&amp;file=%s\">"
                       "History</a></td>",
-                      dir_uri, admin_file, d_name);
+                      dir_uri, admin_file, GRSThttpUrlEncode(d_name));
 
                    p = rindex(namelist[n]->d_name, '.');
 
@@ -1486,27 +1488,27 @@ void managedir(char *dn, GRSTgaclPerm perm, char *help_uri, char *dir_path,
                              GRSThttpPrintf(&bp,
                                "<td><a href=\"%s%s?cmd=ziplist&amp;file=%s\">"
                                "List</a></td>\n",
-                               dir_uri, admin_file, d_name);                   
+                               dir_uri, admin_file, GRSThttpUrlEncode(d_name));                   
                    else if ((p != NULL) && 
                        (strstr(editable, &p[1]) != NULL) &&
                        GRSTgaclPermHasWrite(perm))
                          GRSThttpPrintf(&bp,
                                "<td><a href=\"%s%s?cmd=edit&amp;file=%s\">"
                                "Edit</a></td>\n",
-                               dir_uri, admin_file, d_name);
+                               dir_uri, admin_file, GRSThttpUrlEncode(d_name));
                    else  GRSThttpPrintf(&bp, "<td>&nbsp;</td>");
 
                    if (GRSTgaclPermHasWrite(perm))
                     GRSThttpPrintf(&bp,
                      "<td><a href=\"%s%s?cmd=delete&amp;file=%s\">"
-                     "Delete</a></td>\n", dir_uri, admin_file, d_name);
+                     "Delete</a></td>\n", dir_uri, admin_file, GRSThttpUrlEncode(d_name));
                    else
                     GRSThttpPrintf(&bp, "<td>&nbsp;</td>\n");
 
                    if (GRSTgaclPermHasWrite(perm))
                     GRSThttpPrintf(&bp,
                      "<td><a href=\"%s%s?cmd=rename&amp;file=%s\">"
-                     "Rename</a></td></tr>\n", dir_uri, admin_file, d_name);
+                     "Rename</a></td></tr>\n", dir_uri, admin_file, GRSThttpUrlEncode(d_name));
                    else
                     GRSThttpPrintf(&bp, "<td>&nbsp;</td></tr>");
                  }

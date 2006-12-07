@@ -12,13 +12,13 @@ if [ $? = 0 ] ; then have_fuse=1 ; fi
 
 # test to see if gsoap-devel (or stdsoap2.h and libgsoapssl) is installed
 #
-cat <<EOF >gsoap-test-xxx.c
+cat <<EOF >gsoap-test.c
 #include <stdsoap2.h>
 #ifdef SOAP_BEGIN  
 main() { return; }
 #endif
 EOF
-make GSOAPDIR=$GSOAPDIR STDSOAP2=$STDSOAP2 gsoap-test
+make GSOAPDIR=$GSOAPDIR STDSOAP2=$STDSOAP2 gridsite-delegation.cgi
 if [ $? = 0 ] ; then have_gsoap=1 ; fi
 
 cat <<EOF >gridsite.spec
@@ -245,6 +245,7 @@ mkdir -p /grid
 %attr(0744, root, root) %{prefix}/sbin/slashgrid
 %attr(0744, root, root) /etc/rc.d/init.d/slashgrid
 %attr(0700, root, root) /var/spool/slashgrid
+%attr(-, root, root) %{prefix}/share/man/man8/slashgrid.8.gz
 EOF
 
 fi
@@ -281,16 +282,19 @@ See http://www.gridsite.org/ for details.
 %attr(-, root, root) %{prefix}/bin/htproxytime
 %attr(-, root, root) %{prefix}/bin/htproxyunixtime
 %attr(-, root, root) %{prefix}/bin/htproxyrenew
+%attr(-, root, root) %{prefix}/bin/htproxyinfo
 %attr(-, root, root) %{prefix}/share/man/man1/htproxyput.1.gz
 %attr(-, root, root) %{prefix}/share/man/man1/htproxydestroy.1.gz
 %attr(-, root, root) %{prefix}/share/man/man1/htproxytime.1.gz
 %attr(-, root, root) %{prefix}/share/man/man1/htproxyunixtime.1.gz
 %attr(-, root, root) %{prefix}/share/man/man1/htproxyrenew.1.gz
+%attr(-, root, root) %{prefix}/share/man/man1/htproxyinfo.1.gz
 %attr(-, root, root) %{prefix}/share/doc/gridsite-${MINOR_VERSION:-1.x}/htproxyput.1
 %attr(-, root, root) %{prefix}/share/doc/gridsite-${MINOR_VERSION:-1.x}/htproxydestroy.1
 %attr(-, root, root) %{prefix}/share/doc/gridsite-${MINOR_VERSION:-1.x}/htproxytime.1
 %attr(-, root, root) %{prefix}/share/doc/gridsite-${MINOR_VERSION:-1.x}/htproxyunixtime.1
 %attr(-, root, root) %{prefix}/share/doc/gridsite-${MINOR_VERSION:-1.x}/htproxyrenew.1
+%attr(-, root, root) %{prefix}/share/doc/gridsite-${MINOR_VERSION:-1.x}/htproxyinfo.1
 EOF
 
 fi

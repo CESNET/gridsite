@@ -297,9 +297,7 @@ htproxyput: htproxyput.c delegation.h DelegationService.wsdl libgridsite.so.$(VE
             -lgridsite -lcurl -lz -lssl -lcrypto -lxml2 -lm
         
 # This target is used by make-gridsite-spec to test for gSOAP include+libs
-gsoap-test: gridsite-delegation.cgi
-
-gsoap-test-xxx: gsoap-test.c 
+gsoap-test: gsoap-test.c 
 	gcc -g $(MYCFLAGS) $(MYLDFLAGS) -o gsoap-test \
             gsoap-test.c \
             -I/usr/kerberos/include -I. \
@@ -310,6 +308,15 @@ gsoap-test-xxx: gsoap-test.c
             $(STDSOAP2) -L$(GRIDSITEDIR)/lib \
             -lgsoapssl -lz -lssl -lcrypto -lxml2 -lm
         
+gridsite-srm.cgi: gridsite-srm.c libgridsite.so.$(VERSION)
+	gcc -g $(MYCFLAGS) $(MYLDFLAGS) -o gridsite-srm.cgi \
+            gridsite-srm.c \
+            -I/usr/kerberos/include -I.\
+            -I$(GRIDSITEDIR)/include \
+            -DVERSION=\"$(VERSION)\" -L. \
+            -L$(GRIDSITEDIR)/lib \
+            -lgridsite -lcurl -lz -lssl -lcrypto -lxml2 -lm
+
 clean:
 
 #
@@ -379,6 +386,10 @@ install-lib:
 install-slashgrid: slashgrid
 	cp -f slashgrid $(prefix)/sbin
 	cp -f slashgrid.init $(RPM_BUILD_ROOT)/etc/rc.d/init.d/slashgrid
+	cp -f ../doc/slashgrid.8.html $(prefix)/share/doc/gridsite-$(MINOR_VERSION) ; \
+	cp -f ../doc/slashgrid.8 $(prefix)/share/doc/gridsite-$(MINOR_VERSION) ; \
+	cp -f ../doc/slashgrid.8 $(prefix)/share/man/man8
+	gzip -f $(prefix)/share/man/man8/slashgrid.8
 	mkdir -p $(RPM_BUILD_ROOT)/var/spool/slashgrid/headers
 	mkdir -p $(RPM_BUILD_ROOT)/var/spool/slashgrid/blocks
 	mkdir -p $(RPM_BUILD_ROOT)/var/spool/slashgrid/tmp
@@ -393,7 +404,7 @@ install-ws: gridsite-delegation.cgi htproxyput
                  $(prefix)/share/doc/gridsite-$(MINOR_VERSION)
 	cp -f ../doc/*.wsdl $(prefix)/share/doc/gridsite-$(MINOR_VERSION)
 	for i in htproxyput.1 htproxytime.1 htproxyrenew.1 htproxydestroy.1 \
-	 htproxyunixtime.1 ; do \
+	 htproxyunixtime.1 htproxyinfo.1 ; do \
 	 cp -f ../doc/$$i.html $(prefix)/share/doc/gridsite-$(MINOR_VERSION) ; \
          cp -f ../doc/$$i $(prefix)/share/doc/gridsite-$(MINOR_VERSION) ; \
          cp -f ../doc/$$i $(prefix)/share/man/man1 ; \
@@ -408,6 +419,7 @@ install-ws: gridsite-delegation.cgi htproxyput
 	ln -sf htproxyput $(prefix)/bin/htproxytime
 	ln -sf htproxyput $(prefix)/bin/htproxyunixtime
 	ln -sf htproxyput $(prefix)/bin/htproxyrenew
+	ln -sf htproxyput $(prefix)/bin/htproxyinfo
 	cp -f gridsite-delegation.cgi $(prefix)/sbin
 	   
 #

@@ -101,8 +101,8 @@ char *storeuploadfile(char *boundary, int *bufferused)
 void uploadfile(char *dn, GRSTgaclPerm perm, char *help_uri, char *dir_path, 
                 char *dir_uri, char *admin_file)
 {
-  char  *boundary, *p, oneline[200], *filename = NULL, 
-         tmpfilename[256], *filebuffer = NULL, *filepath,
+  char  *boundary, *p, oneline[1086], *filename = NULL, 
+         tmpfilename[1025], *filebuffer = NULL, *filepath,
         *vfile, *dir_path_vfile;         
   int    mimestate, bufferused = 0, itworked = 0;
   FILE   *fp;

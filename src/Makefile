@@ -193,7 +193,7 @@ gridsite-copy.cgi: gridsite-copy.c libgridsite.so.$(VERSION)
 	    -o gridsite-copy.cgi gridsite-copy.c -L. \
 	    -I/usr/kerberos/include \
             `curl-config --cflags` `curl-config --libs` \
-            -lgridsite
+            $(MYFCGILIBS) -lgridsite
 
 mod_gridsite.so: mod_gridsite.c mod_ssl-private.h libgridsite.so.$(VERSION)
 	gcc -g $(MYCFLAGS) -shared -Wl,-soname=gridsite_module \

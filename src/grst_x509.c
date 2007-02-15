@@ -65,9 +65,10 @@
 
 #include "gridsite.h"
 
-#define GRST_KEYSIZE	512
-#define GRST_PROXYCACHE	"/../proxycache/"
-#define GRST_MAX_CHAIN_LEN 9
+#define GRST_KEYSIZE		512
+#define GRST_PROXYCACHE		"/../proxycache/"
+#define GRST_MAX_CHAIN_LEN	9
+#define GRST_BACKDATE_SECONDS	300
 
 /// Compare X509 Distinguished Name strings
 int GRSTx509NameCmp(char *a, char *b)
@@ -1439,7 +1440,7 @@ int GRSTx509MakeProxyCert(char **proxychain, FILE *debugfp,
     }    
 
   /* set duration for the certificate */
-  if (!(X509_gmtime_adj (X509_get_notBefore(certs[0]), 0)))
+  if (!(X509_gmtime_adj (X509_get_notBefore(certs[0]), -GRST_BACKDATE_SECONDS)))
     {
       mpcerror(debugfp,
       "GRSTx509MakeProxyCert(): error setting beginning time of the certificate\n");

@@ -38,7 +38,9 @@
 //        script COPY /cgi-bin/gridsite-copy.cgi
 //
 ///////////////////////////////////////////////////////////////////
+#ifdef GRST_USE_FASTCGI
 #include <fcgi_stdio.h>
+#endif
 #include <stdio.h>
 #include <time.h>
 #include <string.h>
@@ -157,9 +159,10 @@ int gridsite_copy()
 
 int main( void )
 {
-                                                                                          
-    while(FCGI_Accept() >= 0){
+#ifdef GRST_USE_FASTCGI
+    while(FCGI_Accept() >= 0)
+#endif
+    {
         gridsite_copy();
     }
 }
- 

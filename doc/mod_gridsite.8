@@ -142,7 +142,10 @@ must be left in its default state of on.
 .IP "GridSiteEditable [ext1 [ext2 [ext3] ...]]]"
 A space-separated list of file extensions which can safely be edited
 by the GridSite Text/HTML editor. The extensions are given without the
-initial dot.
+initial dot. This directive must apply to the gridsite-admin.cgi
+executable, rather than just to the files it manages. This is most
+easily achieved by placing GridSiteEditable in the main section of
+the virtual host, outside any Directory or Location containers.
 (Default: GridSiteEditable txt shtml html htm css js php jsp)
 
 .IP "GridSiteHelpURI uri"

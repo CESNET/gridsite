@@ -1,0 +1,67 @@
+.TH SLASHGRID 28 "September 2006" "slashgrid" "GridSite Manual"
+.SH NAME
+.B slashgrid 
+\- Local and remote virtual filesystems using grid credentials
+
+.SH "SYNOPSIS"
+ 
+.BR slashgrid
+[--debug] [--domain DOMAIN --groups GROUPS] [--local-root PATH --local-user USER] [--gridmapdir PATH] [--foreground]
+ 
+.SH "SUMMARY"
+
+SlashGrid provides remote virtual filesystems under /grid ("slash grid")
+using HTTP/HTTPS as a transport protocol, and a local filesystem under
+/grid/local which can give access to the DocumentRoot area of a webserver
+on the same machine. In both local and remote cases, X.509, GSI Proxy
+and VOMS credentials can be used as the basis of authorization decisions.
+
+.SH "REMOTE HTTP(S) SERVERS"
+
+SlashGrid maps URLs of the form https://d.n.s:port/path/file into virtual paths
+of the form /grid/https/d.n.s:port/path/file (with /grid/http/ for
+HTTP URLs.) 
+
+SlashGrid attempts to obtain a user credential in the form of a GSI Proxy
+file, either indicated by the variable X509_USER_PROXY in the environment
+of the user's process, or a file of the form /tmp/x509up_uUID, where UID is
+their Unix user ID. If none is found, an authenticated HTTPS request is made.
+
+.SH "SITECAST DOMAINS"
+
+If the slashgrid daemon is started with the option --domain, then URLs 
+with DNS component matching the given domain will be located using SiteCast
+requests. SlashGrid will attempt to use UDP multicast queries to find a
+transfer URL of a copy of the file requested. The option --groups must also
+be used to specify a comma-separted list of one or more UDP multicast groups,
+which will be searched in order.
+
+The SiteCast area of the virtual filesystem is read-only (to prevent
+corruption of replicas.)
+
+.SH "LOCAL FILESYSTEM"
+
+This filesystem is intended for use with GridSite/Apache webservers, which
+control access via .gacl policy files in each directory hierarchy. SlashGrid
+can interpret these files internally, and this allows other services, such
+as GridFTP running in chroot mode, to be share access to a common file store.
+
+.SH "OPTIONS"
+ 
+.TP
+--debug
+Turn on debugging.
+ 
+.SH "MORE INFORMATION"
+
+http://www.gridsite.org/wiki/SlashGrid
+
+.SH AUTHORS
+
+Andrew McNab <Andrew.McNab@manchester.ac.uk> 
+
+SlashGrid is part of GridSite: http://www.gridsite.org/
+
+.SH "SEE ALSO"
+.BR htcp(1),
+.BR mod_gridsite(8)

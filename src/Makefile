@@ -188,6 +188,13 @@ htcp: htcp.c libgridsite.so.$(VERSION)
             `curl-config --cflags` `curl-config --libs` \
             -lgridsite
 
+htcp-static: htcp.c libgridsite.a
+	gcc -g -DVERSION=\"$(PATCH_VERSION)\" $(MYCFLAGS) \
+	    -o htcp-static htcp.c -L. \
+	    -I/usr/kerberos/include \
+            `curl-config --cflags` `curl-config --libs` \
+            -lgridsite -static
+
 gridsite-copy.cgi: gridsite-copy.c libgridsite.so.$(VERSION)
 	gcc -g -DVERSION=\"$(PATCH_VERSION)\" $(MYCFLAGS) \
 	    -o gridsite-copy.cgi gridsite-copy.c -L. \

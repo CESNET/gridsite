@@ -53,6 +53,7 @@ See http://www.gridsite.org/ for details.
 %package shared
 Group: Development/Libraries
 Summary: GridSite shared library and core documentation
+Provides: gridsite
 
 %description shared
 GridSite shared library and core documentation

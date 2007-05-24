@@ -48,19 +48,19 @@
 #define TRUE (!FALSE)
 #endif
 
-/// Everything ok (= OpenSSL X509_V_OK)
+// Everything ok (= OpenSSL X509_V_OK)
 #define GRST_RET_OK		0
 
-/// Failed for unspecified reason
+// Failed for unspecified reason
 #define GRST_RET_FAILED		1000
 
-/// Failed to find certificate in some cert store / directory
+// Failed to find certificate in some cert store / directory
 #define GRST_RET_CERT_NOT_FOUND	1001
 
-/// Bad signature
+// Bad signature
 #define GRST_RET_BAD_SIGNATURE	1002
 
-/// No such file or directory
+// No such file or directory
 #define GRST_RET_NO_SUCH_FILE	1003
 
 
@@ -81,15 +81,19 @@ void (*GRSTerrorLogFunc)(char *, int, int, char *, ...);
 #define GRST_LOG_INFO    6
 #define GRST_LOG_DEBUG   7
 
+typedef struct { char                      *auri;
+                 int			    delegation;
+                 int			    nist_loa;
+                 time_t			    notbefore;
+                 time_t			    notafter;
+                 void                      *next;     } GRSTgaclCred;
+
+/* used by pre-AURI GRSTgaclCred structs */ 
+__attribute__ ((deprecated))
 typedef struct { char                      *name;
                  char                      *value;
                  void                      *next;  } GRSTgaclNamevalue;
 
-typedef struct { char                      *type;
-                 int                        delegation;
-                 GRSTgaclNamevalue         *firstname;
-                 void                      *next;      } GRSTgaclCred;
- 
 typedef int                GRSTgaclAction;
 typedef unsigned int       GRSTgaclPerm;
  
@@ -100,8 +104,7 @@ typedef struct { GRSTgaclCred   *firstcred;
  
 typedef struct { GRSTgaclEntry *firstentry; } GRSTgaclAcl;
  
-typedef struct { GRSTgaclCred *firstcred; 
-                 char         *dnlists;   } GRSTgaclUser;
+typedef struct { GRSTgaclCred *firstcred; char *dnlists; } GRSTgaclUser;
 
 #define GRST_PERM_NONE   0
 #define GRST_PERM_READ   1
@@ -147,8 +150,9 @@ typedef struct { int    type;		/* CA, user, proxy, VOMS, ... */
                  char   *issuer;	/* Cert CA DN, EEC of PC, or VOMS DN */
                  char   *dn;		/* Cert DN, or VOMS AC holder DN */
                  char   *value;		/* VOMS FQAN or NULL */
-                 time_t start;
-                 time_t finish;
+                 time_t notbefore;
+                 time_t notafter;
+                 int    delegation;	/* relative to END of any chain */
                  int    serial;
                  char   *ocsp;		/* accessLocation field */
                  void   *raw;		/* X509 or VOMS Extension object */
@@ -208,14 +212,25 @@ typedef struct { unsigned char total_length_msb;
 
 int GRSTgaclInit(void);
 
-/* #define GACLnewCred(x)		GRSTgaclCredNew((x)) */
-GRSTgaclCred  *GRSTgaclCredNew(char *);
+__attribute__ ((deprecated))
+GRSTgaclCred *GRSTgaclCredNew(char *);
 
-/* #define GACLaddToCred(x,y,z)	GRSTgaclCredAddValue((x),(y),(z)) */
-int        GRSTgaclCredAddValue(GRSTgaclCred *, char *, char *);
+GRSTgaclCred *GRSTgaclCredCreate(char *, char *);
+
+__attribute__ ((deprecated))
+int	GRSTgaclCredAddValue(GRSTgaclCred *, char *, char *);
+
+#define GRSTgaclCredSetNotBefore(cred, time) ((cred)->notbefore = (time))
+#define GRSTgaclCredGetNotBefore(cred) ((cred)->notbefore)
+
+#define GRSTgaclCredSetNotAfter(cred, time) ((cred)->notafter = (time))
+#define GRSTgaclCredGetNotAfter(cred) ((cred)->notafter)
 
 #define GRSTgaclCredSetDelegation(cred, level) ((cred)->delegation = (level))
 #define GRSTgaclCredGetDelegation(cred) ((cred)->delegation)
+
+#define GRSTgaclCredSetNistLoa(cred, level) ((cred)->nist_loa = (level))
+#define GRSTgaclCredGetNistLoa(cred) ((cred)->nist_loa)
 
 /* #define GACLfreeCred(x)		GRSTgaclCredFree((x)) */
 int        GRSTgaclCredFree(GRSTgaclCred *);
@@ -301,12 +316,15 @@ int       GRSTgaclUserAddCred(GRSTgaclUser *, GRSTgaclCred *);
 /*  #define GACLuserHasCred(x,y)	GRSTgaclUserHasCred((x),(y)) */
 int       GRSTgaclUserHasCred(GRSTgaclUser *, GRSTgaclCred *);
 
+__attribute__ ((deprecated))
 int       GRSTgaclUserSetDNlists(GRSTgaclUser *, char *);
+
+int       GRSTgaclUserLoadDNlists(GRSTgaclUser *, char *);
 
 /*  #define GACLuserFindCredType(x,y) GRSTgaclUserFindCredtype((x),(y)) */
 GRSTgaclCred *GRSTgaclUserFindCredtype(GRSTgaclUser *, char *);
 
-/*  #define GACLtestDnList(x,y)	GRSTgaclDNlistHasUser((x),(y)) */
+__attribute__ ((deprecated))
 int GRSTgaclDNlistHasUser(char *, GRSTgaclUser *);
 
 /*  #define GACLtestUserAcl(x,y)	GRSTgaclAclTestUser((x),(y)) */
@@ -331,9 +349,15 @@ int GRSTx509IsCA(X509 *);
 int GRSTx509CheckChain(int *, X509_STORE_CTX *);
 int GRSTx509VerifyCallback(int, X509_STORE_CTX *);
 
+__attribute__ ((deprecated))
 int GRSTx509GetVomsCreds(int *, int, size_t, char *, X509 *, STACK_OF(X509) *, char *);
+
+__attribute__ ((deprecated))
 GRSTgaclCred *GRSTx509CompactToCred(char *);
+
+__attribute__ ((deprecated))
 int GRSTx509CompactCreds(int *, int, size_t, char *, STACK_OF(X509) *, char *, X509 *);
+
 char *GRSTx509CachedProxyFind(char *, char *, char *);
 char *GRSTx509FindProxyFileName(void);
 int GRSTx509MakeProxyCert(char **, FILE *, char *, char *, char *, int);

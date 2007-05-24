@@ -1,5 +1,5 @@
 /*
-   Copyright (c) 2002-6, Andrew McNab, University of Manchester
+   Copyright (c) 2002-7, Andrew McNab, University of Manchester
    All rights reserved.
 
    Redistribution and use in source and binary forms, with or
@@ -72,14 +72,13 @@
 
 /// Compare X509 Distinguished Name strings
 int GRSTx509NameCmp(char *a, char *b)
-/**
- *  This function attempts to do with string representations what
- *  would ideally be done with OIDs/values. In particular, we equate
- *  "/Email=" == "/emailAddress=" to deal with this important change
- *  between OpenSSL 0.9.6 and 0.9.7. 
- *  Other than that, it is currently the same as ordinary strcasecmp(3)
- *  (for consistency with EDG/LCG/EGEE gridmapdir case insensitivity.)
- */
+///
+/// This function attempts to do with string representations what
+/// would ideally be done with OIDs/values. In particular, we equate
+/// "/Email=" == "/emailAddress=" to deal with this important change
+/// between OpenSSL 0.9.6 and 0.9.7. 
+/// Other than that, it is currently the same as ordinary strcasecmp(3)
+/// (for consistency with EDG/LCG/EGEE gridmapdir case insensitivity.)
 {
    int   ret;
    char *aa, *bb, *p;
@@ -110,17 +109,15 @@ int GRSTx509NameCmp(char *a, char *b)
 
 
 /// Check critical extensions
-/**
- *  Returning GRST_RET_OK if all of extensions are known to us or 
- *  OpenSSL; GRST_REF_FAILED otherwise.   
- *
- *  Since this function relies on functionality (X509_supported_extension)
- *  introduced in 0.9.7, then we do nothing and report an error 
- *  (GRST_RET_FAILED) if one of the associated defines 
- *  (X509_V_ERR_UNHANDLED_CRITICAL_EXTENSION) is absent.
- */
-
 int GRSTx509KnownCriticalExts(X509 *cert)
+///
+/// Returning GRST_RET_OK if all of extensions are known to us or 
+/// OpenSSL; GRST_REF_FAILED otherwise.   
+///
+/// Since this function relies on functionality (X509_supported_extension)
+/// introduced in 0.9.7, then we do nothing and report an error 
+/// (GRST_RET_FAILED) if one of the associated defines 
+/// (X509_V_ERR_UNHANDLED_CRITICAL_EXTENSION) is absent.
 {
    int  i;
    char s[80];
@@ -147,11 +144,9 @@ int GRSTx509KnownCriticalExts(X509 *cert)
 }
 
 /// Check if certificate can be used as a CA to sign standard X509 certs
-/*
- *  Return GRST_RET_OK if true; GRST_RET_FAILED if not.
- */
-
 int GRSTx509IsCA(X509 *cert)
+///
+/// Return GRST_RET_OK if true; GRST_RET_FAILED if not.
 {
    int idret, purpose_id;
 
@@ -191,14 +186,12 @@ int GRSTx509ChainFree(GRSTx509Chain *chain)
 }
 
 /// Check a specific signature against a specific (VOMS) cert
-/*
- *  Returns GRST_RET_OK if signature is ok, other values if not.
- */
-
 static int GRSTx509VerifySig(time_t *time1_time, time_t *time2_time,
                              unsigned char *txt, int txt_len,
                              unsigned char *sig, int sig_len, 
                              X509 *cert)
+///
+/// Returns GRST_RET_OK if signature is ok, other values if not.
 {   
    int            ret;
    EVP_PKEY      *prvkey;
@@ -241,15 +234,13 @@ static int GRSTx509VerifySig(time_t *time1_time, time_t *time2_time,
 }
 
 /// Check the signature of the VOMS attributes
-/*
- *  Returns GRST_RET_OK if signature is ok, other values if not.
- */
-
 static int GRSTx509VerifyVomsSig(time_t *time1_time, time_t *time2_time,
                                  unsigned char *asn1string, 
                                  struct GRSTasn1TagList taglist[], 
                                  int lasttag,
                                  char *vomsdir, int acnumber)
+///
+/// Returns GRST_RET_OK if signature is ok, other values if not.
 {   
 #define GRST_ASN1_COORDS_VOMS_DN   "-1-1-%d-1-3-1-1-1-%%d-1-%%d"
 #define GRST_ASN1_COORDS_VOMS_INFO "-1-1-%d-1"
@@ -375,15 +366,13 @@ static int GRSTx509VerifyVomsSig(time_t *time1_time, time_t *time2_time,
 }
 
 /// Get the VOMS attributes in the given extension
-/*
- *  Add any VOMS credentials found into the chain. Always returns GRST_RET_OK
- *  - even for invalid credentials, which are flagged in errors field
- */
-
 static int GRSTx509ChainVomsAdd(GRSTx509Cert **grst_cert, 
                          time_t time1_time, time_t time2_time,
                          X509_EXTENSION *ex, 
                          char *ucuserdn, char *vomsdir)
+///
+/// Add any VOMS credentials found into the chain. Always returns GRST_RET_OK
+/// - even for invalid credentials, which are flagged in errors field
 {
 #define MAXTAG 500
 #define GRST_ASN1_COORDS_FQAN    "-1-1-%d-1-7-1-2-1-2-%d"
@@ -399,7 +388,6 @@ static int GRSTx509ChainVomsAdd(GRSTx509Cert **grst_cert,
    int                lasttag=-1, itag, i, acnumber = 1, chain_errors = 0;
    struct GRSTasn1TagList taglist[MAXTAG+1];
    time_t             actime1 = 0, actime2 = 0, time_now;
-   GRSTx509Cert      *new_grst_cert;
 
    asn1data   = X509_EXTENSION_get_data(ex);
    asn1string = ASN1_STRING_data(asn1data);
@@ -465,8 +453,8 @@ static int GRSTx509ChainVomsAdd(GRSTx509Cert **grst_cert,
                  *grst_cert = (*grst_cert)->next;
                  bzero(*grst_cert, sizeof(GRSTx509Cert));
                
-                 (*grst_cert)->start  = time1_time;
-                 (*grst_cert)->finish = time2_time;
+                 (*grst_cert)->notbefore = time1_time;
+                 (*grst_cert)->notafter  = time2_time;
                  asprintf(&((*grst_cert)->value), "%.*s",
                           taglist[itag].length,
                           &asn1string[taglist[itag].start+
@@ -485,20 +473,18 @@ static int GRSTx509ChainVomsAdd(GRSTx509Cert **grst_cert,
 }
 
 /// Check certificate chain for GSI proxy acceptability.
-/**
- *  Returns GRST_RET_OK if valid; OpenSSL X509 errors otherwise.
- *
- *  The GridSite version handles old and new style Globus proxies, and
- *  proxies derived from user certificates issued with "X509v3 Basic
- *  Constraints: CA:FALSE" (eg UK e-Science CA)
- *
- *  TODO: we do not yet check ProxyCertInfo and ProxyCertPolicy extensions
- *        (although via GRSTx509KnownCriticalExts() we can accept them.)
- */
-
 int GRSTx509ChainLoadCheck(GRSTx509Chain **chain, 
                            STACK_OF(X509) *certstack, X509 *lastcert,
                            char *capath, char *vomsdir)
+///
+/// Returns GRST_RET_OK if valid; OpenSSL X509 errors otherwise.
+///
+/// The GridSite version handles old and new style Globus proxies, and
+/// proxies derived from user certificates issued with "X509v3 Basic
+/// Constraints: CA:FALSE" (eg UK e-Science CA)
+///
+/// TODO: we do not yet check ProxyCertInfo and ProxyCertPolicy extensions
+///       (although via GRSTx509KnownCriticalExts() we can accept them.)
 {
    X509 *cert;                  /* Points to the current cert in the loop */
    X509 *cacert = NULL;         /* The CA root cert */
@@ -560,6 +546,8 @@ int GRSTx509ChainLoadCheck(GRSTx509Chain **chain,
        fclose(fp);
        if (cacert != NULL) 
         GRSTerrorLog(GRST_LOG_DEBUG, " Loaded CA root cert from file");
+       else
+        GRSTerrorLog(GRST_LOG_DEBUG, " Failed to load CA root cert file");
      }
 
    *chain = malloc(sizeof(GRSTx509Chain));
@@ -602,28 +590,44 @@ int GRSTx509ChainLoadCheck(GRSTx509Chain **chain,
               {
                 /* if first cert does not claim to be a self-signed copy 
                    of a CA root cert in the store, we check the signature */
-              
-                ret = X509_check_issued(cacert, cert);
 
-                GRSTerrorLog(GRST_LOG_DEBUG, 
+                if (cacert == NULL)
+                  {
+                    chain_errors |= GRST_CERT_BAD_CHAIN;
+                    ret = X509_V_ERR_UNABLE_TO_GET_ISSUER_CERT;
+                  }
+                else 
+                  {
+                    ret = X509_check_issued(cacert, cert);
+
+                    GRSTerrorLog(GRST_LOG_DEBUG, 
                              "Cert sig check %d returns %d", i, ret);
 
-                if (ret != X509_V_OK) 
+                    if (ret != X509_V_OK) 
                              new_grst_cert->errors |= GRST_CERT_BAD_SIG;
+                  }
               }
             else if ((i == depth - 2) && (subjecthash == issuerhash))
               {
                 /* first cert claimed to be a self-signed copy of a CA root
                 cert in the store, we check the signature of the second
                 cert, using OUR copy of the CA cert DIRECT from the store */
-              
-                ret = X509_check_issued(cacert, cert);
 
-                GRSTerrorLog(GRST_LOG_DEBUG, 
+                if (cacert == NULL)
+                  {
+                    chain_errors |= GRST_CERT_BAD_CHAIN;
+                    ret = X509_V_ERR_UNABLE_TO_GET_ISSUER_CERT;
+                  }
+                else 
+                  {
+                    ret = X509_check_issued(cacert, cert);
+                
+                    GRSTerrorLog(GRST_LOG_DEBUG, 
                              "Cert sig check %d returns %d", i, ret);
                 
-                if (ret != X509_V_OK)
+                    if (ret != X509_V_OK)
                              new_grst_cert->errors |= GRST_CERT_BAD_SIG;
+                  }
               }
             else if (i < depth - 1)
               {
@@ -645,17 +649,17 @@ int GRSTx509ChainLoadCheck(GRSTx509Chain **chain,
 
             new_grst_cert->serial = (int) ASN1_INTEGER_get(
                                X509_get_serialNumber(cert));
-            new_grst_cert->start  = GRSTasn1TimeToTimeT(
+            new_grst_cert->notbefore = GRSTasn1TimeToTimeT(
                                ASN1_STRING_data(X509_get_notBefore(cert)), 0);
-            new_grst_cert->finish = GRSTasn1TimeToTimeT(
+            new_grst_cert->notafter  = GRSTasn1TimeToTimeT(
                                ASN1_STRING_data(X509_get_notAfter(cert)), 0);
           
             /* we check times and record if invalid */
           
-            if (now < new_grst_cert->start)
+            if (now < new_grst_cert->notbefore)
                  new_grst_cert->errors |= GRST_CERT_BAD_TIME;
 
-            if (now > new_grst_cert->finish)
+            if (now > new_grst_cert->notafter)
                  new_grst_cert->errors |= GRST_CERT_BAD_TIME;
 
             new_grst_cert->dn = X509_NAME_oneline(X509_get_subject_name(cert),NULL,0);
@@ -683,14 +687,19 @@ int GRSTx509ChainLoadCheck(GRSTx509Chain **chain,
                     new_grst_cert->type = GRST_CERT_TYPE_EEC;
                     first_non_ca = i;
                     ucuserdn = new_grst_cert->dn;
+                    new_grst_cert->delegation 
+                       = (lastcert == NULL) ? i : i + 1;
                   }
               } 
             else 
               {
                 new_grst_cert->type = GRST_CERT_TYPE_PROXY;
-                IsCA = FALSE; 
+
+                IsCA = FALSE;
                 /* Force proxy check next iteration. Important because I can
                    sign any CA I create! */
+
+                new_grst_cert->delegation = (lastcert == NULL) ? i : i + 1;
               }
 
             if (!prevIsCA)
@@ -728,7 +737,7 @@ int GRSTx509ChainLoadCheck(GRSTx509Chain **chain,
                     new_grst_cert->errors  |= GRST_CERT_BAD_CHAIN;
                     chain_errors |= GRST_CERT_BAD_CHAIN;
                   }
-                                         
+
                 if (strncmp(proxy_part_DN, "/CN=limited proxy", 17) == 0)
                         prevIsLimited = 1; /* ready for next cert ... */
 
@@ -740,11 +749,12 @@ int GRSTx509ChainLoadCheck(GRSTx509Chain **chain,
                      if (strcmp(s, GRST_VOMS_OID) == 0) /* a VOMS extension */
                        {
                          GRSTx509ChainVomsAdd(&grst_cert, 
-                                              new_grst_cert->start,
-                                              new_grst_cert->finish,                                              
+                                              new_grst_cert->notbefore,
+                                              new_grst_cert->notafter,                                              
                                               ex,
                                               ucuserdn, 
                                               vomsdir);
+                         grst_cert->delegation = (lastcert == NULL) ? i : i+1;
                        }
                    }
                         
@@ -760,24 +770,22 @@ int GRSTx509ChainLoadCheck(GRSTx509Chain **chain,
 }
 
 /// Check certificate chain for GSI proxy acceptability.
-/**
- *  Returns X509_V_OK/GRST_RET_OK if valid; OpenSSL X509 errors otherwise.
- *
- *  Inspired by GSIcheck written by Mike Jones, SVE, Manchester Computing,
- *  The University of Manchester.
- *
- *  The GridSite version handles old and new style Globus proxies, and
- *  proxies derived from user certificates issued with "X509v3 Basic
- *  Constraints: CA:FALSE" (eg UK e-Science CA)
- *
- *  We do not check chain links between certs here: this is done by
- *  GRST_check_issued/X509_check_issued in mod_ssl's ssl_engine_init.c
- *
- *  TODO: we do not yet check ProxyCertInfo and ProxyCertPolicy extensions
- *        (although via GRSTx509KnownCriticalExts() we can accept them.)
- */
-
 int GRSTx509CheckChain(int *first_non_ca, X509_STORE_CTX *ctx)
+///
+/// Returns X509_V_OK/GRST_RET_OK if valid; OpenSSL X509 errors otherwise.
+///
+/// Inspired by GSIcheck written by Mike Jones, SVE, Manchester Computing,
+/// The University of Manchester.
+///
+/// The GridSite version handles old and new style Globus proxies, and
+/// proxies derived from user certificates issued with "X509v3 Basic
+/// Constraints: CA:FALSE" (eg UK e-Science CA)
+///
+/// We do not check chain links between certs here: this is done by
+/// GRST_check_issued/X509_check_issued in mod_ssl's ssl_engine_init.c
+///
+/// TODO: we do not yet check ProxyCertInfo and ProxyCertPolicy extensions
+///       (although via GRSTx509KnownCriticalExts() we can accept them.)
 {
    STACK_OF(X509) *certstack;   /* Points to the client's cert chain */
    X509 *cert;                  /* Points to the client's cert */
@@ -927,11 +935,6 @@ int GRSTx509CheckChain(int *first_non_ca, X509_STORE_CTX *ctx)
 }
 
 /// Example VerifyCallback routine
-
-/**
- *   
- */
-
 int GRSTx509VerifyCallback (int ok, X509_STORE_CTX *ctx)
 {
    int errnum   = X509_STORE_CTX_get_error(ctx);
@@ -966,15 +969,13 @@ int GRSTx509VerifyCallback (int ok, X509_STORE_CTX *ctx)
 }
 
 /// Get the VOMS attributes in the given extension
-/*
- *  Puts any VOMS credentials found into the Compact Creds string array
- *  starting at *creds. Always returns GRST_RET_OK - even for invalid
- *  credentials, which are just ignored.
- */
-
 int GRSTx509ParseVomsExt(int *lastcred, int maxcreds, size_t credlen, 
                          char *creds, time_t time1_time, time_t time2_time,
                          X509_EXTENSION *ex, char *ucuserdn, char *vomsdir)
+///
+/// Puts any VOMS credentials found into the Compact Creds string array
+/// starting at *creds. Always returns GRST_RET_OK - even for invalid
+/// credentials, which are just ignored.
 {
 #define MAXTAG 500
 #define GRST_ASN1_COORDS_FQAN    "-1-1-%d-1-7-1-2-1-2-%d"
@@ -1052,14 +1053,12 @@ int GRSTx509ParseVomsExt(int *lastcred, int maxcreds, size_t credlen,
 }
 
 /// Get the VOMS attributes in the extensions to the given cert stack
-/*
- *  Puts any VOMS credentials found into the Compact Creds string array
- *  starting at *creds. Always returns GRST_RET_OK.
- */
-
 int GRSTx509GetVomsCreds(int *lastcred, int maxcreds, size_t credlen, 
                          char *creds, X509 *usercert, STACK_OF(X509) *certstack,
                          char *vomsdir)
+///
+/// Puts any VOMS credentials found into the Compact Creds string array
+/// starting at *creds. Always returns GRST_RET_OK.
 {
    int  i, j;
    char s[80];
@@ -1106,11 +1105,9 @@ int GRSTx509GetVomsCreds(int *lastcred, int maxcreds, size_t credlen,
 }
 
 /// Turn a Compact Cred line into a GRSTgaclCred object
-/**
- *  Returns pointer to created GRSTgaclCred or NULL or failure.
- */
- 
 GRSTgaclCred *GRSTx509CompactToCred(char *grst_cred)
+///
+/// Returns pointer to created GRSTgaclCred or NULL or failure.
 {
    int       delegation;
    char     *p;
@@ -1167,16 +1164,14 @@ GRSTgaclCred *GRSTx509CompactToCred(char *grst_cred)
 }
 
 /// Get the credentials in an X509 cert/GSI proxy, including any VOMS
-/**
- *  Credentials are placed in Compact Creds string array at *creds.
- * 
- *  Function returns GRST_RET_OK on success, or GRST_RET_FAILED if
- *  some inconsistency found in certificate.
- */
- 
 int GRSTx509CompactCreds(int *lastcred, int maxcreds, size_t credlen, 
                          char *creds, STACK_OF(X509) *certstack, char *vomsdir, 
                          X509 *peercert)
+///
+/// Credentials are placed in Compact Creds string array at *creds.
+///
+/// Function returns GRST_RET_OK on success, or GRST_RET_FAILED if
+/// some inconsistency found in certificate.
 {   
    int   i, j, delegation = 0;
    char  credtemp[credlen+1];
@@ -1252,12 +1247,10 @@ int GRSTx509CompactCreds(int *lastcred, int maxcreds, size_t credlen,
 }
 
 /// Find proxy file name of the current user
-/**
- *  Return a string with the proxy file name or NULL if not present.
- *  This function does not check if the proxy has expired.
- */
- 
 char *GRSTx509FindProxyFileName(void)
+///
+/// Return a string with the proxy file name or NULL if not present.
+/// This function does not check if the proxy has expired.
 {
   char *p;
   
@@ -1282,14 +1275,12 @@ static void mpcerror(FILE *debugfp, char *msg)
 }
 
 /// Make a GSI Proxy chain from a request, certificate and private key
-/**
- *  The proxy chain is returned in *proxychain. If debugfp is non-NULL,
- *  errors are output to that file pointer. The proxy will expired in
- *  the given number of minutes starting from the current time.
- */
-
 int GRSTx509MakeProxyCert(char **proxychain, FILE *debugfp, 
                           char *reqtxt, char *cert, char *key, int minutes)
+///
+/// The proxy chain is returned in *proxychain. If debugfp is non-NULL,
+/// errors are output to that file pointer. The proxy will expired in
+/// the given number of minutes starting from the current time.
 {
   char *ptr, *certchain;
   int i, subjAltName_pos, ncerts;
@@ -1518,18 +1509,15 @@ int GRSTx509MakeProxyCert(char **proxychain, FILE *debugfp,
 }
 
 /// Find a proxy file in the proxy cache
-/**
- *  Returns the full path and file name of proxy file associated
- *  with given delegation ID and user DN.
- */
-
 char *GRSTx509CachedProxyFind(char *proxydir, char *delegation_id, 
                               char *user_dn)
-/* 
-    Return a pointer to a malloc'd string with the full path of the 
-    proxy file corresponding to the given delegation_id, or NULL
-    if not found.
-*/
+///
+/// Returns the full path and file name of proxy file associated
+/// with given delegation ID and user DN.
+///
+/// Return a pointer to a malloc'd string with the full path of the 
+/// proxy file corresponding to the given delegation_id, or NULL
+/// if not found.
 {
   char *user_dn_enc, *proxyfile;
   struct stat statbuf;
@@ -1551,18 +1539,15 @@ char *GRSTx509CachedProxyFind(char *proxydir, char *delegation_id,
 }
 
 /// Find a temporary proxy private key file in the proxy cache
-/**
- *  Returns the full path and file name of the private key file associated
- *  with given delegation ID and user DN.
- */
-
 char *GRSTx509CachedProxyKeyFind(char *proxydir, char *delegation_id, 
                                  char *user_dn)
-/* 
-    Return a pointer to a malloc'd string with the full path of the 
-    private proxy key corresponding to the given delegation_id, or NULL
-    if not found.
-*/
+///
+/// Returns the full path and file name of the private key file associated
+/// with given delegation ID and user DN.
+///
+/// Return a pointer to a malloc'd string with the full path of the 
+/// private proxy key corresponding to the given delegation_id, or NULL
+/// if not found.
 {
   char *user_dn_enc, *prvkeyfile;
   struct stat statbuf;
@@ -1599,12 +1584,10 @@ static void mkdir_printf(mode_t mode, char *fmt, ...)
 }
 
 /// Create a X.509 request for a GSI proxy and its private key
-/**
- *  Returns GRST_RET_OK on success, non-zero otherwise. Request string
- *  and private key are PEM encoded strings
- */ 
- 
 int GRSTx509CreateProxyRequest(char **reqtxt, char **keytxt, char *ocspurl)
+///
+/// Returns GRST_RET_OK on success, non-zero otherwise. Request string
+/// and private key are PEM encoded strings
 {
   int              i;
   char            *ptr;
@@ -1674,14 +1657,12 @@ int GRSTx509CreateProxyRequest(char **reqtxt, char **keytxt, char *ocspurl)
 }
 
 /// Make and store a X.509 request for a GSI proxy
-/**
- *  Returns GRST_RET_OK on success, non-zero otherwise. Request string
- *  is PEM encoded, and the key is stored in the temporary cache under
- *  proxydir
- */ 
- 
 int GRSTx509MakeProxyRequest(char **reqtxt, char *proxydir, 
                              char *delegation_id, char *user_dn)
+///
+/// Returns GRST_RET_OK on success, non-zero otherwise. Request string
+/// is PEM encoded, and the key is stored in the temporary cache under
+/// proxydir
 {
   int              i;
   char            *docroot, *prvkeyfile, *ptr, *user_dn_enc;
@@ -1771,13 +1752,11 @@ int GRSTx509MakeProxyRequest(char **reqtxt, char *proxydir,
 }
 
 /// Destroy stored GSI proxy files
-/**
- *  Returns GRST_RET_OK on success, non-zero otherwise.
- *  (Including GRST_RET_NO_SUCH_FILE if the private key or cert chain
- *   were not found.)
- */ 
-
 int GRSTx509ProxyDestroy(char *proxydir, char *delegation_id, char *user_dn)
+///
+/// Returns GRST_RET_OK on success, non-zero otherwise.
+/// (Including GRST_RET_NO_SUCH_FILE if the private key or cert chain
+///  were not found.)
 {
   int              ret = GRST_RET_OK;
   char            *docroot, *filename, *user_dn_enc;
@@ -1818,13 +1797,11 @@ int GRSTx509ProxyDestroy(char *proxydir, char *delegation_id, char *user_dn)
 }
 
 /// Get start and finish validity times of stored GSI proxy file
-/**
- *  Returns GRST_RET_OK on success, non-zero otherwise.
- *  (Including GRST_RET_NO_SUCH_FILE if the cert chain was not found.)
- */ 
-
 int GRSTx509ProxyGetTimes(char *proxydir, char *delegation_id, char *user_dn, 
                           time_t *start, time_t *finish)
+///
+/// Returns GRST_RET_OK on success, non-zero otherwise.
+/// (Including GRST_RET_NO_SUCH_FILE if the cert chain was not found.)
 {
   char  *docroot, *filename, *user_dn_enc;
   FILE  *fp;
@@ -1859,15 +1836,12 @@ int GRSTx509ProxyGetTimes(char *proxydir, char *delegation_id, char *user_dn,
 }
 
 /// Create a stack of X509 certificate from a PEM-encoded string
-/**
- *  Creates a dynamically allocated stack of X509 certificate objects
- *  by walking through the PEM-encoded X509 certificates.
- *
- *  Returns GRST_RET_OK on success, non-zero otherwise.
- *
- */
-
 int GRSTx509StringToChain(STACK_OF(X509) **certstack, char *certstring)
+///
+/// Creates a dynamically allocated stack of X509 certificate objects
+/// by walking through the PEM-encoded X509 certificates.
+///
+/// Returns GRST_RET_OK on success, non-zero otherwise.
 {   
   STACK_OF(X509_INFO) *sk=NULL;
   BIO *certbio;
@@ -1912,12 +1886,10 @@ int GRSTx509StringToChain(STACK_OF(X509) **certstack, char *certstring)
 }
 
 /// Returns a Delegation ID based on hash of GRST_CRED_0, ...
-/**
- *  Returns a malloc'd string with Delegation ID made by SHA1-hashing the
- *  values of the compact credentials exported by mod_gridsite
- */
-
 char *GRSTx509MakeDelegationID(void)
+///
+/// Returns a malloc'd string with Delegation ID made by SHA1-hashing the
+/// values of the compact credentials exported by mod_gridsite
 { 
   unsigned char hash_delegation_id[EVP_MAX_MD_SIZE];        
   int  size_needed = 0, i, delegation_id_len;
@@ -1954,17 +1926,15 @@ char *GRSTx509MakeDelegationID(void)
 
 #if 0
 /// Return the short file name for the given delegation_id and user_dn
-/**
- *  Returns a malloc'd string with the short file name (no paths) that
- *  derived from the hashed delegation_id and user_dn
- *
- *  File name is SHA1_HASH(DelegationID)+"-"+SHA1_HASH(DN) where DN
- *  is DER encoded version of user_dn with any trailing CN=proxy removed
- *  Hashes are the most significant 8 bytes, in lowercase hexadecimal.
- */
-
 char *GRSTx509MakeProxyFileName(char *delegation_id,
                                 STACK_OF(X509) *certstack)
+///
+/// Returns a malloc'd string with the short file name (no paths) that
+/// derived from the hashed delegation_id and user_dn
+///
+/// File name is SHA1_HASH(DelegationID)+"-"+SHA1_HASH(DN) where DN
+/// is DER encoded version of user_dn with any trailing CN=proxy removed
+/// Hashes are the most significant 8 bytes, in lowercase hexadecimal.
 { 
   int        i, depth, prevIsCA = 1, IsCA, hash_name_len, delegation_id_len,
                  der_name_len;
@@ -2043,14 +2013,12 @@ char *GRSTx509MakeProxyFileName(char *delegation_id,
 #endif
 
 /// Store a GSI proxy chain in the proxy cache, along with the private key
-/**
- *  Returns GRST_RET_OK on success, non-zero otherwise. The existing
- *  private key with the same delegation ID and user DN is moved out of
- *  the temporary cache.
- */
-
 int GRSTx509CacheProxy(char *proxydir, char *delegation_id, 
                                        char *user_dn, char *proxychain)
+///
+/// Returns GRST_RET_OK on success, non-zero otherwise. The existing
+/// private key with the same delegation ID and user DN is moved out of
+/// the temporary cache.
 {
   int   c, len = 0, i, ret;
   char *user_dn_enc, *p, *ptr, *prvkeyfile, *proxyfile;

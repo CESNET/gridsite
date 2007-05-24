@@ -101,7 +101,6 @@ static GRSTgaclCred *GRSTxacmlCredParse(xmlNodePtr cur)
 
   cred = GRSTgaclCredNew((char *) xmlNodeGetContent(attr_des->properties->children));
 
-  cred->firstname = NULL;
   cred->next      = NULL;
 
   //Assumed that there is only one name/value pair per credential
@@ -405,20 +404,14 @@ int GRSTxacmlCredPrint(GRSTgaclCred *cred, FILE *fp)
    GRSTxacmlCredPrint - print a credential and any name-value pairs is contains in XACML form
 */
 {
-  char              *q;
-  GRSTgaclNamevalue *p;
+  char *q;
 
-  if (cred->firstname != NULL)
+  if (cred->auri != NULL)
     {
-
-      p = cred->firstname;
-
-      do {
-
 	   fputs("\t\t\t\t<Subject>\n", fp);
 	   fputs("\t\t\t\t\t<SubjectMatch MatchId=\"urn:oasis:names:tc:xacml:1.0:function:string-equal\">\n", fp);
 	   fputs("\t\t\t\t\t\t<AttributeValue DataType=\"http://www.w3.org/2001/XMLSchema#string\">", fp);
-           for (q=p->value; *q != '\0'; ++q)
+           for (q=cred->auri; *q != '\0'; ++q)
               if      (*q == '<')  fputs("&lt;",   fp);
               else if (*q == '>')  fputs("&gt;",   fp);
               else if (*q == '&')  fputs("&amp;" , fp);
@@ -431,14 +424,11 @@ int GRSTxacmlCredPrint(GRSTgaclCred *cred, FILE *fp)
 
 	   fputs("\t\t\t\t\t\t<SubjectAttributeDesignator\n", fp);
 	   fputs("\t\t\t\t\t\t\tAttributeId=", fp);
-	   fprintf(fp, "\"%s\"\n", cred->type);
+	   fprintf(fp, "\"cred\"\n");
 	   fputs("\t\t\t\t\t\t\tDataType=", fp);
-           fprintf(fp, "\"%s\"/>\n", p->name);
+           fprintf(fp, "\"auri\"/>\n");
 	   fputs("\t\t\t\t\t</SubjectMatch>\n", fp);
 	   fputs("\t\t\t\t</Subject>\n", fp);
-           p = (GRSTgaclNamevalue *) p->next;
-         } while (p != NULL);
-
     }
     else fputs("\t\t\t\t<AnySubject/>\n", fp);
 

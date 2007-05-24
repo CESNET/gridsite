@@ -60,7 +60,7 @@ endif
 
 build: apidoc build-lib \
        htcp gridsite-copy.cgi mod_gridsite.so \
-       urlencode findproxyfile real-gridsite-admin.cgi gsexec
+       urlencode findproxyfile gsexec # real-gridsite-admin.cgi
 
 build-lib: libgridsite_globus.so.$(VERSION) libgridsite_globus.a \
            libgridsite.so.$(VERSION) libgridsite.a 
@@ -209,6 +209,12 @@ mod_gridsite.so: mod_gridsite.c mod_ssl-private.h libgridsite.so.$(VERSION)
            -DVERSION=\"$(VERSION)\" -o mod_gridsite.so \
            mod_gridsite.c $(MYLDFLAGS) -lxml2 -lm -lz -lgridsite
 
+mod_gridsite_example.so: mod_gridsite_example.c 
+	gcc -g -shared -Wl,-soname=gridsite_example_module \
+	   -I/usr/include/httpd -I/usr/include/apr-0 \
+           -DVERSION=\"$(VERSION)\" -o mod_gridsite_example.so \
+           mod_gridsite_example.c 
+
 real-gridsite-admin.cgi: grst_admin_main.c grst_admin_gacl.c \
                          grst_admin_file.c grst_admin.h
 	gcc -g $(MYCFLAGS) $(MYLDFLAGS) -o real-gridsite-admin.cgi \
@@ -253,12 +259,12 @@ apidoc:
           > $$i.html ; done
 
 gaclexample: gaclexample.c libgridsite.a
-	gcc -g -o gaclexample gaclexample.c -I. -L. \
+	gcc -g -o gaclexample gaclexample.c -I../interface -L. \
             -I/usr/kerberos/include -lgridsite \
             -lssl -lcrypto -lxml2 -lz -lm
 	    
 xacmlexample: xacmlexample.c libgridsite.a
-	gcc -g -o xacmlexample xacmlexample.c -I. -L. \
+	gcc -g -o xacmlexample xacmlexample.c -I../interface -L. \
             -I/usr/kerberos/include -lgridsite \
             -lssl -lcrypto -lxml2 -lz -lm
 #
@@ -338,6 +344,7 @@ install: apidoc install-lib
                  $(prefix)/share/man/man1 \
                  $(prefix)/share/man/man8 \
                  $(prefix)/lib/httpd/modules \
+                 mod_gridsite_example.c \
                  $(prefix)/share/doc/gridsite-$(MINOR_VERSION)
 	cp -f ../interface/gridsite.h $(prefix)/include
 	cp -f ../interface/gridsite-gacl.h $(prefix)/include
@@ -441,7 +448,7 @@ dist:
 	cp -f ../VERSION ../README ../LICENSE ../CHANGES ../INSTALL \
                  ../dist/gridsite-$(PATCH_VERSION)
 	cp -f Makefile grst*.c htcp.c slashgrid.c slashgrid.init \
-                 urlencode.c findproxyfile.c gaclexample.c mod_gridsite.c \
+                 urlencode.c findproxyfile.c gaclexample.c mod_gridsite*.c \
                  htproxyput.c grst_admin.h mod_ssl-private.h \
                  gsexec.c gsexec.h gridsite-copy.c delegation.h \
                  roffit make-gridsite-spec \

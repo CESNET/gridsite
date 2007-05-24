@@ -43,6 +43,8 @@
 extern char *grst_perm_syms[];
 extern int grst_perm_vals[];
 
+                                  
+
 #include "grst_admin.h"
 
 // CGI GACL Editor interface functions

@@ -1,5 +1,5 @@
 /*
-   Copyright (c) 2003-6, Andrew McNab, Shiv Kaushal, Joseph Dada,
+   Copyright (c) 2003-7, Andrew McNab, Shiv Kaushal, Joseph Dada,
    and Yibiao Li, University of Manchester. All rights reserved.
 
    Redistribution and use in source and binary forms, with or
@@ -216,7 +216,7 @@ char *make_admin_footer(request_rec *r, mod_gridsite_dir_cfg *conf,
 */
 {
     char     *out, *https, *p, *dn = NULL, *file = NULL, *permstr = NULL, 
-             *temp, modified[99], *dir_uri, *grst_cred_0 = NULL;
+             *temp, modified[99], *dir_uri, *grst_cred_auri_0 = NULL;
     GRSTgaclPerm  perm = GRST_PERM_NONE;
     struct tm mtime_tm;
     time_t    mtime_time;
@@ -263,26 +263,16 @@ char *make_admin_footer(request_rec *r, mod_gridsite_dir_cfg *conf,
     out = apr_pstrcat(r->pool, out, "<hr><small>", NULL);
 
     if (r->connection->notes != NULL)
-         grst_cred_0 = (char *) 
-                       apr_table_get(r->connection->notes, "GRST_CRED_0");
-
-    if ((grst_cred_0 != NULL) && 
-        (strncmp(grst_cred_0, "X509USER ", sizeof("X509USER")) == 0))
       {
-         p = index(grst_cred_0, ' ');
-         if (p != NULL)
-           {
-             p = index(++p, ' ');
-             if (p != NULL)
-               {
-                 p = index(++p, ' ');
-                 if (p != NULL)
-                   {
-                     p = index(++p, ' ');
-                     if (p != NULL) dn = p;
-                   }
-               }
-           }
+        grst_cred_auri_0 = (char *) 
+                  apr_table_get(r->connection->notes, "GRST_CRED_AURI_0");
+      }                       
+
+    if ((grst_cred_auri_0 != NULL) && 
+        (strncmp(grst_cred_auri_0, "dn:", 3) == 0))
+      {
+         dn = &grst_cred_auri_0[3];
+         if (dn[0] == '\0') dn = NULL;
       }
   
     if (dn != NULL) 
@@ -779,13 +769,21 @@ int http_gridhttp(request_rec *r, mod_gridsite_dir_cfg *conf)
 
     for (i=0; ; ++i)
        {
-         envname_i = apr_psprintf(r->pool, "GRST_CRED_%d", i);
+         envname_i = apr_psprintf(r->pool, "GRST_CRED_AURI_%d", i);
          if (grst_cred_i = (char *)
                            apr_table_get(r->connection->notes, envname_i))
            {
              apr_file_printf(fp, "%s=%s\n", envname_i, grst_cred_i);
            }
-         else break; /* GRST_CRED_i are numbered consecutively */
+         else break; /* GRST_CRED_AURI_i are numbered consecutively */
+
+         envname_i = apr_psprintf(r->pool, "GRST_CRED_VALID_%d", i);
+         if (grst_cred_i = (char *)
+                           apr_table_get(r->connection->notes, envname_i))
+           {
+             apr_file_printf(fp, "%s=%s\n", envname_i, grst_cred_i);
+           }
+         else break; /* GRST_CRED_VALID_i are numbered consecutively */
        }
 
     if (apr_file_close(fp) != APR_SUCCESS) 
@@ -2161,16 +2159,27 @@ int GRST_load_ssl_creds(SSL *ssl, conn_rec *conn)
    
    while (apr_file_gets(line, sizeof(line), fp) == APR_SUCCESS)
         {
-          if (sscanf(line, "GRST_CRED_%d=", &i) == 1)
+          if (sscanf(line, "GRST_CRED_AURI_%d=", &i) == 1)
             {
+              if ((p = index(line, '\n')) != NULL) *p = '\0';              
               p = index(line, '=');
 
               apr_table_setn(conn->notes,
-                         apr_psprintf(conn->pool, "GRST_CRED_%d", i),
+                         apr_psprintf(conn->pool, "GRST_CRED_AURI_%d", i),
+                         apr_pstrdup(conn->pool, &p[1]));
+            }
+          else if (sscanf(line, "GRST_CRED_VALID_%d=", &i) == 1)
+            {
+              if ((p = index(line, '\n')) != NULL) *p = '\0';              
+              p = index(line, '=');
+
+              apr_table_setn(conn->notes,
+                         apr_psprintf(conn->pool, "GRST_CRED_VALID_%d", i),
                          apr_pstrdup(conn->pool, &p[1]));
             }
           else if (sscanf(line, "GRST_OCSP_URL_%d=", &i) == 1)
             {
+              if ((p = index(line, '\n')) != NULL) *p = '\0';              
               p = index(line, '=');
 
               apr_table_setn(conn->notes,
@@ -2188,25 +2197,23 @@ int GRST_load_ssl_creds(SSL *ssl, conn_rec *conn)
 }
 
 /*
-    Save result of GRSTx509CompactCreds() into connection notes, and
-    write out in an SSL session creds file.
+    Save result of AURIs and validity info from chain into connection notes,
+    and write out in an SSL session creds file.
 */
 
-void GRST_save_ssl_creds(conn_rec *conn, 
-                        STACK_OF(X509) *certstack, X509 *peercert)
+void GRST_save_ssl_creds(conn_rec *conn, GRSTx509Chain *grst_chain)
 {
    int          i, lastcred;
-   const int    maxcreds = 99;
-   const size_t credlen = 1024;
-   char         creds[maxcreds][credlen+1], envname[14], *tempfile = NULL,
+   char         envname[14], *tempfile = NULL,
                *sessionfile, session_id[(SSL_MAX_SSL_SESSION_ID_LENGTH+1)*2];
    apr_file_t  *fp = NULL;
    SSL         *ssl;
    SSLConnRec  *sslconn;
+   GRSTx509Cert  *grst_cert = NULL;
 
    /* check if already done */
 
-   if ((certstack != NULL) && (conn->notes != NULL) &&
+   if ((grst_chain != NULL) && (conn->notes != NULL) &&
        (apr_table_get(conn->notes, "GRST_save_ssl_creds") != NULL)) return;
 
    /* we at least need to say we've been run */
@@ -2234,27 +2241,67 @@ void GRST_save_ssl_creds(conn_rec *conn,
                                APR_CREATE | APR_WRITE | APR_EXCL, conn->pool);
      }
 
-   if (GRSTx509CompactCreds(&lastcred, maxcreds, credlen, (char *) creds,
-                          certstack, GRST_VOMS_DIR, peercert) == GRST_RET_OK)
-     {
-       for (i=0; i <= lastcred; ++i)
+   grst_cert = grst_chain->firstcert;
+   
+   for (i=0; grst_cert != NULL; grst_cert = grst_cert->next)
+      {
+        if (grst_cert->type == GRST_CERT_TYPE_VOMS)
           {
             apr_table_setn(conn->notes,
-                                 apr_psprintf(conn->pool, "GRST_CRED_%d", i),
-                                 apr_pstrdup(conn->pool, creds[i]));
+                   apr_psprintf(conn->pool, "GRST_CRED_AURI_%d", i),
+                   apr_pstrcat(conn->pool, "fqan:", grst_cert->value, NULL));
+
+            if (fp != NULL) apr_file_printf(fp, "GRST_CRED_AURI_%d=fqan:%s\n",
+                                                i, grst_cert->value);
+
+            apr_table_setn(conn->notes,
+                   apr_psprintf(conn->pool, "GRST_CRED_VALID_%d", i),
+                   apr_psprintf(conn->pool, 
+                      "notbefore=%ld notafter=%ld delegation=%d nist-loa=%d", 
+                      grst_cert->notbefore,
+                      grst_cert->notafter, 0, 0));
+
+            if (fp != NULL) apr_file_printf(fp, 
+  "GRST_CRED_VALID_%d=notbefore=%ld notafter=%ld delegation=%d nist-loa=%d\n",
+                                            i, grst_cert->notbefore,
+                                               grst_cert->notafter, 0, 0);
 
             ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, conn->base_server,
-                                      "store GRST_CRED_%d=%s", i, creds[i]);
+                      "store GRST_CRED_AURI_%d=fqan:%s", i, grst_cert->value);
 
-            if (fp != NULL) apr_file_printf(fp, "GRST_CRED_%d=%s\n",
-                                                i, creds[i]);
+            ++i;
           }
-                                   
-       /* free remaining dup'd certs? */
-     }
+        else if ((grst_cert->type == GRST_CERT_TYPE_EEC) ||
+                 (grst_cert->type == GRST_CERT_TYPE_PROXY))
+          {
+            apr_table_setn(conn->notes,
+                   apr_psprintf(conn->pool, "GRST_CRED_AURI_%d", i),
+                   apr_pstrcat(conn->pool, "dn:", grst_cert->dn, NULL));
 
-   /* this needs to be merged into compactcreds in grst_x509? */
+            if (fp != NULL) apr_file_printf(fp, "GRST_CRED_AURI_%d=dn:%s\n",
+                                                i, grst_cert->dn);
 
+            apr_table_setn(conn->notes,
+                   apr_psprintf(conn->pool, "GRST_CRED_VALID_%d", i),
+                   apr_psprintf(conn->pool, 
+                      "notbefore=%ld notafter=%ld delegation=%d nist-loa=%d", 
+                      grst_cert->notbefore,
+                      grst_cert->notafter, 0, 0));
+
+            if (fp != NULL) apr_file_printf(fp, 
+  "GRST_CRED_VALID_%d=notbefore=%ld notafter=%ld delegation=%d nist-loa=%d\n",
+                                            i, grst_cert->notbefore,
+                                               grst_cert->notafter, 0, 0);
+
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, conn->base_server,
+                      "store GRST_CRED_AURI_%d=dn:%s", i, grst_cert->dn);
+
+            ++i;
+          }
+      }
+
+   /* this needs to be merged into grst_x509? */
+#if 0
    if (ocspmodes != NULL)
    {
      int   j;
@@ -2292,7 +2339,7 @@ void GRST_save_ssl_creds(conn_rec *conn,
              }
         }   
    }
-         
+#endif
    /* end of bit that needs to go into grst_x509 */
      
    if (fp != NULL)
@@ -2383,14 +2430,15 @@ static int mod_gridsite_perm_handler(request_rec *r)
     We also publish environment variables here if requested by GridSiteEnv.
 */
 {
-    int          retcode = DECLINED, i, n, file_is_acl = 0,
-                 destination_is_acl = 0, proxylevel, ishttps = 0;
-    char        *dn, *p, envname[14], *grst_cred_0 = NULL, *dir_path, 
-                *remotehost, s[99], *grst_cred_i, *cookies, *file, *https,
+    int          retcode = DECLINED, i, n, file_is_acl = 0, cc_delegation,
+                 destination_is_acl = 0, ishttps = 0, nist_loa, delegation;
+    char        *dn, *p, envname1[30], envname2[30], 
+                *grst_cred_auri_0 = NULL, *dir_path, 
+                *remotehost, s[99], *grst_cred_auri_i, *cookies, *file, *https,
                 *gridauthpasscode = NULL, *cookiefile, oneline[1025], *key_i,
                 *destination = NULL, *destination_uri = NULL, *querytmp, 
                 *destination_prefix = NULL, *destination_translated = NULL,
-                *aclpath = NULL;
+                *aclpath = NULL, *grst_cred_valid_0 = NULL, *grst_cred_valid_i;
     char        *vomsAttribute = NULL, *loa;
     const char  *content_type;
     time_t       now, notbefore, notafter;
@@ -2448,15 +2496,12 @@ static int mod_gridsite_perm_handler(request_rec *r)
                                   
     if (dn != NULL)
       {
-        cred = GRSTgaclCredNew("person");
-        GRSTgaclCredAddValue(cred, "dn", dn);
+        cred = GRSTgaclCredCreate("dn:", dn);
+
+        if (loa != NULL) GRSTgaclCredSetNistLoa(cred, atoi(loa));
+        else GRSTgaclCredSetNistLoa(cred, 2);
+
         user = GRSTgaclUserNew(cred);
-        cred = GRSTgaclCredNew("level");
-
-        if (loa != NULL) GRSTgaclCredAddValue(cred, "nist-loa", loa);
-        else GRSTgaclCredAddValue(cred, "nist-loa", "2");
-
-        GRSTgaclUserAddCred(user, cred);
       }
             
     /* Set up user credential based on VOMS Attribute from Shibboleth? */
@@ -2467,8 +2512,7 @@ static int mod_gridsite_perm_handler(request_rec *r)
         ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server, 
                  "VOMS-Attribute: %s", vomsAttribute);
 
-        cred = GRSTgaclCredNew("voms");
-        GRSTgaclCredAddValue(cred, "fqan", vomsAttribute);
+        cred = GRSTgaclCredCreate("fqan:", vomsAttribute);
         if (user == NULL) user = GRSTgaclUserNew(cred);
         else GRSTgaclUserAddCred(user, cred);
       }
@@ -2492,65 +2536,150 @@ static int mod_gridsite_perm_handler(request_rec *r)
                          "Restored SSL session data from session cache file");
       }
 
-    proxylevel = ((mod_gridsite_dir_cfg *) cfg)->gsiproxylimit + 1;
+    delegation = ((mod_gridsite_dir_cfg *) cfg)->gsiproxylimit + 1;
     
     if ((user == NULL) && 
         (r->connection->notes != NULL) &&
-        ((grst_cred_0 = (char *) 
-            apr_table_get(r->connection->notes, "GRST_CRED_0")) != NULL) &&
-        (sscanf(grst_cred_0, "X509USER %*d %*d %d ", &proxylevel) == 1) &&
-        (proxylevel <= ((mod_gridsite_dir_cfg *) cfg)->gsiproxylimit))
+        ((grst_cred_auri_0 = (char *) 
+         apr_table_get(r->connection->notes, "GRST_CRED_AURI_0")) != NULL) &&
+        (strncmp(grst_cred_auri_0, "dn:", 3) == 0) &&
+        ((grst_cred_valid_0 = (char *) 
+         apr_table_get(r->connection->notes, "GRST_CRED_VALID_0")) != NULL) &&
+        (sscanf(grst_cred_valid_0, 
+                "notbefore=%ld notafter=%ld delegation=%d nist-loa=%d", 
+                &notbefore, &notafter, &delegation, &nist_loa) == 4) &&
+        (delegation <= ((mod_gridsite_dir_cfg *) cfg)->gsiproxylimit))
       {
-        apr_table_setn(env, "GRST_CRED_0", grst_cred_0);
-                                    
-        cred_0 = GRSTx509CompactToCred(grst_cred_0);
+        cred_0 = GRSTgaclCredCreate(grst_cred_auri_0, NULL);
         if (cred_0 != NULL)
           {
             ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                         "Using identity %s from SSL/TLS", grst_cred_0);
+                         "Using identity %s from SSL/TLS", grst_cred_auri_0);
+
+            GRSTgaclCredSetNotBefore( cred_0, notbefore);
+            GRSTgaclCredSetNotAfter(  cred_0, notafter);
+            GRSTgaclCredSetDelegation(cred_0, delegation);
+
+            if (delegation == 0) GRSTgaclCredSetNistLoa(cred_0, 3);
+            else                 GRSTgaclCredSetNistLoa(cred_0, 2);
 
             user = GRSTgaclUserNew(cred_0);
 
-            /* check for VOMS GRST_CRED_i too */
+            /* check for VOMS etc in GRST_CRED_AURI_i too */
   
             for (i=1; ; ++i)
                {
-                 snprintf(envname, sizeof(envname), "GRST_CRED_%d", i);
-                 if (grst_cred_i = (char *) 
-                                   apr_table_get(r->connection->notes,envname))
-                   { 
-                     if (((mod_gridsite_dir_cfg *) cfg)->envs)
-                              apr_table_setn(env,
-                                             apr_pstrdup(r->pool, envname),
-                                             grst_cred_i);
-                                    
-                     if (cred = GRSTx509CompactToCred(grst_cred_i))
-                                        GRSTgaclUserAddCred(user, cred);
-                   }
-                 else break; /* GRST_CRED_i are numbered consecutively */
-               }
+                 snprintf(envname1, sizeof(envname1), "GRST_CRED_AURI_%d", i);
+                 snprintf(envname2, sizeof(envname2), "GRST_CRED_VALID_%d", i);
 
-            cred = GRSTgaclCredNew("level");
-            if (proxylevel == 0) GRSTgaclCredAddValue(cred, "nist-loa", "3");
-            else                 GRSTgaclCredAddValue(cred, "nist-loa", "2");
-            GRSTgaclUserAddCred(user, cred);
+                 if ((grst_cred_auri_i = (char *) 
+                         apr_table_get(r->connection->notes,envname1)) &&
+                     (grst_cred_valid_i = (char *) 
+                         apr_table_get(r->connection->notes,envname2)))
+                   { 
+                     cred = GRSTgaclCredCreate(grst_cred_auri_i, NULL);
+                     if (cred != NULL) 
+                       {
+                         notbefore  = 0;
+                         notafter   = 0;
+                         delegation = 0;
+                         nist_loa   = 0;
+                       
+                         sscanf(grst_cred_valid_i, 
+                       "notbefore=%ld notafter=%ld delegation=%d nist-loa=%d", 
+                                &notbefore, &notafter, &delegation, &nist_loa);
+                        
+                         GRSTgaclCredSetNotBefore( cred, notbefore);
+                         GRSTgaclCredSetNotAfter(  cred, notafter);
+                         GRSTgaclCredSetDelegation(cred, delegation);
+                         GRSTgaclCredSetDelegation(cred, nist_loa);
+
+                         GRSTgaclUserAddCred(user, cred);
+                       }
+                   }
+                 else break; /* GRST_CRED_AURI_i are numbered consecutively */
+               }
           }
       }
 
     if ((user != NULL) && ((mod_gridsite_dir_cfg *) cfg)->dnlists)
-          GRSTgaclUserSetDNlists(user, ((mod_gridsite_dir_cfg *) cfg)->dnlists);
+          GRSTgaclUserLoadDNlists(user, ((mod_gridsite_dir_cfg *) cfg)->dnlists);
 
     /* add DNS credential */
     
     remotehost = (char *) ap_get_remote_host(r->connection,
                                   r->per_dir_config, REMOTE_DOUBLE_REV, NULL);
     if ((remotehost != NULL) && (*remotehost != '\0'))
-      {            
-        cred = GRSTgaclCredNew("dns");
-        GRSTgaclCredAddValue(cred, "hostname", remotehost);
+      {
+        cred = GRSTgaclCredCreate("dns:", remotehost);
 
         if (user == NULL) user = GRSTgaclUserNew(cred);
         else              GRSTgaclUserAddCred(user, cred);
+      }
+
+    /* add IP credential */
+    
+    remotehost = (char *) ap_get_remote_host(r->connection,
+                                  r->per_dir_config, REMOTE_DOUBLE_REV, NULL);
+    if ((remotehost != NULL) && (*remotehost != '\0'))
+      {
+        cred = GRSTgaclCredCreate("ip:", r->connection->remote_ip);
+
+        if (user == NULL) user = GRSTgaclUserNew(cred);
+        else              GRSTgaclUserAddCred(user, cred);
+      }
+
+    /* write contents of user to per-request environment variables */
+
+    if (((mod_gridsite_dir_cfg *) cfg)->envs && (user != NULL))
+      {    
+        cred = user->firstcred;
+        
+        /* old-style Compact Credentials have the same delegation level
+           for all credentials. eg Using EEC delegation=0; using 1st GSI
+           Proxy then delegation=1 for X509USER _and_ GSIPROXY credentials. 
+           So we remember the delegation level of any X509USER here */
+        if (cred != NULL) cc_delegation = cred->delegation;
+      
+        for (i=0; (cred != NULL) && (cred->auri != NULL); ++i)
+             {                                    
+               if (strncmp(cred->auri, "dn:", 3) == 0)
+                 {
+                   apr_table_setn(env, 
+                                  apr_psprintf(r->pool, "GRST_CRED_%d", i),
+                                  apr_psprintf(r->pool, 
+                                               "%s %ld %ld %d %s",
+                                               (i=0) ? "X509USER" : "GSIPROXY",
+                                               cred->notbefore,
+                                               cred->notafter,
+                                               cc_delegation, 
+                                               &(cred->auri[3])));
+                 }
+               else if (strncmp(cred->auri, "fqan:", 5) == 0)
+                 {
+                   apr_table_setn(env, 
+                                  apr_psprintf(r->pool, "GRST_CRED_%d", i),
+                                  apr_psprintf(r->pool, 
+                                                  "VOMS %ld %ld 0 %s",
+                                                  notbefore, notafter, 
+                                                  &(cred->auri[5])));
+                 }
+
+               apr_table_setn(env,
+                              apr_psprintf(r->pool, "GRST_CRED_AURI_%d", i),
+                              apr_pstrdup(r->pool, cred->auri));
+
+               apr_table_setn(env, 
+                              apr_psprintf(r->pool, "GRST_CRED_VALID_%d", i),
+                              apr_psprintf(r->pool,
+                       "notbefore=%ld notafter=%ld delegation=%d nist-loa=%d",
+                                           cred->notbefore,
+                                           cred->notafter,
+                                           cred->delegation,
+                                           cred->nist_loa));
+                 
+               cred = cred->next;
+             }    
       }
 
     /* check for Destination: header and evaluate if present */
@@ -2601,13 +2730,26 @@ static int mod_gridsite_perm_handler(request_rec *r)
           }
       }
     
-    /* this checks for NULL arguments itself */
-    if (GRSTgaclDNlistHasUser(((mod_gridsite_dir_cfg *) cfg)->adminlist, user))
-      {
-        perm = GRST_PERM_ALL;
-        if (destination_translated != NULL) destination_perm = GRST_PERM_ALL;
+    if ((((mod_gridsite_dir_cfg *) cfg)->adminlist != NULL) && (user != NULL))
+      {    
+        cred = user->firstcred;
+      
+        while ((cred != NULL) && (cred->auri != NULL))
+             {
+               if (strcmp(((mod_gridsite_dir_cfg *) cfg)->adminlist,
+                          cred->auri) == 0)
+                 {
+                   perm = GRST_PERM_ALL;
+                   if (destination_translated != NULL) 
+                          destination_perm = GRST_PERM_ALL;
+                   break;
+                 }
+                 
+               cred = cred->next;
+             }    
       }
-    else
+    
+    if (perm != GRST_PERM_ALL) /* cannot improve on perfection... */
       {
         if (((mod_gridsite_dir_cfg *) cfg)->aclpath != NULL)
           {
@@ -2965,11 +3107,12 @@ int GRST_callback_SSLVerify_wrapper(int ok, X509_STORE_CTX *ctx)
    int returned_ok;
    int first_non_ca;
    STACK_OF(X509) *certstack;
+   GRSTx509Chain *grst_chain;
 
    /*
     * GSI Proxy user-cert-as-CA handling:
     * we skip Invalid CA errors at this stage, since we will check this
-    * again at errdepth=0 for the full chain using GRSTx509CheckChain
+    * again at errdepth=0 for the full chain using GRSTx509ChainLoadCheck
     */
    if (errnum == X509_V_ERR_INVALID_CA)
      {
@@ -3017,7 +3160,11 @@ int GRST_callback_SSLVerify_wrapper(int ok, X509_STORE_CTX *ctx)
     * CAs or, failing that, GSI-proxy validity using GRSTx509CheckChain.
     */
      {
-        errnum = GRSTx509CheckChain(&first_non_ca, ctx);
+        certstack = (STACK_OF(X509) *) X509_STORE_CTX_get_chain(ctx);
+
+        errnum = GRSTx509ChainLoadCheck(&grst_chain, certstack, NULL,
+                                        "/etc/grid-security/certificates", 
+                                        "/etc/grid-security/vomsdir");
 
         if (errnum != X509_V_OK)
           {
@@ -3031,13 +3178,13 @@ int GRST_callback_SSLVerify_wrapper(int ok, X509_STORE_CTX *ctx)
         else 
           {
             ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, "Valid certificate"
-                                   " chain reported by GRSTx509CheckChain()");
+                              " chain reported by GRSTx509ChainLoadCheck()");
 
-            /* Put result of GRSTx509CompactCreds() into connection notes */
-            if ((certstack = 
-                  (STACK_OF(X509) *) X509_STORE_CTX_get_chain(ctx)) != NULL)
-             GRST_save_ssl_creds(conn, certstack, NULL);
+            /* Put result of GRSTx509ChainLoadCheck into connection notes */
+            GRST_save_ssl_creds(conn, grst_chain);
           }
+          
+        GRSTx509ChainFree(grst_chain);
      }
 
    return returned_ok;
@@ -3451,6 +3598,23 @@ static int mod_gridsite_server_post_config(apr_pool_t *pPool,
 
    return OK;
 }
+
+static server_rec *mod_gridsite_log_func_server;
+static void mod_gridsite_log_func(char *file, int line, int level,
+                                                    char *fmt, ...)
+{
+   char *mesg;
+   va_list ap;
+
+   va_start(ap, fmt);
+   vasprintf(&mesg, fmt, ap);
+   va_end(ap);
+
+   ap_log_error(file, line, level, 
+                0, mod_gridsite_log_func_server, "%s", mesg);
+   
+   free(mesg);
+}
       
 static void mod_gridsite_child_init(apr_pool_t *pPool, server_rec *pServer)
 {
@@ -3461,6 +3625,8 @@ static void mod_gridsite_child_init(apr_pool_t *pPool, server_rec *pServer)
    SSLSrvConfigRec *sc = ap_get_module_config(pServer->module_config, 
                                                         &ssl_module);          
    GRSTgaclInit();
+   mod_gridsite_log_func_server = pServer;
+   GRSTerrorLogFunc = mod_gridsite_log_func;
 
    /* expire old ssl creds files */
                                     
@@ -3552,7 +3718,7 @@ static void register_hooks(apr_pool_t *p)
 
     ap_hook_fixups(mod_gridsite_first_fixups,NULL,NULL,APR_HOOK_FIRST);
     
-    ap_hook_fixups(mod_gridsite_perm_handler,NULL,NULL,APR_HOOK_REALLY_LAST);
+    ap_hook_fixups(mod_gridsite_perm_handler,NULL,NULL,APR_HOOK_LAST);
     
     ap_hook_handler(mod_gridsite_handler, NULL, NULL, APR_HOOK_FIRST);    
     

@@ -1,5 +1,5 @@
 /*
-   Copyright (c) 2002-3, Andrew McNab, University of Manchester
+   Copyright (c) 2002-7, Andrew McNab, University of Manchester
    All rights reserved.
 
    Redistribution and use in source and binary forms, with or
@@ -61,9 +61,7 @@ int main()
 
   /* build up an ACL, starting with a credential */
 
-  cred = GRSTgaclCredNew("person");
-
-  GRSTgaclCredAddValue(cred, "dn", "/O=Grid/CN=Mr Grid Person");
+  cred = GRSTgaclCredCreate("dn:", "/O=Grid/CN=Mr Grid Person");
   
   /* create an entry to put it in */ 
    
@@ -75,11 +73,10 @@ int main()
 
   /* add another credential */
   
-  cred = GRSTgaclCredNew("dn-list");
-  GRSTgaclCredAddValue(cred, "url", "example-dn-list");
+  cred = GRSTgaclCredCreate("https://example-dn-list", NULL); /* DN List */
   GRSTgaclEntryAddCred(entry, cred);
 
-  fp = fopen("example-dn-list", "w");
+  fp = fopen("https%3A%2F%2Fexample-dn-list", "w");
   fputs("/O=Grid/CN=Mr Grid Person\n", fp);
   fclose(fp);  
  
@@ -93,7 +90,7 @@ int main()
 
   perm0 = GRST_PERM_READ | GRST_PERM_WRITE;
   
-  printf("test perm should be %d\n", perm0);
+  printf("\n**** perm should be %d in the following tests! ****\n\n", perm0);
 
   /* create a new ACL and add the entry to it */
   
@@ -103,9 +100,10 @@ int main()
 
   /* create a GRSTgaclUser to compare with the ACL */
 
-  usercred = GRSTgaclCredNew("person");
-  
+  /* old style cred creation: use GRSTgaclCredCreate as above now */
+  usercred = GRSTgaclCredNew("person"); 
   GRSTgaclCredAddValue(usercred, "dn", "/O=Grid/CN=Mr Grid Person");
+  /* end of old style cred creation */
    
   user = GRSTgaclUserNew(usercred);
   
@@ -116,7 +114,7 @@ int main()
     
   perm1 = GRSTgaclAclTestUser(acl1, user);
 
-  printf("test /O=Grid/CN=Mr Grid Person in acl = %d\n", perm1);
+  printf("test /O=Grid/CN=Mr Grid Person in acl, perm = %d\n", perm1);
 
   /* print and save the whole ACL */
 
@@ -138,7 +136,7 @@ int main()
 
   perm2 = GRSTgaclAclTestUser(acl2, user);
 
-  printf("test /O=Grid/CN=Mr Grid Person in acl = %d\n", perm2);
+  printf("test /O=Grid/CN=Mr Grid Person in acl, perm = %d\n", perm2);
 
   if (perm1 != perm0) return 1;
   if (perm2 != perm0) return 2;

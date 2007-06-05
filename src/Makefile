@@ -60,7 +60,7 @@ endif
 
 build: apidoc build-lib \
        htcp gridsite-copy.cgi mod_gridsite.so \
-       urlencode findproxyfile gsexec # real-gridsite-admin.cgi
+       urlencode findproxyfile gsexec real-gridsite-admin.cgi
 
 build-lib: libgridsite_globus.so.$(VERSION) libgridsite_globus.a \
            libgridsite.so.$(VERSION) libgridsite.a 
@@ -344,7 +344,6 @@ install: apidoc install-lib
                  $(prefix)/share/man/man1 \
                  $(prefix)/share/man/man8 \
                  $(prefix)/lib/httpd/modules \
-                 mod_gridsite_example.c \
                  $(prefix)/share/doc/gridsite-$(MINOR_VERSION)
 	cp -f ../interface/gridsite.h $(prefix)/include
 	cp -f ../interface/gridsite-gacl.h $(prefix)/include
@@ -355,6 +354,7 @@ install: apidoc install-lib
 	cp -f ../CHANGES ../README ../INSTALL ../LICENSE ../VERSION \
                $(prefix)/share/doc/gridsite-$(MINOR_VERSION)
 	cp -f ../doc/index.html ../doc/*.conf ../doc/*.sh ../doc/*.spec \
+              mod_gridsite_example.c \
                $(prefix)/share/doc/gridsite-$(MINOR_VERSION)
 	for i in htcp.1 htfind.1 htll.1 htls.1 htmkdir.1 htmv.1 htping.1 \
 	 htrm.1 urlencode.1 findproxyfile.1 ; do \

@@ -795,7 +795,7 @@ size_t read_data_callback(void *ptr, size_t size, size_t nmemb, void *data)
   return sent;
 }
 
-char *canonicalise(char *link, char *source)
+static char *canonicalise(char *link, char *source)
 {
   int   i, j, srclen;
   char *s;
@@ -891,7 +891,7 @@ struct grst_dir_list *index_to_dir_list(char *text, char *source)
            if ((taglevel == 1) && (list[used].filename != NULL))
              {
                ++used;
-               if (used >= allocated) 
+               if (used + 1 >= allocated) /* always room for terminal NULL */
                  {
                    allocated += 256;
                    list = (struct grst_dir_list *)
@@ -993,6 +993,12 @@ struct grst_dir_list *index_to_dir_list(char *text, char *source)
          
        wordnew = 0;
      }  
+     
+  if (list[used].filename != NULL)
+    {
+      ++used;
+      list[used].filename = NULL; /* used+1>=allocated above allows this */
+    }
 
   qsort((void *) list, used, sizeof(struct grst_dir_list), grst_dir_list_cmp);
 
@@ -1065,8 +1071,7 @@ GRSTgaclPerm get_gaclPerm(struct fuse_context *fuse_ctx, char *path)
   
   if (dn != NULL)
     {
-      cred = GRSTgaclCredNew("person");
-      GRSTgaclCredAddValue(cred, "dn", dn);
+      cred = GRSTgaclCredCreate("dn:", dn);
       user = GRSTgaclUserNew(cred);
       free(dn);
     }   
@@ -1375,7 +1380,7 @@ static int slashgrid_readdir(const char *path, void *buf,
                 if (debugmode) syslog(LOG_DEBUG, 
                          "in slashgrid_readdir, list[%d].filename=%s",
                          i, list[i].filename);
-              
+
                 if (strncmp(list[i].filename, "mailto:", 7) == 0) continue;
 
                 len = strlen(list[i].filename);
@@ -2488,5 +2493,6 @@ int main(int argc, char *argv[])
  
   ret = fuse_main(fuse_argc, fuse_argv, &slashgrid_oper);
 
+  syslog(LOG_ERR, "fuse_main() returns and SlashGrid exits! (%d)", ret);
   return ret;
 }

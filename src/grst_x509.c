@@ -1129,9 +1129,8 @@ GRSTgaclCred *GRSTx509CompactToCred(char *grst_cred)
             && (p = index(++p, ' '))
             && (p = index(++p, ' ')))
          {
-           cred = GRSTgaclCredNew("person");
+           cred = GRSTgaclCredCreate("dn:", &p[1]);
            GRSTgaclCredSetDelegation(cred, delegation);
-           GRSTgaclCredAddValue(cred, "dn", &p[1]);
          }
 
        return cred;
@@ -1152,9 +1151,8 @@ GRSTgaclCred *GRSTx509CompactToCred(char *grst_cred)
 
            if (p[1] != '/') return NULL; /* must begin with / */
 
-           cred = GRSTgaclCredNew("voms");
+           cred = GRSTgaclCredCreate("fqan:", &p[1]);
            GRSTgaclCredSetDelegation(cred, delegation);
-           GRSTgaclCredAddValue(cred, "fqan", &p[1]);
          }
 
        return cred;

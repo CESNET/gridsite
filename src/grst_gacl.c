@@ -298,12 +298,12 @@ int GRSTgaclEntryDelCred(GRSTgaclEntry *entry, GRSTgaclCred *cred)
 
 int GRSTgaclCredPrint(GRSTgaclCred *cred, FILE *fp)
 /* 
-   GRSTgaclCredPrint - print a credential and any name-value pairs is contains
+   GRSTgaclCredPrint - print a credential and the AURI value it contains
 */
 {
-  char              *q;
+  char *q;
 
-  if (cred->auri != NULL)
+  if ((cred->auri != NULL) && (cred->auri[0] != '\0'))
     {
       fprintf(fp, "<cred>\n<auri>");
 
@@ -324,9 +324,11 @@ int GRSTgaclCredPrint(GRSTgaclCred *cred, FILE *fp)
             fprintf(fp, "<delegation>%d</delegation>\n", cred->delegation);
       
       fprintf(fp, "</cred>\n");
+
+      return 1;
     }
-  
-  return 1;  
+    
+  return 0;  
 }
 
 /*                                              *
@@ -644,7 +646,7 @@ static GRSTgaclCred *GRSTgaclCredParse(xmlNodePtr cur)
   
   /* backwards compatibility */
 
-  cred = GRSTgaclCredNew((char *) cur->name); 
+  cred = GRSTgaclCredNew((char *) cur->name);
   
   for (cur2 = cur->xmlChildrenNode; cur2 != NULL; cur2=cur2->next)
      {
@@ -995,13 +997,14 @@ int GRSTgaclUserHasCred(GRSTgaclUser *user, GRSTgaclCred *cred)
       return 0;    
     }
 
+/*
 // can remove this once we preload DN Lists etc as AURIs?
   if ((strncmp(cred->auri, "http:",  5) == 0) ||
       (strncmp(cred->auri, "https:", 6) == 0))
     {      
       return GRSTgaclDNlistHasUser(cred->auri, user);
     }
-
+*/
   /* generic AURI = AURI test */
 
   for (crediter=user->firstcred; crediter != NULL; crediter = crediter->next)
@@ -1194,6 +1197,7 @@ int GRSTgaclUserLoadDNlists(GRSTgaclUser *user, char *dnlists)
  * Functions to test for access perm of an individual  *
  *                                                     */
 
+#if 0
 static char *recurse4file(char *dir, char *file, int recurse_level)
 /* try to find file[] in dir[]. try subdirs if not found. 
    return full path to first found version or NULL on failure */
@@ -1239,62 +1243,23 @@ static char *recurse4file(char *dir, char *file, int recurse_level)
 
   return NULL;
 }
+#endif
 
 int GRSTgaclDNlistHasUser(char *listurl, GRSTgaclUser *user)
 {
-  char *dn_lists_dirs, *dn_list_ptr, *enclisturl, *filename, *dirname,
-        line[512], *p;
-  FILE *fp;
-  GRSTgaclCred  *cred;
+  return GRSTgaclUserHasAURI(user, listurl);
+}
+
+int GRSTgaclUserHasAURI(GRSTgaclUser *user, char *auri)
+{
+  GRSTgaclCred *cred;
     
-  if ((listurl == NULL) || (user == NULL)) return 0;
-
-  enclisturl = GRSThttpUrlEncode(listurl);
-
-  if (user->dnlists != NULL) p = user->dnlists;
-  else p = getenv("GRST_DN_LISTS");
-
-  if (p == NULL) p = GRST_DN_LISTS;
-  dn_lists_dirs = strdup(p);     /* we need to keep this for free() later! */
-  dn_list_ptr   = dn_lists_dirs; /* copy, for naughty function strsep()    */
-
-  while ((dirname = strsep(&dn_list_ptr, ":")) != NULL)
-       {    
-         filename = recurse4file(dirname, enclisturl, 0);
-         if (filename == NULL) continue;
+  if ((auri == NULL) || (user == NULL)) return 0;
   
-         fp = fopen(filename, "r");
-         free(filename);
-  
-         if (fp == NULL) continue;
-
-         while (fgets(line, sizeof(line), fp) != NULL)
-              {
-                p = index(line, '\n');
-                if (p != NULL) *p = '\0';
-
-                cred = user->firstcred;
-         
-                while (cred != NULL)                  
-                     {
-                       if ((strncmp(cred->auri, "dn:", 3) == 0) &&
-                           (GRSTx509NameCmp(line, &(cred->auri[3])) == 0))
-                         {
-                           fclose(fp);
-                           free(dn_lists_dirs);
-                           free(enclisturl);
-                           return 1;
-                         }
-                  
-                       cred = cred->next;
-                     }
-              }
-       
-         fclose(fp);
-       }
-
-  free(dn_lists_dirs);
-  free(enclisturl);
+  for (cred = user->firstcred; cred != NULL; cred = cred->next)
+     {
+       if (strcmp(auri, cred->auri) == 0) return 1;
+     }
 
   return 0;
 }

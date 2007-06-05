@@ -195,10 +195,10 @@ void justfooter(char *dn, GRSTgaclPerm perm, char *help_uri, char *dir_path,
 
 int main()
 {
-  int           i, gsiproxylimit_i = 1;
+  int           i, gsiproxylimit_i = 1, delegation = 0;
   char         *cmd, *dir_uri, *file, *dir_path, *admin_file, *dn = NULL,
                *help_uri, *p, *content_type, *request_uri, *button, 
-               *grst_cred_0, *gsiproxylimit, *dn_lists, buf[12];
+               *grst_auri_i, *grst_valid_i, *gsiproxylimit, buf[12];
   GRSTgaclCred *cred;
   GRSTgaclUser *user = NULL;
   GRSTgaclAcl  *acl;
@@ -219,56 +219,54 @@ int main()
 
   GRSTgaclInit();
 
-  grst_cred_0 = getenv("GRST_CRED_0");
-  
-  if ((grst_cred_0 != NULL) && (cred = GRSTx509CompactToCred(grst_cred_0)))
-    {
-      gsiproxylimit = getenv("REDIRECT_GRST_GSIPROXY_LIMIT");
-      if (gsiproxylimit != NULL) sscanf(gsiproxylimit, "%d", &gsiproxylimit_i);
+  gsiproxylimit = getenv("REDIRECT_GRST_GSIPROXY_LIMIT");
+  if (gsiproxylimit != NULL) sscanf(gsiproxylimit, "%d", &gsiproxylimit_i);
 
-      if (GRSTgaclCredGetDelegation(cred) <= gsiproxylimit_i)
-        {
+  grst_auri_i  = getenv("GRST_CRED_AURI_0");
+  grst_valid_i = getenv("GRST_CRED_VALID_0");
+  
+  if ((grst_auri_i != NULL) && (strncmp(grst_auri_i, "dn:", 3) == 0))  
+    {
+      dn = &grst_auri_i[3];
+    
+      sscanf(grst_valid_i, 
+         "notbefore=%*ld notafter=%*ld delegation=%d nist-loa=%*d",
+         &delegation);
+      
+      if (delegation <= gsiproxylimit_i)
+        {    
+          cred = GRSTgaclCredCreate(grst_auri_i, NULL);
           user = GRSTgaclUserNew(cred);
 
-          if ((p = index(grst_cred_0, ' ')) &&
-              (p = index(++p, ' ')) &&
-              (p = index(++p, ' ')) &&
-              (p = index(++p, ' '))) dn = &p[1];
+          /* User has a cert so check for VOMS attributes etc */
+          for (i=1; ; i++)
+             {
+               sprintf (buf, "GRST_CRED_%d", i);
+
+  	       grst_auri_i = getenv(buf);
+	       if (grst_auri_i == NULL) break;
+ 	       
+               cred = GRSTgaclCredCreate(grst_auri_i, NULL);
+               GRSTgaclUserAddCred(user, cred);
+             }
+
+          /* no more VOMS attributes etc found */
         }
-	      /* User has a cert so check for voms attributes */
-      for(i=1; ; i++)
-        {
-	   sprintf (buf, "GRST_CRED_%d", i);
-
-
-	   grst_cred_0 = getenv(buf);
-	   if (grst_cred_0==NULL) break;
-
-           if (cred=GRSTx509CompactToCred(grst_cred_0))
-                     GRSTgaclUserAddCred(user, cred);
-        }
-      /* no more voms attributes found found */
     }
   else if ((dn = getenv("SSL_CLIENT_S_DN")) != NULL)
     {
-      cred = GRSTgaclCredNew("person");
-      GRSTgaclCredAddValue(cred, "dn", dn);
+      cred = GRSTgaclCredCreate("dn:", dn);
       user = GRSTgaclUserNew(cred);
     }
 
-  dn_lists = getenv("REDIRECT_GRST_DN_LISTS");
-  if (dn_lists == NULL) dn_lists = getenv("GRST_DN_LISTS");
-  if (dn_lists != NULL) GRSTgaclUserSetDNlists(user, dn_lists);
-
-  if (GRSTgaclDNlistHasUser(getenv("REDIRECT_GRST_ADMIN_LIST"), 
-                            user)) perm = GRST_PERM_ALL;
+  if (GRSTgaclUserHasAURI(user, getenv("REDIRECT_GRST_ADMIN_LIST")))
+    perm = GRST_PERM_ALL;
   else
     {
       p = getenv("REMOTE_HOST");
       if (p != NULL)
         {
-          cred = GRSTgaclCredNew("dns");
-          GRSTgaclCredAddValue(cred, "hostname", p);
+          cred = GRSTgaclCredCreate("dns:", p);
   
           if (user == NULL) user = GRSTgaclUserNew(cred);
           else              GRSTgaclUserAddCred(user, cred);

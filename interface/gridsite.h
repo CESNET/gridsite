@@ -327,6 +327,8 @@ GRSTgaclCred *GRSTgaclUserFindCredtype(GRSTgaclUser *, char *);
 __attribute__ ((deprecated))
 int GRSTgaclDNlistHasUser(char *, GRSTgaclUser *);
 
+int GRSTgaclUserHasAURI(GRSTgaclUser *, char *);
+
 /*  #define GACLtestUserAcl(x,y)	GRSTgaclAclTestUser((x),(y)) */
 GRSTgaclPerm   GRSTgaclAclTestUser(GRSTgaclAcl *, GRSTgaclUser *);
 

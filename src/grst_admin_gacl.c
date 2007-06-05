@@ -1,6 +1,6 @@
 /*
-  Copyright (c) 2003-5, Shiv Kaushal, University of Manchester
-  All rights reserved.
+  Copyright (c) 2003-7, Shiv Kaushal and Andrew McNab, 
+  University of Manchester. All rights reserved.
 
   Redistribution and use in source and binary forms, with or
   without modification, are permitted provided that the following
@@ -66,7 +66,7 @@ void StartHTML(GRSThttpBody *bp, char *dir_uri, char* dir_path);
 void StartForm(GRSThttpBody *bp, char* dir_uri, char* dir_path, char* admin_file, int timestamp, char* target_function);
 void EndForm(GRSThttpBody *bp);
 void GRSTgaclCredTableStart(GRSThttpBody *bp);
-void GRSTgaclCredTableAdd(GRSTgaclUser *user, GRSTgaclEntry *entry, GRSTgaclCred *cred, GRSTgaclNamevalue *namevalue, int cred_no, int entry_no, int admin, int timestamp, GRSThttpBody *bp, char *dn, GRSTgaclPerm perm, char *help_uri, char *dir_path, char *file, char *dir_uri, char *admin_file);
+void GRSTgaclCredTableAdd(GRSTgaclUser *user, GRSTgaclEntry *entry, GRSTgaclCred *cred, int cred_no, int entry_no, int admin, int timestamp, GRSThttpBody *bp, char *dn, GRSTgaclPerm perm, char *help_uri, char *dir_path, char *file, char *dir_uri, char *admin_file);
 void GRSTgaclCredTableEnd(GRSTgaclEntry* entry, int entry_no, int admin, int timestamp, GRSThttpBody *bp, char *dn, GRSTgaclPerm perm, char *help_uri, char *dir_path, char *file, char *dir_uri, char *admin_file);
 
 // ACL Manipulation functions
@@ -90,7 +90,6 @@ void show_acl(int admin, GRSTgaclUser *user, char *dn, GRSTgaclPerm perm, char *
   GRSTgaclAcl *acl;
   GRSTgaclEntry *entry;
   GRSTgaclCred *cred;
-  GRSTgaclNamevalue *namevalue;
   int entry_no, cred_no, allow, deny,timestamp;
   GRSThttpBody bp;
   char* AclFilename;
@@ -154,8 +153,7 @@ void show_acl(int admin, GRSTgaclUser *user, char *dn, GRSTgaclPerm perm, char *
     cred=entry->firstcred;
     cred_no=1;
     while (cred!=NULL){
-      namevalue=cred->firstname;
-      GRSTgaclCredTableAdd(user, entry, cred, namevalue, cred_no, entry_no, admin, timestamp, &bp, dn, perm, help_uri, dir_path, file, dir_uri, admin_file);
+      GRSTgaclCredTableAdd(user, entry, cred, cred_no, entry_no, admin, timestamp, &bp, dn, perm, help_uri, dir_path, file, dir_uri, admin_file);
       // Change to next credential
       cred=cred->next;
       cred_no++;
@@ -169,7 +167,7 @@ void show_acl(int admin, GRSTgaclUser *user, char *dn, GRSTgaclPerm perm, char *
 
   if (!admin && GRSTgaclPermHasAdmin(perm) && !history_mode) //Print a link for admin mode, if not in admin mode but the user has admin permissions
     GRSThttpPrintf (&bp,"<a href=\"%s%s?cmd=admin_acl&diruri=%s&timestamp=%d\">Admin&nbsp;Mode</a>",  dir_uri, admin_file, dir_uri, timestamp );
-  if (history_mode==1 && GRSTgaclDNlistHasUser(getenv("REDIRECT_GRST_ADMIN_LIST"), user)){
+  if (history_mode==1 && GRSTgaclUserHasAURI(user, getenv("REDIRECT_GRST_ADMIN_LIST"))){
     StartForm(&bp, dir_uri, dir_path, admin_file, timestamp, "revert_acl");
 //GRSThttpPrintf (&bp,"<a href=\"%s%s?cmd=revert_acl&diruri=%s&timestamp=%d&file=%s\">Revert to this Version</a>",  dir_uri, admin_file, dir_uri, timestamp, file );
     GRSThttpPrintf (&bp, "<input type=\"hidden\" name=\"file\" value=\"%s\">\n", file);
@@ -188,8 +186,6 @@ void new_entry_form(GRSTgaclUser *user, char *dn, GRSTgaclPerm perm,char *help_u
   int timestamp=atol(GRSThttpGetCGI("timestamp"));
   GRSTgaclCred* cred;
   GRSTgaclEntry *entry;
-  GRSTgaclNamevalue* namevalue;
-
 
   if (!GRSTgaclPermHasAdmin(perm)) GRSThttpError ("403 Forbidden");
   entry = GRSTgaclEntryNew(); 
@@ -198,7 +194,7 @@ void new_entry_form(GRSTgaclUser *user, char *dn, GRSTgaclPerm perm,char *help_u
   GRSThttpPrintf (&bp, "<font size=\"4\"><b>NEW ENTRY IN ACL FOR %s </b></font></p>\n", dir_uri);
 
   GRSTgaclCredTableStart(&bp);
-  GRSTgaclCredTableAdd(user, entry,cred, namevalue, 0, 0, 0, timestamp, &bp, dn, perm, help_uri, dir_path, file, dir_uri, admin_file);
+  GRSTgaclCredTableAdd(user, entry,cred, 0, 0, 0, timestamp, &bp, dn, perm, help_uri, dir_path, file, dir_uri, admin_file);
   GRSTgaclCredTableEnd (entry, 0, 0, timestamp, &bp, dn, perm, help_uri, dir_path, file, dir_uri, admin_file);
 
   /*Submit and reset buttons -  submit button sends the data in the form back to the script & new_entry() to be called*/
@@ -212,30 +208,29 @@ void new_entry(GRSTgaclUser *user, char *dn, GRSTgaclPerm perm, char *help_uri, 
   GRSTgaclAcl *acl;
   GRSTgaclEntry *entry;
   GRSTgaclCred *cred;
-  char *type, *value;
+  char *cred_auri_1, *p;
   GRSThttpBody bp;
   if (!GRSTgaclPermHasAdmin(perm)) GRSThttpError ("403 Forbidden");
 
   // Get new credential info and perform checks
-  type=GRSThttpGetCGI("type");
-  value=GRSThttpGetCGI("cred0_value");
+  cred_auri_1=GRSThttpGetCGI("cred_auri_1");
 
-  if (strcmp(type, "not_chosen")==0){
-    GRSThttpError ("500 Invalid input - credential type not chosen");
-    return;
-  }
+  /* check AURI for scheme:path form */
+
+  for (p=cred_auri_1; *p != '\0'; ++p) if (!isalnum(*p) && (*p != '-') && (*p != '_')) break;
+
+  if ((p == cred_auri_1) || (*p != ':'))
+    {
+        StartHTML(&bp, dir_uri, dir_path);
+        GRSThttpPrintf (&bp, "ERROR: CANNOT SAVE CHANGES\n\n<p>Attribute URIs must take the form scheme:path"
+        "<p>For example dn:/DC=com/DC=example/CN=name or "
+        "fqan:/voname/groupname or https://host.name/listname or dns:host.name.pattern or ip:ip.number.pattern\n<p>\n");
+        admin_continue(dn, perm, help_uri, dir_path, file, dir_uri, admin_file, &bp);
+        return;
+    }
 
   // Create the credential
-  cred=GRSTgaclCredNew(type);
-  if (strcmp(type, "person")==0) GRSTgaclCredAddValue(cred,"dn", value);
-  else if (strcmp(type, "dn-list")==0) GRSTgaclCredAddValue(cred, "url", value);
-  else if (strcmp(type, "voms")==0) GRSTgaclCredAddValue(cred, "fqan", value);
-  else if (strcmp(type, "dns")==0) GRSTgaclCredAddValue(cred, "hostname", value);
-  else if (strcmp(type, "any-user")==0) {} // namevalue not entered for any-user credential
-  else{
-    GRSThttpError ("500 Invalid input - credential type not valid");
-    return;
-  }
+  cred=GRSTgaclCredCreate(cred_auri_1, NULL);
 
   // Create and empty entry, add the credential and get permissions
   entry = GRSTgaclEntryNew();
@@ -297,8 +292,6 @@ void edit_entry_form(GRSTgaclUser *user, char *dn, GRSTgaclPerm perm, char *help
   GRSTgaclAcl *acl;
   GRSTgaclEntry *entry;
   GRSTgaclCred *cred;
-  GRSTgaclNamevalue *namevalue;
-  //  struct _GACLnamevalue *namevalue;
   GRSThttpBody bp;
 
   if (!GRSTgaclPermHasAdmin(perm)) GRSThttpError ("403 Forbidden");
@@ -327,13 +320,13 @@ void edit_entry_form(GRSTgaclUser *user, char *dn, GRSTgaclPerm perm, char *help
 
   while (cred!=NULL){
     // Start with the first namevalue in the credential
-    namevalue=cred->firstname;
-    GRSTgaclCredTableAdd(user, entry, cred, namevalue, cred_no, entry_no, admin, timestamp, &bp, dn, perm, help_uri, dir_path, file, dir_uri, admin_file);
+    GRSTgaclCredTableAdd(user, entry, cred, cred_no, entry_no, admin, timestamp, &bp, dn, perm, help_uri, dir_path, file, dir_uri, admin_file);
     // Change to next credential
     cred=cred->next;
     cred_no++;
   }
   GRSTgaclCredTableEnd (entry, entry_no, admin, timestamp, &bp, dn, perm, help_uri, dir_path, file, dir_uri, admin_file);
+  GRSThttpPrintf (&bp, "<input type=\"hidden\" name=\"last_cred_no\" value=\"%d\">\n", cred_no-1);
   EndForm(&bp);
 
   admin_continue(dn, perm, help_uri, dir_path, file, dir_uri, admin_file, &bp);
@@ -343,12 +336,11 @@ void edit_entry_form(GRSTgaclUser *user, char *dn, GRSTgaclPerm perm, char *help
 
 void edit_entry(GRSTgaclUser *user, char *dn, GRSTgaclPerm perm, char *help_uri, char *dir_path, char *file, char *dir_uri, char *admin_file){
   //Processes the information entered into the form from edit_entry_form() and updates the entry corresponding to entry_no*/
-  int entry_no, cred_no, i;
+  int entry_no, cred_no, i, last_cred_no;
   GRSTgaclAcl *acl;
   GRSTgaclEntry *entry;
   GRSTgaclCred *cred;
-  GRSTgaclNamevalue *namevalue;
-  char variable[30];
+  char variable[30], *cred_auri_i, *p;
   GRSThttpBody bp;
 
   if (!GRSTgaclPermHasAdmin(perm)) GRSThttpError ("403 Forbidden");
@@ -357,28 +349,62 @@ void edit_entry(GRSTgaclUser *user, char *dn, GRSTgaclPerm perm, char *help_uri,
   acl = GRSTgaclAclLoadFile(GRSTgaclFileFindAclname(dir_path));
 
   // Get pointer to the entry and perform checks
-  entry_no=atol(GRSThttpGetCGI("entry_no"));
-  entry = GACLreturnEntry(acl, entry_no);
+  entry_no     = atol(GRSThttpGetCGI("entry_no"));
+  entry        = GACLreturnEntry(acl, entry_no);
+  last_cred_no = atol(GRSThttpGetCGI("entry_no"));
+
   if(entry==NULL || entry_no<1 || entry_no>GACLentriesInAcl(acl) ){
     GRSThttpError ("500 Unable to read from ACL file");
     return;
   }
 
-  // Start with the first credential and update each one
-  cred=entry->firstcred;
-  cred_no=1;
+  // Reset the first credential and add in each one as they are found
+  entry->firstcred = NULL;
+  cred_no = 1;
 
-  while (cred!=NULL){
-   if (strcmp(cred->type, "any-user")!=0){
-      namevalue=cred->firstname;
-      sprintf(variable, "cred%d_value", cred_no);
-      namevalue->value=GRSThttpGetCGI(variable);
-   }
-    //Change to next credential*/
-    cred=cred->next;
-    cred_no++;
-  }
+  for (cred_no = 1; cred_no <= last_cred_no; ++cred_no)
+       {
+         sprintf(variable, "cred_auri_%d", cred_no);
+         cred_auri_i = GRSThttpGetCGI(variable);
+         
+         if (cred_auri_i[0] != '\0')
+           {
+             /* check AURI for scheme:path form */
 
+             for (p=cred_auri_i; *p != '\0'; ++p) if (!isalnum(*p) && (*p != '-') && (*p != '_')) break;
+
+             if ((p == cred_auri_i) || (*p != ':'))
+               {
+                 StartHTML(&bp, dir_uri, dir_path);
+                 GRSThttpPrintf (&bp, "ERROR: CANNOT SAVE CHANGES\n\n<p>Attribute URIs must take the form scheme:path"
+                 "<p>For example dn:/DC=com/DC=example/CN=name or "
+                 "fqan:/voname/groupname or https://host.name/listname or dns:host.name.pattern or ip:ip.number.pattern\n<p>\n");
+                 admin_continue(dn, perm, help_uri, dir_path, file, dir_uri, admin_file, &bp);
+                 return;
+               }
+
+             if (entry->firstcred == NULL)
+               {
+                 entry->firstcred = GRSTgaclCredCreate(cred_auri_i, NULL);
+                 cred = entry->firstcred;
+               }
+             else
+               {
+                 cred->next = GRSTgaclCredCreate(cred_auri_i, NULL);
+                 cred = cred->next;
+               }
+           }
+       }
+
+  if (entry->firstcred == NULL)
+    {
+      StartHTML(&bp, dir_uri, dir_path);
+      GRSThttpPrintf (&bp, "ERROR: CANNOT SAVE CHANGES\n\n<p>Each entry must include at least one valid credential (Attribute URI)\n<p>\n");
+     admin_continue(dn, perm, help_uri, dir_path, file, dir_uri, admin_file, &bp);
+     return;    
+    }
+    
+  
   // Update permissions
   GACLeditGetPerms(entry);
   check_acl_save(dn, perm, help_uri, dir_path, file, dir_uri, admin_file, user, acl, &bp);
@@ -393,7 +419,6 @@ void add_cred_form(GRSTgaclUser *user, char *dn, GRSTgaclPerm perm, char *help_u
   GRSTgaclAcl *acl;
   GRSTgaclEntry* entry;
   GRSTgaclCred* cred;
-  GRSTgaclNamevalue* namevalue;
   
   if (!GRSTgaclPermHasAdmin(perm)) GRSThttpError ("403 Forbidden");
 
@@ -410,7 +435,7 @@ void add_cred_form(GRSTgaclUser *user, char *dn, GRSTgaclPerm perm, char *help_u
   if (strcmp(GRSThttpGetCGI("cmd"), "add_cred_form")==0){ //if not a new entry check to see if <any-user> cred exists
     cred=entry->firstcred;
     while (cred!=NULL) {
-      if (strcmp (cred->type, "any-user")==0) {
+      if (strcmp (cred->auri, "gacl:any-user")==0) {
         StartHTML(&bp, dir_uri, dir_path);
         GRSThttpPrintf (&bp, "ERROR: AND-ing \"any-user\" credential with other credential does not make sense <br>\n");
         admin_continue(dn, perm, help_uri, dir_path, file, dir_uri, admin_file, &bp);
@@ -427,7 +452,7 @@ void add_cred_form(GRSTgaclUser *user, char *dn, GRSTgaclPerm perm, char *help_u
   GRSThttpPrintf (&bp, " <input type=\"hidden\" name=\"entry_no\" value=\"%d\">\n", entry_no);
 
   GRSTgaclCredTableStart(&bp);
-  GRSTgaclCredTableAdd(user, entry, cred, namevalue, 0, 0, 0, timestamp, &bp, dn, perm, help_uri, dir_path, file, dir_uri, admin_file);
+  GRSTgaclCredTableAdd(user, entry, cred, 0, 0, 0, timestamp, &bp, dn, perm, help_uri, dir_path, file, dir_uri, admin_file);
   GRSTgaclCredTableEnd (entry, 0, 0, timestamp, &bp, dn, perm, help_uri, dir_path, file, dir_uri, admin_file);
 
   EndForm(&bp);
@@ -443,7 +468,7 @@ void add_cred(GRSTgaclUser *user, char *dn, GRSTgaclPerm perm, char *help_uri, c
   GRSTgaclEntry *entry;
   GRSTgaclCred *cred;
   GRSThttpBody bp;
-  char *type, *value;
+  char *cred_auri_1, *p;
 
   if (!GRSTgaclPermHasAdmin(perm)) GRSThttpError ("403 Forbidden");
 
@@ -458,18 +483,23 @@ void add_cred(GRSTgaclUser *user, char *dn, GRSTgaclPerm perm, char *help_uri, c
   }
 
   // Create new credential and add it to entry
-  type=GRSThttpGetCGI("type");
-  value=GRSThttpGetCGI("cred0_value");
-  cred=GRSTgaclCredNew(type);
-  if      (strcmp(type, "person")  ==0) GRSTgaclCredAddValue(cred,"dn", value);
-  else if (strcmp(type, "dn-list") ==0) GRSTgaclCredAddValue(cred, "url", value);
-  else if (strcmp(type, "voms")    ==0) GRSTgaclCredAddValue(cred, "fqan", value);
-  else if (strcmp(type, "dns")     ==0) GRSTgaclCredAddValue(cred, "hostname", value);
-  else if (strcmp(type, "any-user")==0) {}// namevalue not entered for any-user credential
-  else{
-    GRSThttpError ("500 Credential type not valid");
-    return;
-  }
+  cred_auri_1=GRSThttpGetCGI("cred_auri_1");
+
+  /* check AURI for scheme:path form */
+
+  for (p=cred_auri_1; *p != '\0'; ++p) if (!isalnum(*p) && (*p != '-') && (*p != '_')) break;
+
+  if ((p == cred_auri_1) || (*p != ':'))
+    {
+      StartHTML(&bp, dir_uri, dir_path);
+      GRSThttpPrintf (&bp, "ERROR: CANNOT SAVE CHANGES\n\n<p>Attribute URIs must take the form scheme:path"
+                 "<p>For example dn:/DC=com/DC=example/CN=name or "
+                 "fqan:/voname/groupname or https://host.name/listname or dns:host.name.pattern or ip:ip.number.pattern\n<p>\n");
+                 admin_continue(dn, perm, help_uri, dir_path, file, dir_uri, admin_file, &bp);
+      return;
+    }
+
+  cred=GRSTgaclCredCreate(cred_auri_1, NULL);
   GRSTgaclEntryAddCred(entry, cred);
 
   check_acl_save(dn, perm, help_uri, dir_path, file, dir_uri, admin_file, user, acl, &bp);
@@ -532,7 +562,6 @@ void del_entry_sure(GRSTgaclUser *user, char *dn, GRSTgaclPerm perm, char *help_
   GRSTgaclAcl *acl;
   GRSTgaclEntry *entry;
   GRSTgaclCred *cred;
-  GRSTgaclNamevalue *namevalue;
   int entry_no, cred_no, allow, deny, i, timestamp;
   GRSThttpBody bp;
 
@@ -565,8 +594,7 @@ void del_entry_sure(GRSTgaclUser *user, char *dn, GRSTgaclPerm perm, char *help_
   GRSTgaclCredTableStart(&bp);
   while (cred!=NULL){
     // Start with the first namevalue in the credential
-    namevalue=cred->firstname;
-    GRSTgaclCredTableAdd(user, entry, cred, namevalue, cred_no, entry_no, 0, 0, &bp, dn, perm, help_uri, dir_path, file, dir_uri, admin_file);
+    GRSTgaclCredTableAdd(user, entry, cred, cred_no, entry_no, 0, 0, &bp, dn, perm, help_uri, dir_path, file, dir_uri, admin_file);
     // Change to next credential
     cred=cred->next;
     cred_no++;
@@ -587,7 +615,6 @@ void del_cred_sure(GRSTgaclUser *user, char *dn, GRSTgaclPerm perm, char *help_u
   GRSTgaclAcl *acl;
   GRSTgaclEntry *entry;
   GRSTgaclCred *cred;
-  GRSTgaclNamevalue *namevalue;
   int entry_no, cred_no, allow, deny, timestamp, i;
   GRSThttpBody bp;
 
@@ -626,7 +653,7 @@ void del_cred_sure(GRSTgaclUser *user, char *dn, GRSTgaclPerm perm, char *help_u
 
   // Print the credential out
   GRSTgaclCredTableStart(&bp);
-  GRSTgaclCredTableAdd(user, entry, cred, cred->firstname, cred_no, entry_no, 0, 0, &bp, dn, perm, help_uri, dir_path, file, dir_uri, admin_file);
+  GRSTgaclCredTableAdd(user, entry, cred, cred_no, entry_no, 0, 0, &bp, dn, perm, help_uri, dir_path, file, dir_uri, admin_file);
   GRSTgaclCredTableEnd (entry, entry_no, 0, 0, &bp, dn, perm, help_uri, dir_path, file, dir_uri, admin_file);
   GRSThttpPrintf (&bp,"<br>\n");
 
@@ -761,67 +788,61 @@ void EndForm(GRSThttpBody *bp){
 void GRSTgaclCredTableStart(GRSThttpBody *bp){
   //Starts an HTML table of credentials by setting the column widths and inputting the headings
   GRSThttpPrintf (bp,"<table border=\"1\" cellpadding=\"2\" cellspacing=\"0\" style=\"border-collapse: collapse\" bordercolor=\"#111111\" width=\"100%\" id=\"CredentialTable\">");
-  GRSThttpPrintf (bp,"<tr><td align=center width=\"10%\"><b>Credential No.</td><td align=center width=\"15%\"><b>Type</td><td align=left width=\"75%\"><b>Value</td></tr>");
+  GRSThttpPrintf (bp,"<tr><td align=center width=\"15%\"><b>Credential No.</td><td align=left width=\"85%\"><b>Attribute URI</b></td></tr>");
   return;
 }
 
-void GRSTgaclCredTableAdd(GRSTgaclUser *user, GRSTgaclEntry *entry, GRSTgaclCred *cred, GRSTgaclNamevalue *namevalue, int cred_no, int entry_no, int admin, int timestamp, GRSThttpBody *bp, char *dn, GRSTgaclPerm perm, char *help_uri, char *dir_path, char *file, char *dir_uri, char *admin_file){
+void GRSTgaclCredTableAdd(GRSTgaclUser *user, GRSTgaclEntry *entry, GRSTgaclCred *cred, int cred_no, int entry_no, int admin, int timestamp, GRSThttpBody *bp, char *dn, GRSTgaclPerm perm, char *help_uri, char *dir_path, char *file, char *dir_uri, char *admin_file)
+{
   // Adds the credential "cred" to a table started byGRSTgaclCredTableStart allowing the user to edit if appropriate
   char* cmd = GRSThttpGetCGI("cmd");
   int edit_values=0, new_cred=0, allow_new_person=1;
-  int site_admin=GRSTgaclDNlistHasUser(getenv("REDIRECT_GRST_ADMIN_LIST"), user);
+  int site_admin=GRSTgaclUserHasAURI(user, getenv("REDIRECT_GRST_ADMIN_LIST"));
 
   if (strcmp(cmd, "new_entry_form")==0 || strcmp(cmd, "add_cred_form")==0) new_cred=1;
-  if (new_cred || strcmp(cmd, "edit_entry_form")==0) edit_values=1;
+  if (new_cred || (strcmp(cmd, "edit_entry_form") == 0)) edit_values=1;
 
-  if (new_cred) { /*Print out type and descriptor*/
-     if (strcmp(cmd, "add_cred_form")==0){ /*if not a new entry check to see if <person> cred exists.*/
-       cred=entry->firstcred;
-       while (cred!=NULL) {if (strcmp (cred->type, "person")==0) allow_new_person=0; cred=cred->next;}
-     }
+  if (new_cred) 
+    {
      //create dummy credential for the user to edit
-     cred=GRSTgaclCredNew("new");
-     GRSTgaclCredAddValue(cred, "", "");
-     namevalue=cred->firstname;
+     cred=GRSTgaclCredCreate("", "");
      //Drop down list of types
      GRSThttpPrintf(bp,"<tr><td align=center >New</td>");
-     GRSThttpPrintf(bp,"<td align=center >");
-     GRSThttpPrintf (bp, " <select size=\"1\" name=\"type\">\n");
-     GRSThttpPrintf (bp, " <option selected value=\"not_chosen\">(choose)</option>\n");
-     if (allow_new_person) GRSThttpPrintf (bp, " <option value=\"person\">Person &lt;dn&gt; &lt;/dn&gt;</option>\n");
-     GRSThttpPrintf (bp, " <option value=\"dn-list\">DN-List &lt;url&gt; &lt;/url&gt;</option>\n");
-     GRSThttpPrintf (bp, " <option value=\"dns\">DNS &lt;hostname&gt; &lt;/hostname&gt;</option>\n");
-     GRSThttpPrintf (bp, " <option value=\"voms\">VOMS &lt;fqan&gt; &lt;/fqan&gt;</option>\n");
-     // Only alow any-user credential to be chosen if it is  new entry
-     if (strcmp(cmd, "new_entry_form")==0) GRSThttpPrintf (bp, " <option value=\"any-user\">Any User</option>\n");
-     GRSThttpPrintf (bp, " </select></td>");
-   }
-
-  else { //Print out type and descriptor for existing cred
-
-    GRSThttpPrintf(bp,"<tr><td align=center >%d", cred_no);
-    if (admin) GRSThttpPrintf (bp,"<a href=\"%s%s?diruri=%s&cmd=del_cred_sure&entry_no=%d&cred_no=%d&timestamp=%d\">(Delete)</a>", dir_uri,admin_file,dir_uri, entry_no, cred_no, timestamp);
-    GRSThttpPrintf(bp, "</td><td align=center >%s ", cred->type);
-  }
-
-  if (strcmp(cred->type, "any-user")==0) GRSThttpPrintf (bp, "</td><td>&nbsp;"); /* Do not print out namevalue for any-user credential*/
-  else{
-    if (edit_values){ // Place namevalue in an editable box if appropriate
-      GRSThttpPrintf (bp, "<td align=left><input type=\"text\" name=\"cred%d_value\"\n", cred_no);
-      GRSThttpPrintf (bp, "size=\"50\" value=\"");
-      StringHTMLEncode(namevalue->value, bp);
-      GRSThttpPrintf (bp, "\">");
+     cred_no = 1;
     }
-    else if (strcmp(cred->type, "dn-list")==0){
+  else 
+    { //Print out type and descriptor for existing cred
+
+     GRSThttpPrintf(bp,"<tr><td align=center >%d", cred_no);
+     if (admin) GRSThttpPrintf (bp,"<a href=\"%s%s?diruri=%s&cmd=del_cred_sure&entry_no=%d&cred_no=%d&timestamp=%d\">(Delete)</a>", dir_uri,admin_file,dir_uri, entry_no, cred_no, timestamp);
+     GRSThttpPrintf(bp, "</td>");
+    }
+
+  if (strcmp(cred->auri, "gacl:any-user")==0) GRSThttpPrintf (bp, "<td>%s", cred->auri); 
+  else
+   {
+    if (edit_values)
+      { // Place AURI in an editable box if appropriate
+      GRSThttpPrintf (bp, "<td align=left><input type=\"text\" name=\"cred_auri_%d\"\n", cred_no);
+      GRSThttpPrintf (bp, "size=\"50\" value=\"");
+      StringHTMLEncode(cred->auri, bp);
+      GRSThttpPrintf (bp, "\">");
+      }
+    else if ((strncmp(cred->auri, "http://", 7) == 0) ||
+             (strncmp(cred->auri, "https://", 8) == 0))
+      {
          GRSThttpPrintf(bp, "<td align=left ><a href=\"");
-	 StringHTMLEncode(namevalue->value, bp);
+	 StringHTMLEncode(cred->auri, bp);
 	 GRSThttpPrintf(bp, " \">");
-	 StringHTMLEncode(namevalue->value, bp);
+	 StringHTMLEncode(cred->auri, bp);
 	 GRSThttpPrintf(bp, "</a>");
       }
-    else { GRSThttpPrintf(bp, "<td align=left> "); StringHTMLEncode(namevalue->value, bp);}
-
-  }
+    else 
+      {
+        GRSThttpPrintf(bp, "<td align=left> "); 
+        StringHTMLEncode(cred->auri, bp);
+      }
+   }
   //Print out warning symbol if cred being printed relates to current user - but NOT for users in site admin list
   if (GRSTgaclUserHasCred(user, cred) && !site_admin)  GRSThttpPrintf(bp, "<font color=red><b>&nbsp;&lt;--</b></font>");
   GRSThttpPrintf(bp, "</td></tr>");
@@ -843,7 +864,7 @@ void GRSTgaclCredTableEnd(GRSTgaclEntry* entry, int entry_no, int admin, int tim
 
   if (admin) GRSThttpPrintf (bp,"<a href=\"%s%s?diruri=%s&cmd=add_cred_form&entry_no=%d&timestamp=%d\">Add&nbsp;Credential</a>", dir_uri,admin_file,dir_uri, entry_no, timestamp);
 
-  GRSThttpPrintf (bp, "</td>\n<td>&nbsp;</td><td align=left>");
+  GRSThttpPrintf (bp, "</td>\n<td align=left>");
 
   if (blank_perms==1)entry->allowed=entry->denied=GRST_PERM_NONE;
 
@@ -896,7 +917,7 @@ void check_acl_save(char *dn, GRSTgaclPerm perm, char *help_uri, char *dir_path,
 
   // check users permissions in the new ACL
 
-  if (!GRSTgaclDNlistHasUser(getenv("REDIRECT_GRST_ADMIN_LIST"), user))
+  if (!GRSTgaclUserHasAURI(user, getenv("REDIRECT_GRST_ADMIN_LIST")))
   {
     new_perm = GRSTgaclAclTestUser(acl, user);
     if (new_perm != perm){

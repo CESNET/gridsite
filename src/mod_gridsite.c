@@ -2259,12 +2259,14 @@ void GRST_save_ssl_creds(conn_rec *conn, GRSTx509Chain *grst_chain)
                    apr_psprintf(conn->pool, 
                       "notbefore=%ld notafter=%ld delegation=%d nist-loa=%d", 
                       grst_cert->notbefore,
-                      grst_cert->notafter, 0, 0));
+                      grst_cert->notafter, 
+                      grst_cert->delegation, 0));
 
             if (fp != NULL) apr_file_printf(fp, 
   "GRST_CRED_VALID_%d=notbefore=%ld notafter=%ld delegation=%d nist-loa=%d\n",
                                             i, grst_cert->notbefore,
-                                               grst_cert->notafter, 0, 0);
+                                               grst_cert->notafter,
+                                               grst_cert->delegation, 0);
 
             ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, conn->base_server,
                       "store GRST_CRED_AURI_%d=fqan:%s", i, grst_cert->value);
@@ -2286,12 +2288,14 @@ void GRST_save_ssl_creds(conn_rec *conn, GRSTx509Chain *grst_chain)
                    apr_psprintf(conn->pool, 
                       "notbefore=%ld notafter=%ld delegation=%d nist-loa=%d", 
                       grst_cert->notbefore,
-                      grst_cert->notafter, 0, 0));
+                      grst_cert->notafter,
+                      grst_cert->delegation, 0));
 
             if (fp != NULL) apr_file_printf(fp, 
   "GRST_CRED_VALID_%d=notbefore=%ld notafter=%ld delegation=%d nist-loa=%d\n",
                                             i, grst_cert->notbefore,
-                                               grst_cert->notafter, 0, 0);
+                                               grst_cert->notafter, 
+                                               grst_cert->delegation, 0);
 
             ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, conn->base_server,
                       "store GRST_CRED_AURI_%d=dn:%s", i, grst_cert->dn);
@@ -2612,6 +2616,7 @@ static int mod_gridsite_perm_handler(request_rec *r)
     if ((remotehost != NULL) && (*remotehost != '\0'))
       {
         cred = GRSTgaclCredCreate("dns:", remotehost);
+        GRSTgaclCredSetNotAfter(cred, GRST_MAX_TIME_T);
 
         if (user == NULL) user = GRSTgaclUserNew(cred);
         else              GRSTgaclUserAddCred(user, cred);
@@ -2624,6 +2629,7 @@ static int mod_gridsite_perm_handler(request_rec *r)
     if ((remotehost != NULL) && (*remotehost != '\0'))
       {
         cred = GRSTgaclCredCreate("ip:", r->connection->remote_ip);
+        GRSTgaclCredSetNotAfter(cred, GRST_MAX_TIME_T);
 
         if (user == NULL) user = GRSTgaclUserNew(cred);
         else              GRSTgaclUserAddCred(user, cred);
@@ -2649,7 +2655,7 @@ static int mod_gridsite_perm_handler(request_rec *r)
                                   apr_psprintf(r->pool, "GRST_CRED_%d", i),
                                   apr_psprintf(r->pool, 
                                                "%s %ld %ld %d %s",
-                                               (i=0) ? "X509USER" : "GSIPROXY",
+                                               (i==0) ? "X509USER" : "GSIPROXY",
                                                cred->notbefore,
                                                cred->notafter,
                                                cc_delegation, 

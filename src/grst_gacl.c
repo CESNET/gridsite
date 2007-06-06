@@ -958,7 +958,7 @@ int GRSTgaclUserHasCred(GRSTgaclUser *user, GRSTgaclCred *cred)
 
   if ((cred == NULL) || (cred->auri == NULL)) return 0;
 
-  if (strcmp(cred->auri, "any-user:") == 0) return 1;
+  if (strcmp(cred->auri, "gacl:any-user") == 0) return 1;
   
   if ((user == NULL) || (user->firstcred == NULL)) return 0;
   
@@ -1287,7 +1287,7 @@ GRSTgaclPerm GRSTgaclAclTestUser(GRSTgaclAcl *acl, GRSTgaclUser *user)
      
        for (cred = entry->firstcred; cred != NULL; cred = cred->next)
              if (!GRSTgaclUserHasCred(user, cred)) flag = 0;
-             else if (strcmp(cred->auri, "any-user:") != 0) onlyanyuser = 0;
+             else if (strcmp(cred->auri, "gacl:any-user") != 0) onlyanyuser = 0;
 
        if (!flag) continue; /* flag false if a subtest failed */
 

@@ -27,6 +27,10 @@ file, either indicated by the variable X509_USER_PROXY in the environment
 of the user's process, or a file of the form /tmp/x509up_uUID, where UID is
 their Unix user ID. If none is found, an authenticated HTTPS request is made.
 
+SlashGrid searches /etc/grid-security/certificates by default for CA root
+files when verifying the host certificate of remote servers. This can be
+overriden by users setting the variable X509_CERT_DIR in their environment.
+
 .SH "SITECAST DOMAINS"
 
 If the slashgrid daemon is started with the option --domain, then URLs 
@@ -39,6 +43,14 @@ which will be searched in order.
 The SiteCast area of the virtual filesystem is read-only (to prevent
 corruption of replicas.)
 
+.TP
+--domain DOMAIN
+SiteCast domain to use.
+ 
+.TP
+--groups GROUPS
+SiteCast multicast groups to query.
+ 
 .SH "LOCAL FILESYSTEM"
 
 This filesystem is intended for use with GridSite/Apache webservers, which
@@ -46,7 +58,21 @@ control access via .gacl policy files in each directory hierarchy. SlashGrid
 can interpret these files internally, and this allows other services, such
 as GridFTP running in chroot mode, to share access to a common file store.
 
-.SH "OPTIONS"
+.TP
+--local-root PATH
+Top level directory in the underlying filesystem, which will be mapped to
+/grid/local/
+ 
+.TP
+--local-user USER
+Local user who will own the files created in the underlying filesystem.
+ 
+.TP
+--gridmapdir PATH
+Private gridmapdir used for mapping of pool users back to X.509 DNs. For
+example, after configuring GridFTP to use this gridmapdir.
+ 
+.SH "OTHER OPTIONS"
  
 .TP
 --debug

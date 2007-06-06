@@ -141,7 +141,7 @@ cat <<EOF >>gridsite.spec
 
 %install
 cd src
-make install prefix=\$RPM_BUILD_ROOT/%{prefix} \
+make install prefix=\$RPM_BUILD_ROOT/%{prefix} libdir=%{_lib} \
 GSOAPDIR=\$GSOAPDIR OPENSSL_FLAGS=\$OPENSSL_FLAGS \
 OPENSSL_LIBS=\$OPENSSL_LIBS FLAVOR_EXT=\$FLAVOR_EXT
 EOF
@@ -180,10 +180,10 @@ if [ "\$UID" = "0" ] ; then
 fi
 
 %files shared
-%attr(-, root, root) %{prefix}/lib/libgridsite.so.%{version}
-%attr(-, root, root) %{prefix}/lib/libgridsite.so
-%attr(-, root, root) %{prefix}/lib/libgridsite_globus.so.%{version}
-%attr(-, root, root) %{prefix}/lib/libgridsite_globus.so
+%attr(-, root, root) %{prefix}/%{_lib}/libgridsite.so.%{version}
+%attr(-, root, root) %{prefix}/%{_lib}/libgridsite.so
+%attr(-, root, root) %{prefix}/%{_lib}/libgridsite_globus.so.%{version}
+%attr(-, root, root) %{prefix}/%{_lib}/libgridsite_globus.so
 %attr(-, root, root) %{prefix}/share/doc/gridsite-${MINOR_VERSION:-1.x}
 
 %files devel

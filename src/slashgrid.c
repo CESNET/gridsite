@@ -134,6 +134,7 @@ struct grst_handle { pthread_mutex_t	mutex;
                      CURL		*curl_handle;
                      uid_t		uid;
                      char		*proxyfile;
+                     char 		*capath;
                      time_t		last_used;
                    }  handles[GRST_SLASH_MAX_HANDLES];
  
@@ -371,43 +372,72 @@ int translate_sitecast_url(char **sitecast_url, char *raw_url)
   return GRST_RET_FAILED;
 }
 
-char *check_x509_user_proxy(pid_t pid)
+static void check_user_environ(char **capath, char **proxyfile, pid_t pid)
 {
   int fd;
-  char file[80], *proxyfile = NULL, *pid_environ, *p;
-  struct stat statbuf1, statbuf2;
+  size_t allocated = 1024, ret = 0, count = 0;
+  char file[80], *pid_environ, *p;
+  struct stat statbuf;
+  
+  *proxyfile = NULL;
+  *capath    = NULL;
   
   snprintf(file, sizeof(file), "/proc/%d/environ", (int) pid);
   
-  if ((fd = open(file, O_RDONLY)) == -1) return NULL;
+  if ((fd = open(file, O_RDONLY)) == -1) return;
 
-  if (debugmode) syslog(LOG_DEBUG, "Opened for %d environ in %s", (int) pid, file);
+  if (debugmode) 
+        syslog(LOG_DEBUG, "Opened for %d environ in %s", (int) pid, file);
   
-  fstat(fd, &statbuf1);
-  
-  pid_environ = malloc(statbuf1.st_size + 1);
-  
-  read(fd, pid_environ, statbuf1.st_size);
-  
+  pid_environ = malloc(allocated + 1); /* always space for terminal NUL */
+
+  while ((ret = read(fd, &pid_environ[count], allocated - count)) > 0)
+       {
+         count += ret;
+         
+         if (count >= allocated) 
+           {
+             allocated = count + 1024;
+             pid_environ = realloc(pid_environ, allocated + 1);
+           }
+       }       
+       
   close(fd);
-  
-  pid_environ[statbuf1.st_size] = '\0';
+
+  if (ret < 0)
+    {
+      free(pid_environ);
+      syslog(LOG_ERR, "File error reading %s for %d", file, (int) pid);
+      return;
+    }
     
-  for (p = pid_environ; p < pid_environ + statbuf1.st_size; p += (strlen(p) + 1))
+  pid_environ[count] = '\0'; /* just in case */
+
+  for (p = pid_environ; p < pid_environ + count; p += (strlen(p) + 1))
      {
        if (debugmode) syslog(LOG_DEBUG, "Examine %s in environ", p);
   
        if (strncmp(p, "X509_USER_PROXY=", 16) == 0)
          {
-           if ((p[16] != '\0') &&
-               (stat(&p[16], &statbuf2) == 0)) proxyfile = strdup(&p[16]);
-           break;
+           if ((p[16] != '\0') && (stat(&p[16], &statbuf) == 0))
+             {
+               if (*proxyfile != NULL) free(*proxyfile);
+               *proxyfile = strdup(&p[16]);
+               if (debugmode) syslog(LOG_DEBUG, "Found proxyfile");
+             }
+         }
+       else if (strncmp(p, "X509_CERT_DIR=", 14) == 0)
+         {
+           if ((p[14] != '\0') && (stat(&p[14], &statbuf) == 0))
+             {
+               if (*capath != NULL) free(*capath);
+               *capath = strdup(&p[14]);
+               if (debugmode) syslog(LOG_DEBUG, "Found capath");
+             }
          }
      }
   
   free(pid_environ);
-
-  return proxyfile;    
 }
 
 char *mapdir_uid_to_dn(uid_t uid)
@@ -486,16 +516,18 @@ int perform_request(struct grst_request *request_data,
                     struct fuse_context *fuse_ctx)
 {
   int                ret, i, j, itry, ishttps = 0;
-  char              *proxyfile = NULL, *range_header = NULL, *url;
+  char              *proxyfile = NULL, *capath = NULL, *range_header = NULL,
+                    *url;
   struct stat        statbuf;
   struct curl_slist *headers_list = NULL;
 
   if (strncmp(request_data->url, "https://", 8) == 0) /* HTTPS options */
     {
-// check for X509_USER_PROXY in that PID's environ too
       ishttps = 1;
 
-      if ((proxyfile = check_x509_user_proxy(fuse_ctx->pid)) == NULL)
+      check_user_environ(&capath, &proxyfile, fuse_ctx->pid);
+
+      if (proxyfile == NULL)
         {
           asprintf(&proxyfile, "/tmp/x509up_u%d", fuse_ctx->uid);
           /* if proxyfile is used, it will be referenced by handles[].proxyfile
@@ -508,6 +540,8 @@ int perform_request(struct grst_request *request_data,
               proxyfile = NULL;
             }
         }
+        
+      if (capath == NULL) capath = strdup("/etc/grid-security/certificates");
     }
 
   if (debugmode && (proxyfile != NULL))
@@ -521,7 +555,10 @@ int perform_request(struct grst_request *request_data,
            (handles[i].uid == fuse_ctx->uid) &&
            (((handles[i].proxyfile == NULL) && (proxyfile == NULL)) ||
             ((handles[i].proxyfile != NULL) && (proxyfile != NULL) &&
-             (strcmp(handles[i].proxyfile, proxyfile) == 0))))
+             (strcmp(handles[i].proxyfile, proxyfile) == 0))) &&
+           (((handles[i].capath == NULL) && (capath == NULL)) ||
+            ((handles[i].capath != NULL) && (capath != NULL) &&
+             (strcmp(handles[i].capath, capath) == 0))))
          {
            break;
          }
@@ -551,7 +588,10 @@ int perform_request(struct grst_request *request_data,
       (handles[i].uid != fuse_ctx->uid) ||
       (((handles[i].proxyfile != NULL) || (proxyfile != NULL)) &&
        ((handles[i].proxyfile == NULL) || (proxyfile == NULL) ||
-        (strcmp(handles[i].proxyfile, proxyfile) != 0))))
+        (strcmp(handles[i].proxyfile, proxyfile) != 0))) ||
+      (((handles[i].capath != NULL) || (capath != NULL)) &&
+       ((handles[i].capath == NULL) || (capath == NULL) ||
+        (strcmp(handles[i].capath, capath) != 0))))
     {
       /* we do need to initialise this handle */
       
@@ -560,6 +600,9 @@ int perform_request(struct grst_request *request_data,
       if (handles[i].curl_handle != NULL)
                               curl_easy_cleanup(handles[i].curl_handle);
       handles[i].curl_handle = curl_easy_init();
+      
+      if (handles[i].capath != NULL) free(handles[i].capath);
+      handles[i].capath = capath; /* capath might be NULL itself */
       
       if (handles[i].proxyfile != NULL) free(handles[i].proxyfile);
       handles[i].proxyfile = proxyfile; /* proxyfile might be NULL itself */
@@ -592,8 +635,7 @@ int perform_request(struct grst_request *request_data,
       curl_easy_setopt(handles[i].curl_handle, CURLOPT_FOLLOWLOCATION, 0);
       curl_easy_setopt(handles[i].curl_handle, CURLOPT_HEADERFUNCTION, headers_callback);
 
-      curl_easy_setopt(handles[i].curl_handle, CURLOPT_CAPATH, 
-                                        "/etc/grid-security/certificates");
+      curl_easy_setopt(handles[i].curl_handle, CURLOPT_CAPATH, handles[i].capath);
 
       curl_easy_setopt(handles[i].curl_handle, CURLOPT_SSL_VERIFYPEER, 2);
       curl_easy_setopt(handles[i].curl_handle, CURLOPT_SSL_VERIFYHOST, 2);
@@ -656,12 +698,6 @@ int perform_request(struct grst_request *request_data,
   if (debugmode)
         curl_easy_setopt(handles[i].curl_handle, CURLOPT_DEBUGDATA, &i);
 
-/* Move to higher up
-  curl_easy_setopt(handles[i].curl_handle, CURLOPT_READFUNCTION, request_data->readfunction);
-  curl_easy_setopt(handles[i].curl_handle, CURLOPT_READDATA, request_data->readdata);
-  curl_easy_setopt(handles[i].curl_handle, CURLOPT_WRITEFUNCTION, request_data->writefunction);
-  curl_easy_setopt(handles[i].curl_handle, CURLOPT_WRITEDATA, request_data->writedata);
-*/
   if ((request_data->start >= 0) && 
       (request_data->finish >= request_data->start))
     {
@@ -735,11 +771,11 @@ int perform_request(struct grst_request *request_data,
        break;
      }
 
+  pthread_mutex_unlock(&(handles[i].mutex));
+  
   if (headers_list != NULL) curl_slist_free_all(headers_list);
   if (range_header != NULL) free(range_header);
 
-  pthread_mutex_unlock(&(handles[i].mutex));
-  
   return ret;
 }
 

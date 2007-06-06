@@ -44,6 +44,10 @@ ifndef prefix
 export prefix=/usr/local
 endif
 
+ifndef libdir
+export libdir=lib
+endif
+
 ifndef MYCFLAGS
 export MYCFLAGS=-I. -I../interface $(HTTPD_FLAGS) -I/usr/include/httpd -I/usr/include/apr-0 -I/opt/glite/include -fPIC
 endif
@@ -338,7 +342,7 @@ clean:
 
 install: apidoc install-lib
 	mkdir -p $(prefix)/include \
-                 $(prefix)/lib \
+                 $(prefix)/$(libdir) \
                  $(prefix)/bin \
                  $(prefix)/sbin \
                  $(prefix)/share/man/man1 \
@@ -379,23 +383,23 @@ install: apidoc install-lib
 	cp -f mod_gridsite.so $(prefix)/lib/httpd/modules
 
 install-lib:
-	mkdir -p $(prefix)/lib
-	cp -f  libgridsite.a $(prefix)/lib
-	cp -f  libgridsite.so.$(PATCH_VERSION) $(prefix)/lib
+	mkdir -p $(prefix)/$(libdir)
+	cp -f  libgridsite.a $(prefix)/$(libdir)
+	cp -f  libgridsite.so.$(PATCH_VERSION) $(prefix)/$(libdir)
 	ln -sf libgridsite.so.$(PATCH_VERSION) \
-                                 $(prefix)/lib/libgridsite.so
+                                 $(prefix)/$(libdir)/libgridsite.so
 	ln -sf libgridsite.so.$(PATCH_VERSION) \
-                                 $(prefix)/lib/libgridsite.so.$(MAJOR_VERSION)
+                                 $(prefix)/$(libdir)/libgridsite.so.$(MAJOR_VERSION)
 	ln -sf libgridsite.so.$(PATCH_VERSION) \
-                                 $(prefix)/lib/libgridsite.so.$(MINOR_VERSION)
-	cp -f  libgridsite_globus.a $(prefix)/lib
-	cp -f  libgridsite_globus.so.$(PATCH_VERSION) $(prefix)/lib
+                                 $(prefix)/$(libdir)/libgridsite.so.$(MINOR_VERSION)
+	cp -f  libgridsite_globus.a $(prefix)/$(libdir)
+	cp -f  libgridsite_globus.so.$(PATCH_VERSION) $(prefix)/$(libdir)
 	ln -sf libgridsite_globus.so.$(PATCH_VERSION) \
-                                 $(prefix)/lib/libgridsite_globus.so
+                                 $(prefix)/$(libdir)/libgridsite_globus.so
 	ln -sf libgridsite_globus.so.$(PATCH_VERSION) \
-                                 $(prefix)/lib/libgridsite_globus.so.$(MAJOR_VERSION)
+                                 $(prefix)/$(libdir)/libgridsite_globus.so.$(MAJOR_VERSION)
 	ln -sf libgridsite_globus.so.$(PATCH_VERSION) \
-                                 $(prefix)/lib/libgridsite_globus.so.$(MINOR_VERSION)
+                                 $(prefix)/$(libdir)/libgridsite_globus.so.$(MINOR_VERSION)
 
 install-slashgrid: slashgrid
 	cp -f slashgrid $(prefix)/sbin
@@ -410,7 +414,6 @@ install-slashgrid: slashgrid
 
 install-ws: gridsite-delegation.cgi htproxyput
 	mkdir -p $(prefix)/include \
-                 $(prefix)/lib \
                  $(prefix)/bin \
                  $(prefix)/sbin \
                  $(prefix)/share/man/man1 \

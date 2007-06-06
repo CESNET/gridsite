@@ -81,6 +81,8 @@ void (*GRSTerrorLogFunc)(char *, int, int, char *, ...);
 #define GRST_LOG_INFO    6
 #define GRST_LOG_DEBUG   7
 
+#define GRST_MAX_TIME_T	 INT32_MAX
+
 typedef struct { char                      *auri;
                  int			    delegation;
                  int			    nist_loa;

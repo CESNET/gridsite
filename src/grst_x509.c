@@ -1281,17 +1281,14 @@ int GRSTx509MakeProxyCert(char **proxychain, FILE *debugfp,
 /// the given number of minutes starting from the current time.
 {
   char *ptr, *certchain;
-  int i, subjAltName_pos, ncerts;
-  long serial = 2796, ptrlen;
+  int i, ncerts;
+  long serial = 1234, ptrlen;
   EVP_PKEY *pkey, *CApkey;
   const EVP_MD *digest;
   X509 *certs[GRST_MAX_CHAIN_LEN];
   X509_REQ *req;
   X509_NAME *name, *CAsubject, *newsubject;
   X509_NAME_ENTRY *ent;
-  X509V3_CTX ctx;
-  X509_EXTENSION *subjAltName;
-  STACK_OF (X509_EXTENSION) * req_exts;
   FILE *fp;
   BIO *reqmem, *certmem;
   time_t notAfter;
@@ -1311,10 +1308,12 @@ int GRSTx509MakeProxyCert(char **proxychain, FILE *debugfp,
   BIO_free(reqmem);
 
   /* verify signature on the request */
-  if (!(pkey = X509_REQ_get_pubkey (req)))
+  if (!(pkey = X509_REQ_get_pubkey(req)))
     {
       mpcerror(debugfp,
               "GRSTx509MakeProxyCert(): error getting public key from request\n");
+      
+      X509_REQ_free(req);
       return GRST_RET_FAILED;
     }
 
@@ -1322,6 +1321,8 @@ int GRSTx509MakeProxyCert(char **proxychain, FILE *debugfp,
     {
       mpcerror(debugfp,
             "GRSTx509MakeProxyCert(): error verifying signature on certificate\n");
+
+      X509_REQ_free(req);
       return GRST_RET_FAILED;
     }
     
@@ -1330,16 +1331,20 @@ int GRSTx509MakeProxyCert(char **proxychain, FILE *debugfp,
     {
       mpcerror(debugfp,
             "GRSTx509MakeProxyCert(): error opening signing certificate file\n");
+
+      X509_REQ_free(req);
       return GRST_RET_FAILED;
     }    
 
   for (ncerts = 1; ncerts < GRST_MAX_CHAIN_LEN; ++ncerts)
-   if (!(certs[ncerts] = PEM_read_X509(fp, NULL, NULL, NULL))) break;
+   if ((certs[ncerts] = PEM_read_X509(fp, NULL, NULL, NULL)) == NULL) break;
 
   if (ncerts == 1) /* zeroth cert with be new proxy cert */
     {
       mpcerror(debugfp,
             "GRSTx509MakeProxyCert(): error reading signing certificate file\n");
+
+      X509_REQ_free(req);
       return GRST_RET_FAILED;
     }    
 
@@ -1352,56 +1357,70 @@ int GRSTx509MakeProxyCert(char **proxychain, FILE *debugfp,
     {
       mpcerror(debugfp,
             "GRSTx509MakeProxyCert(): error reading signing private key file\n");
+
+      X509_REQ_free(req);
       return GRST_RET_FAILED;
     }    
 
-  if (!(CApkey = PEM_read_PrivateKey (fp, NULL, NULL, NULL)))
+  if (!(CApkey = PEM_read_PrivateKey(fp, NULL, NULL, NULL)))
     {
       mpcerror(debugfp,
             "GRSTx509MakeProxyCert(): error reading signing private key in file\n");
+
+      X509_REQ_free(req);
       return GRST_RET_FAILED;
     }    
 
   fclose(fp);
   
   /* get subject name */
-  if (!(name = X509_REQ_get_subject_name (req)))
+  if (!(name = X509_REQ_get_subject_name(req)))
     {
       mpcerror(debugfp,
             "GRSTx509MakeProxyCert(): error getting subject name from request\n");
+
+      X509_REQ_free(req);
       return GRST_RET_FAILED;
     }    
 
   /* create new certificate */
-  if (!(certs[0] = X509_new ()))
+  if (!(certs[0] = X509_new()))
     {
       mpcerror(debugfp,
             "GRSTx509MakeProxyCert(): error creating X509 object\n");
+
+      X509_REQ_free(req);
       return GRST_RET_FAILED;
     }    
 
   /* set version number for the certificate (X509v3) and the serial number   
      need 3 = v4 for GSI proxy?? */
-  if (X509_set_version (certs[0], 3L) != 1)
+  if (X509_set_version(certs[0], 3L) != 1)
     {
       mpcerror(debugfp,
             "GRSTx509MakeProxyCert(): error setting certificate version\n");
+
+      X509_REQ_free(req);
       return GRST_RET_FAILED;
     }    
 
-  ASN1_INTEGER_set (X509_get_serialNumber (certs[0]), serial++);
+  ASN1_INTEGER_set(X509_get_serialNumber(certs[0]), serial++);
 
   if (!(name = X509_get_subject_name(certs[1])))
     {
       mpcerror(debugfp,
       "GRSTx509MakeProxyCert(): error getting subject name from CA certificate\n");
+
+      X509_REQ_free(req);
       return GRST_RET_FAILED;
     }    
 
-  if (X509_set_issuer_name (certs[0], name) != 1)
+  if (X509_set_issuer_name(certs[0], name) != 1)
     {
       mpcerror(debugfp,
       "GRSTx509MakeProxyCert(): error setting issuer name of certificate\n");
+
+      X509_REQ_free(req);
       return GRST_RET_FAILED;
     }    
 
@@ -1417,29 +1436,40 @@ int GRSTx509MakeProxyCert(char **proxychain, FILE *debugfp,
     {
       mpcerror(debugfp,
       "GRSTx509MakeProxyCert(): error setting subject name of certificate\n");
+
+      X509_REQ_free(req);
       return GRST_RET_FAILED;
     }    
+    
+  X509_NAME_free(newsubject);
+  X509_NAME_ENTRY_free(ent);
 
   /* set public key in the certificate */
   if (X509_set_pubkey(certs[0], pkey) != 1)
     {
       mpcerror(debugfp,
       "GRSTx509MakeProxyCert(): error setting public key of the certificate\n");
+
+      X509_REQ_free(req);
       return GRST_RET_FAILED;
     }    
 
   /* set duration for the certificate */
-  if (!(X509_gmtime_adj (X509_get_notBefore(certs[0]), -GRST_BACKDATE_SECONDS)))
+  if (!(X509_gmtime_adj(X509_get_notBefore(certs[0]), -GRST_BACKDATE_SECONDS)))
     {
       mpcerror(debugfp,
       "GRSTx509MakeProxyCert(): error setting beginning time of the certificate\n");
+
+      X509_REQ_free(req);
       return GRST_RET_FAILED;
     }    
 
-  if (!(X509_gmtime_adj (X509_get_notAfter(certs[0]), 60 * minutes)))
+  if (!(X509_gmtime_adj(X509_get_notAfter(certs[0]), 60 * minutes)))
     {
       mpcerror(debugfp,
       "GRSTx509MakeProxyCert(): error setting ending time of the certificate\n");
+
+      X509_REQ_free(req);
       return GRST_RET_FAILED;
     }
     
@@ -1461,19 +1491,23 @@ int GRSTx509MakeProxyCert(char **proxychain, FILE *debugfp,
          }
 
   /* sign the certificate with the signing private key */
-  if (EVP_PKEY_type (CApkey->type) == EVP_PKEY_RSA)
+  if (EVP_PKEY_type(CApkey->type) == EVP_PKEY_RSA)
     digest = EVP_md5();
   else
     {
       mpcerror(debugfp,
       "GRSTx509MakeProxyCert(): error checking signing private key for a valid digest\n");
+
+      X509_REQ_free(req);
       return GRST_RET_FAILED;
     }    
 
-  if (!(X509_sign (certs[0], CApkey, digest)))
+  if (!(X509_sign(certs[0], CApkey, digest)))
     {
       mpcerror(debugfp,
       "GRSTx509MakeProxyCert(): error signing certificate\n");
+
+      X509_REQ_free(req);
       return GRST_RET_FAILED;
     }    
 
@@ -1489,6 +1523,8 @@ int GRSTx509MakeProxyCert(char **proxychain, FILE *debugfp,
          {
            mpcerror(debugfp,
             "GRSTx509MakeProxyCert(): error writing certificate to memory BIO\n");            
+
+           X509_REQ_free(req);
            return GRST_RET_FAILED;
          }
 
@@ -1499,10 +1535,14 @@ int GRSTx509MakeProxyCert(char **proxychain, FILE *debugfp,
        strncat(certchain, ptr, ptrlen);
     
        BIO_free(certmem);
+       X509_free(certs[i]);
      }
-    
-  *proxychain = certchain;
-    
+  
+  EVP_PKEY_free(pkey);
+  EVP_PKEY_free(CApkey);
+  X509_REQ_free(req);
+      
+  *proxychain = certchain;  
   return GRST_RET_OK;
 }
 

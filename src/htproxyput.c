@@ -1,3 +1,4 @@
+#define HT_LEAK_TEST
 /*
    Copyright (c) 2002-6, Andrew McNab, University of Manchester
    All rights reserved.
@@ -463,6 +464,13 @@ int main(int argc, char *argv[])
       return 0;
     }  
   else if (method == HTPROXY_MAKE)
+#ifdef HT_LEAK_TEST
+    {
+    int ii;
+    FILE *ffpp;
+    char lineline[80];
+    for (ii=0; ii < 1000; ++ii)
+#endif
     {
       if (GRSTx509CreateProxyRequest(&reqtxt, &keytxt, NULL) != GRST_RET_OK)
         {
@@ -470,6 +478,12 @@ int main(int argc, char *argv[])
           return 1;
         }
       
+#ifdef HT_LEAK_TEST      
+     ffpp = fopen("/proc/self/statm", "r");
+     fgets(lineline, sizeof(lineline), ffpp);
+     fprintf(stderr, "%d a %s", ii, lineline);
+     fclose(ffpp);
+#endif
       if (GRSTx509MakeProxyCert(&proxychain, NULL, reqtxt, cert, key, minutes)
             != GRST_RET_OK)
         {
@@ -477,12 +491,28 @@ int main(int argc, char *argv[])
           return 2;
         }
         
+#ifdef HT_LEAK_TEST      
+     ffpp = fopen("/proc/self/statm", "r");
+     fgets(lineline, sizeof(lineline), ffpp);
+     fprintf(stderr, "%d b %s", ii, lineline);
+     fclose(ffpp);
+#endif
+
+      /* convert back to cert stack so can output in the right order */
       if (GRSTx509StringToChain(&x509_certstack, proxychain) != GRST_RET_OK)
         {
           fprintf(stderr, "Failed to convert internal proxy chain\n");
           return 3;
         }
-                                
+        
+#ifdef HT_LEAK_TEST      
+     ffpp = fopen("/proc/self/statm", "r");
+     fgets(lineline, sizeof(lineline), ffpp);
+     fprintf(stderr, "%d c %s", ii, lineline);
+     fclose(ffpp);
+#endif
+
+      /* just the proxy certificate we have created */
       if (x509_cert = sk_X509_value(x509_certstack, 0))
         {
           certmem = BIO_new(BIO_s_mem());
@@ -495,8 +525,16 @@ int main(int argc, char *argv[])
           BIO_free(certmem);
         }
                                                                     
+#ifdef HT_LEAK_TEST      
+     ffpp = fopen("/proc/self/statm", "r");
+     fgets(lineline, sizeof(lineline), ffpp);
+     fprintf(stderr, "%d d %s", ii, lineline);
+     fclose(ffpp);
+#endif
+      /* then the private key */ 
       fputs(keytxt, stdout);
-
+      
+      /* and only now the rest of the certificates */
       for (i=1; i <= sk_X509_num(x509_certstack) - 1; ++i)
         /* loop through the proxy chain starting at 2nd most recent proxy */
          {
@@ -513,8 +551,25 @@ int main(int argc, char *argv[])
              }
          }
 
+ 
+#ifdef HT_LEAK_TEST      
+     ffpp = fopen("/proc/self/statm", "r");
+     fgets(lineline, sizeof(lineline), ffpp);
+     fprintf(stderr, "%d e %s", ii, lineline);
+     fclose(ffpp);
+#endif
+      free(proxychain);
+      free(keytxt);
+      free(reqtxt);
       sk_X509_free(x509_certstack);
       
+#ifdef HT_LEAK_TEST      
+     ffpp = fopen("/proc/self/statm", "r");
+     fgets(lineline, sizeof(lineline), ffpp);
+     fprintf(stderr, "%d f %s", ii, lineline);
+     fclose(ffpp);
+    }
+#endif
       return 0;
     }
   else if (method == HTPROXY_INFO)

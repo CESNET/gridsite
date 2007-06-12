@@ -3078,7 +3078,11 @@ int GRST_X509_check_issued_wrapper(X509_STORE_CTX *ctx, X509 *x, X509 *issuer)
                            X509_get_subject_name(x)) != 0)) return 1;
  
     /* If we haven't asked for issuer errors don't set ctx */
+#if OPENSSL_VERSION_NUMBER < 0x00908000
     if (!(ctx->flags & X509_V_FLAG_CB_ISSUER_CHECK)) return 0;
+#else
+    if (!(ctx->param->flags & X509_V_FLAG_CB_ISSUER_CHECK)) return 0;
+#endif 
   
     ctx->error = ret;
     ctx->current_cert = x;

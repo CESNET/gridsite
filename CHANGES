@@ -1,3 +1,6 @@
+* Wed Jun 13 2007 Andrew McNab <Andrew.McNab@man.ac.uk>
+- Include ctx->param->flags fix in mod_gridsite for
+  OpenSSL 0.9.8 from Bruno Harbulot.
 * Fri May 10 2007 Andrew McNab <Andrew.McNab@man.ac.uk>
 - ==== GridSite version 1.5.1 ====
 * Fri Feb 16 2007 Andrew McNab <Andrew.McNab@man.ac.uk>

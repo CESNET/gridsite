@@ -63,7 +63,7 @@ endif
 #
 
 build: apidoc build-lib \
-       htcp gridsite-copy.cgi mod_gridsite.so \
+       htcp gridsite-copy.cgi gridsite-storage.cgi mod_gridsite.so \
        urlencode findproxyfile gsexec real-gridsite-admin.cgi
 
 build-lib: libgridsite_globus.so.$(VERSION) libgridsite_globus.a \
@@ -325,9 +325,9 @@ gsoap-test: gsoap-test.c
             $(STDSOAP2) -L$(GRIDSITEDIR)/lib \
             -lgsoapssl -lz -lssl -lcrypto -lxml2 -lm
         
-gridsite-srm.cgi: gridsite-srm.c libgridsite.so.$(VERSION)
-	gcc -g $(MYCFLAGS) $(MYLDFLAGS) -o gridsite-srm.cgi \
-            gridsite-srm.c \
+gridsite-storage.cgi: gridsite-storage.c libgridsite.so.$(VERSION)
+	gcc -g $(MYCFLAGS) $(MYLDFLAGS) -o gridsite-storage.cgi \
+            gridsite-storage.c \
             -I/usr/kerberos/include -I.\
             -I$(GRIDSITEDIR)/include \
             -DVERSION=\"$(VERSION)\" -L. \
@@ -355,6 +355,7 @@ install: apidoc install-lib
 	cp -f findproxyfile $(prefix)/bin
 	cp -f real-gridsite-admin.cgi $(prefix)/sbin
 	cp -f gridsite-copy.cgi $(prefix)/sbin
+	cp -f gridsite-storage.cgi $(prefix)/sbin
 	cp -f ../CHANGES ../README ../INSTALL ../LICENSE ../VERSION \
                $(prefix)/share/doc/gridsite-$(MINOR_VERSION)
 	cp -f ../doc/index.html ../doc/*.conf ../doc/*.sh ../doc/*.spec \
@@ -453,7 +454,8 @@ dist:
 	cp -f Makefile grst*.c htcp.c slashgrid.c slashgrid.init \
                  urlencode.c findproxyfile.c gaclexample.c mod_gridsite*.c \
                  htproxyput.c grst_admin.h mod_ssl-private.h \
-                 gsexec.c gsexec.h gridsite-copy.c delegation.h \
+                 gsexec.c gsexec.h gridsite-copy.c gridsite-storage.c \
+                 delegation.h \
                  roffit make-gridsite-spec \
                  Doxyfile doxygen.css doxyheader.html \
                  ../dist/gridsite-$(PATCH_VERSION)/src

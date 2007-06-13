@@ -1922,6 +1922,9 @@ static const char *mod_gridsite_take2_cmds(cmd_parms *a, void *cfg,
     }
     else if (strcasecmp(a->cmd->name, "GridSiteCastAlias") == 0)
     {
+      if ((parm1[strlen(parm1)-1] != '/') || (parm2[strlen(parm2)-1] != '/'))
+        return "GridSiteCastAlias URL and path must end with /";
+    
       for (i=0; i < GRST_SITECAST_ALIASES; ++i) /* look for free slot */
          {
            if (sitecastaliases[i].sitecast_url == NULL)
@@ -3261,7 +3264,17 @@ void sitecast_handle_TST_GET(server_rec *main_server,
 
   for (ialias=0; ialias < GRST_SITECAST_ALIASES ; ++ialias)
      {
-       if (sitecastaliases[ialias].sitecast_url == NULL) return; /* no match */
+       if (sitecastaliases[ialias].sitecast_url == NULL) 
+         {
+           ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, main_server,
+              "SiteCast responder does not handle %*s requested by %s:%d",
+                        GRSThtcpCountstrLen(htcp_mesg->uri),
+                        htcp_mesg->uri->text,
+                        inet_ntoa(client_addr_ptr->sin_addr),
+                        ntohs(client_addr_ptr->sin_port));
+      
+           return; /* no match */
+         }
                              
        if ((strlen(sitecastaliases[ialias].sitecast_url)
                                 <= GRSThtcpCountstrLen(htcp_mesg->uri)) &&
@@ -3320,6 +3333,11 @@ void sitecast_handle_TST_GET(server_rec *main_server,
 
       free(location);
     }
+  else ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, main_server,
+            "SiteCast does not find %*s (would be at %s)",
+            GRSThtcpCountstrLen(htcp_mesg->uri),
+            htcp_mesg->uri->text, filename);
+
 
   free(filename);                      
 }

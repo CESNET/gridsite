@@ -62,6 +62,7 @@
 
 #include <apr_strings.h>
 #include <apr_tables.h>
+#include <apr_network_io.h>
 
 #include <ap_config.h>
 #include <httpd.h>
@@ -1885,7 +1886,7 @@ static const char *mod_gridsite_take2_cmds(cmd_parms *a, void *cfg,
                                        const char *parm1, const char *parm2)
 {
     int   i;
-    char *p, *q;
+    char *p, *q, buf[APRMAXHOSTLEN + 1] = "localhost";
     
     if (strcasecmp(a->cmd->name, "GridSiteUserGroup") == 0)
     {
@@ -1951,7 +1952,13 @@ static const char *mod_gridsite_take2_cmds(cmd_parms *a, void *cfg,
 
                sitecastaliases[i].sitecast_url   = apr_pstrdup(a->pool, parm1);
                sitecastaliases[i].local_path     = apr_pstrdup(a->pool, parm2);
-               sitecastaliases[i].local_hostname = apr_pstrdup(a->pool, 
+               
+               if (a->server->server_hostname == NULL)
+                 {
+                   apr_gethostname(buf, APRMAXHOSTLEN + 1, a->pool);
+                   sitecastaliases[i].local_hostname = apr_pstrdup(a->pool, buf);
+                 }
+               else sitecastaliases[i].local_hostname = apr_pstrdup(a->pool, 
                                                    a->server->server_hostname);
 
                break;
@@ -2203,7 +2210,7 @@ int GRST_load_ssl_creds(SSL *ssl, conn_rec *conn)
 
 void GRST_save_ssl_creds(conn_rec *conn, GRSTx509Chain *grst_chain)
 {
-   int          i, lastcred;
+   int          i, lastcred, lowest_voms_delegation = 65535;
    char         envname[14], *tempfile = NULL,
                *sessionfile, session_id[(SSL_MAX_SSL_SESSION_ID_LENGTH+1)*2];
    apr_file_t  *fp = NULL;
@@ -2241,37 +2248,17 @@ void GRST_save_ssl_creds(conn_rec *conn, GRSTx509Chain *grst_chain)
                                APR_CREATE | APR_WRITE | APR_EXCL, conn->pool);
      }
 
-   grst_cert = grst_chain->firstcert;
+   i=0;
    
-   for (i=0; grst_cert != NULL; grst_cert = grst_cert->next)
+   for (grst_cert = grst_chain->firstcert;
+        grst_cert != NULL; grst_cert = grst_cert->next)
       {
         if (grst_cert->type == GRST_CERT_TYPE_VOMS)
           {
-            apr_table_setn(conn->notes,
-                   apr_psprintf(conn->pool, "GRST_CRED_AURI_%d", i),
-                   apr_pstrcat(conn->pool, "fqan:", grst_cert->value, NULL));
-
-            if (fp != NULL) apr_file_printf(fp, "GRST_CRED_AURI_%d=fqan:%s\n",
-                                                i, grst_cert->value);
-
-            apr_table_setn(conn->notes,
-                   apr_psprintf(conn->pool, "GRST_CRED_VALID_%d", i),
-                   apr_psprintf(conn->pool, 
-                      "notbefore=%ld notafter=%ld delegation=%d nist-loa=%d", 
-                      grst_cert->notbefore,
-                      grst_cert->notafter, 
-                      grst_cert->delegation, 0));
-
-            if (fp != NULL) apr_file_printf(fp, 
-  "GRST_CRED_VALID_%d=notbefore=%ld notafter=%ld delegation=%d nist-loa=%d\n",
-                                            i, grst_cert->notbefore,
-                                               grst_cert->notafter,
-                                               grst_cert->delegation, 0);
-
-            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, conn->base_server,
-                      "store GRST_CRED_AURI_%d=fqan:%s", i, grst_cert->value);
-
-            ++i;
+            /* want to record the delegation level 
+               of the last proxy with VOMS attributes */
+          
+            lowest_voms_delegation = grst_cert->delegation;
           }
         else if ((grst_cert->type == GRST_CERT_TYPE_EEC) ||
                  (grst_cert->type == GRST_CERT_TYPE_PROXY))
@@ -2299,6 +2286,42 @@ void GRST_save_ssl_creds(conn_rec *conn, GRSTx509Chain *grst_chain)
 
             ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, conn->base_server,
                       "store GRST_CRED_AURI_%d=dn:%s", i, grst_cert->dn);
+
+            ++i;
+          }
+      }
+
+   for (grst_cert = grst_chain->firstcert; 
+        grst_cert != NULL; grst_cert = grst_cert->next)
+      {
+        if ((grst_cert->type == GRST_CERT_TYPE_VOMS) &&
+            (grst_cert->delegation == lowest_voms_delegation))
+          {
+            /* only export attributes from the last proxy to contain them */
+          
+            apr_table_setn(conn->notes,
+                   apr_psprintf(conn->pool, "GRST_CRED_AURI_%d", i),
+                   apr_pstrcat(conn->pool, "fqan:", grst_cert->value, NULL));
+
+            if (fp != NULL) apr_file_printf(fp, "GRST_CRED_AURI_%d=fqan:%s\n",
+                                                i, grst_cert->value);
+
+            apr_table_setn(conn->notes,
+                   apr_psprintf(conn->pool, "GRST_CRED_VALID_%d", i),
+                   apr_psprintf(conn->pool, 
+                      "notbefore=%ld notafter=%ld delegation=%d nist-loa=%d", 
+                      grst_cert->notbefore,
+                      grst_cert->notafter, 
+                      grst_cert->delegation, 0));
+
+            if (fp != NULL) apr_file_printf(fp, 
+  "GRST_CRED_VALID_%d=notbefore=%ld notafter=%ld delegation=%d nist-loa=%d\n",
+                                            i, grst_cert->notbefore,
+                                               grst_cert->notafter,
+                                               grst_cert->delegation, 0);
+
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, conn->base_server,
+                      "store GRST_CRED_AURI_%d=fqan:%s", i, grst_cert->value);
 
             ++i;
           }

@@ -1,4 +1,3 @@
-#define HT_LEAK_TEST
 /*
    Copyright (c) 2002-6, Andrew McNab, University of Manchester
    All rights reserved.

@@ -1,5 +1,5 @@
 /*
-   Copyright (c) 2002-6, Andrew McNab, University of Manchester
+   Copyright (c) 2002-7, Andrew McNab, University of Manchester
    All rights reserved.
 
    Redistribution and use in source and binary forms, with or
@@ -78,21 +78,21 @@ void handle_sitecast_get(void)
   struct timeval start_timeval, wait_timeval;
   fd_set readsckts;
 
-  sitecast_domain = getenv("GRIDSITE_SRM_DOMAIN");
+  sitecast_domain = getenv("SITECAST_DOMAIN");
   if (sitecast_domain == NULL)
     {
       puts("Status: 500 Internal Server Error\n"
            "Content-Type: text/plain\n\n"
-           "No GRIDSITE_SRM_DOMAIN defined");
+           "No SITECAST_DOMAIN defined");
       return;
     }  
 
-  sitecast_port = getenv("GRIDSITE_SRM_PORT");
+  sitecast_port = getenv("SITECAST_PORT");
   if (sitecast_port == NULL)
     {
       puts("Status: 500 Internal Server Error\n"
            "Content-Type: text/plain\n\n"
-           "No GRIDSITE_SRM_PORT defined");
+           "No SITECAST_PORT defined");
       return;
     }  
 
@@ -207,12 +207,12 @@ int main()
   int   ret;
   char *method, *groups, *p;
 
-  groups = getenv("GRIDSITE_SRM_GROUPS");
+  groups = getenv("SITECAST_GROUPS");
   if (groups == NULL)
     {
       puts("Status: 500 Internal Server Error\n"
            "Content-Type: text/plain\n\n"
-           "No GRIDSITE_SRM_GROUPS defined");
+           "No SITECAST_GROUPS defined");
       return 0;
     }
 
@@ -239,7 +239,7 @@ int main()
          {
            puts("Status: 500 Internal Server Error\n"
                 "Content-Type: text/plain\n\n"
-                "Failed to parse GRIDSITE_SRM_GROUPS");
+                "Failed to parse SITECAST_GROUPS");
            return 0;
          }
        
@@ -253,11 +253,11 @@ int main()
     {
       puts("Status: 500 Internal Server Error\n"
            "Content-Type: text/plain\n\n"
-           "No groups found in GRIDSITE_SRM_GROUPS");
+           "No groups found in SITECAST_GROUPS");
       return;
     }
 
-  method = getenv("METHOD");
+  method = getenv("REQUEST_METHOD");
 
   if ((method != NULL) && (strcmp(method, "GET") == 0))
     {

@@ -79,30 +79,20 @@ char *get_dn(void)
 {
   int   i;
   char *p, *s, *dn;
-  GRSTgaclCred *cred = NULL;
    
   for (i=0; ; ++i)
      {  
-       asprintf(&p, "GRST_CRED_%d", i);
+       asprintf(&p, "GRST_CRED_AURI_%d", i);
        s = getenv(p);
        free(p);
        
        if (s == NULL) break;
        
-       if ((cred = GRSTx509CompactToCred(s)) == NULL) break;
-       
-       if ((strcmp(cred->type, "person") == 0) &&
-           (cred->firstname != NULL) &&
-           (cred->firstname->name != NULL) &&
-           (strcmp(cred->firstname->name, "dn") == 0) &&
-           (cred->firstname->value != NULL))
+       if (strncmp(s, "dn:", 3) == 0)
          {
-           dn = strdup(cred->firstname->value);
-           GRSTgaclCredFree(cred);
+           dn = strdup(&s[2]);
            return dn;
          }
-       
-       GRSTgaclCredFree(cred);
      }
   
   return NULL;  

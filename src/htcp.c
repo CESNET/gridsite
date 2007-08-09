@@ -1,5 +1,5 @@
 /*
-   Copyright (c) 2002-6, Andrew McNab, University of Manchester
+   Copyright (c) 2002-7, Andrew McNab, University of Manchester
    All rights reserved.
 
    Redistribution and use in source and binary forms, with or
@@ -1346,11 +1346,11 @@ struct grst_dir_list *index_to_dir_list(char *text, char *source)
 int do_listings(char *sources[], struct grst_stream_data *common_data,
                 int islonglist)
 {
-  int          isrc, anyerror = 0, thiserror, i, isdir, ilast;
+  int          isrc, anyerror = 0, thiserror, i, isdir, ilast, loclen, srclen;
   CURL        *easyhandle;
   const char  *months[] = { "Jan", "Feb", "Mar", "Apr", "May", "Jun", 
                             "Jul", "Aug", "Sep", "Oct", "Nov", "Dec" };
-  char        *s;
+  char        *s, *source_url;
   struct       grst_index_blob  rawindex;
   struct       grst_dir_list   *list;
   struct       grst_header_data header_data;
@@ -1376,18 +1376,21 @@ int do_listings(char *sources[], struct grst_stream_data *common_data,
 
   for (isrc=0; sources[isrc] != NULL; ++isrc)
      {
+       source_url = sources[isrc];
+     
        if (common_data->verbose > 0)
-            fprintf(stderr, "Listing %s\n", sources[isrc]);
-            
-       if (sources[1] != NULL) printf("\n%s:\n", sources[isrc]);
+            fprintf(stderr, "Listing %s\n", source_url);
 
-       curl_easy_setopt(easyhandle, CURLOPT_URL, sources[isrc]);
+       if (sources[1] != NULL) printf("\n%s:\n", source_url);
 
-       if (sources[isrc][strlen(sources[isrc])-1] == '/')
+       curl_easy_setopt(easyhandle, CURLOPT_URL, source_url);
+
+       if (source_url[strlen(source_url)-1] == '/')
          {
            isdir = 1;
            curl_easy_setopt(easyhandle,CURLOPT_WRITEFUNCTION,rawindex_callback);
            curl_easy_setopt(easyhandle,CURLOPT_WRITEDATA,(void *) &rawindex);
+           curl_easy_setopt(easyhandle,CURLOPT_HTTPGET,1);
            curl_easy_setopt(easyhandle,CURLOPT_NOBODY,0);
            rawindex.text      = NULL;
            rawindex.used      = 0;
@@ -1406,7 +1409,38 @@ int do_listings(char *sources[], struct grst_stream_data *common_data,
        header_data.modified_set = 0;
        header_data.retcode      = 0;
        thiserror = curl_easy_perform(easyhandle);
-       
+
+       if ((thiserror == 0) && 
+           (header_data.retcode == 301) &&
+           (header_data.location != NULL) &&
+           ((loclen = strlen(header_data.location))
+            == ((srclen = strlen(source_url)) + 1)) &&
+           (strncmp(header_data.location, source_url, srclen) == 0) &&
+           (header_data.location[loclen-1] == '/'))
+         {
+           if (common_data->verbose > 0) 
+                fprintf(stderr, "... redirect to %s\n", header_data.location);
+
+           source_url = strdup(header_data.location);
+           isdir = 1;
+           curl_easy_setopt(easyhandle,CURLOPT_WRITEFUNCTION,rawindex_callback);
+           curl_easy_setopt(easyhandle,CURLOPT_WRITEDATA,(void *) &rawindex);
+           curl_easy_setopt(easyhandle,CURLOPT_HTTPGET,1);
+           curl_easy_setopt(easyhandle,CURLOPT_NOBODY,0);
+           curl_easy_setopt(easyhandle,CURLOPT_URL, source_url);
+           rawindex.text      = NULL;
+           rawindex.used      = 0;
+           rawindex.allocated = 0;
+         
+           header_data.gridhttppasscode = NULL;
+           header_data.length_set   = 0;
+           header_data.modified_set = 0;
+           header_data.retcode      = 0;
+           header_data.location     = NULL;
+
+           thiserror = curl_easy_perform(easyhandle);
+         }
+         
        if ((thiserror != 0) ||
            (header_data.retcode >= 300))
          {
@@ -1423,7 +1457,7 @@ int do_listings(char *sources[], struct grst_stream_data *common_data,
            
            rawindex.text[rawindex.used] = '\0';
 
-           list  = index_to_dir_list(rawindex.text, sources[isrc]);
+           list  = index_to_dir_list(rawindex.text, source_url);
            ilast = -1;
 
            for (i=0; list[i].filename != NULL; ++i)
@@ -1446,7 +1480,7 @@ int do_listings(char *sources[], struct grst_stream_data *common_data,
                         curl_easy_setopt(easyhandle, CURLOPT_WRITEDATA, NULL);
                         curl_easy_setopt(easyhandle, CURLOPT_NOBODY, 1);
                         
-                        asprintf(&s, "%s%s", sources[isrc], list[i].filename);                        
+                        asprintf(&s, "%s%s", source_url, list[i].filename);
                         curl_easy_setopt(easyhandle, CURLOPT_URL, s);
 
                         header_data.gridhttppasscode = NULL;
@@ -1518,7 +1552,7 @@ int do_listings(char *sources[], struct grst_stream_data *common_data,
                              modified_tm.tm_min);
              }
 
-           puts(sources[isrc]);
+           puts(source_url);
          }
      }
 

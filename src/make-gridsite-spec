@@ -232,7 +232,7 @@ cat <<EOF >>gridsite.spec
 %package slashgrid
 Group: Applications/Internet
 Summary: slashgrid daemon
-Requires: curl,fuse,fuse-libs
+Requires: curl >= 7.12.1,fuse,fuse-libs
 
 %description slashgrid
 SlashGrid daemon

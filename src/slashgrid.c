@@ -75,8 +75,9 @@
 #define GRST_SLASH_MOVE   4
 #define GRST_SLASH_TRUNC  5
 
-#define GRST_SLASH_HEADERS_EXPIRE	60
-#define GRST_SLASH_BLOCK_SIZE		4096
+#define GRST_SLASH_HEADERS_EXPIRE	300
+#define GRST_SLASH_DEFAULT_BLOCKSIZE	4096
+#define GRST_SLASH_MAX_BLOCKSIZE	104857600
 #define GRST_SLASH_MAX_HANDLES		16
 
 #define GRST_SLASH_MAX_LOCATION		1024
@@ -142,6 +143,7 @@ int debugmode         = 0;
 int number_of_tries   = 1, sitecast_domain_len = 0;
 char *sitecast_domain = NULL, *sitecast_groups = NULL, *local_root = NULL,
      *gridmapdir = NULL;
+off_t default_blocksize = GRST_SLASH_DEFAULT_BLOCKSIZE;
 uid_t local_uid = 0;
 gid_t local_gid = 0;
 
@@ -372,15 +374,17 @@ int translate_sitecast_url(char **sitecast_url, char *raw_url)
   return GRST_RET_FAILED;
 }
 
-static void check_user_environ(char **capath, char **proxyfile, pid_t pid)
+static void check_user_environ(char **capath, char **proxyfile, 
+                               off_t *blocksize, pid_t pid)
 {
   int fd;
   size_t allocated = 1024, ret = 0, count = 0;
   char file[80], *pid_environ, *p;
   struct stat statbuf;
   
-  *proxyfile = NULL;
-  *capath    = NULL;
+  if (proxyfile != NULL) *proxyfile = NULL;
+  if (capath    != NULL) *capath    = NULL;
+  if (blocksize != NULL) *blocksize = default_blocksize;
   
   snprintf(file, sizeof(file), "/proc/%d/environ", (int) pid);
   
@@ -417,7 +421,8 @@ static void check_user_environ(char **capath, char **proxyfile, pid_t pid)
      {
        if (debugmode) syslog(LOG_DEBUG, "Examine %s in environ", p);
   
-       if (strncmp(p, "X509_USER_PROXY=", 16) == 0)
+       if ((proxyfile != NULL) &&
+           (strncmp(p, "X509_USER_PROXY=", 16) == 0))
          {
            if ((p[16] != '\0') && (stat(&p[16], &statbuf) == 0))
              {
@@ -426,13 +431,26 @@ static void check_user_environ(char **capath, char **proxyfile, pid_t pid)
                if (debugmode) syslog(LOG_DEBUG, "Found proxyfile");
              }
          }
-       else if (strncmp(p, "X509_CERT_DIR=", 14) == 0)
+       else if ((capath != NULL) &&
+                (strncmp(p, "X509_CERT_DIR=", 14) == 0))
          {
            if ((p[14] != '\0') && (stat(&p[14], &statbuf) == 0))
              {
                if (*capath != NULL) free(*capath);
                *capath = strdup(&p[14]);
                if (debugmode) syslog(LOG_DEBUG, "Found capath");
+             }
+         }
+       else if ((blocksize != NULL) &&
+                (strncmp(p, "SLASHGRID_BLOCKSIZE=", 20) == 0))
+         {
+           if (p[20] != '\0') 
+             {
+               *blocksize = atol(&p[20]);
+
+               if (*blocksize > GRST_SLASH_MAX_BLOCKSIZE)
+                                     *blocksize = GRST_SLASH_MAX_BLOCKSIZE;
+               else if (*blocksize <= 0) *blocksize = default_blocksize;
              }
          }
      }
@@ -525,7 +543,7 @@ int perform_request(struct grst_request *request_data,
     {
       ishttps = 1;
 
-      check_user_environ(&capath, &proxyfile, fuse_ctx->pid);
+      check_user_environ(&capath, &proxyfile, NULL, fuse_ctx->pid);
 
       if (proxyfile == NULL)
         {
@@ -1868,9 +1886,9 @@ static int slashgrid_read(const char *path, char *buf,
   (void) offset;
   (void) fi;
 
-  int          anyerror = 0, thiserror, i, ilast, fd;
+  int          anyerror = 0, thiserror, i, fd;
   char        *s, *url, *disk_filename, *encoded_filename, *localpath;
-  off_t        block_start, block_finish, block_i, len;
+  off_t        blocksize, block_start, block_finish, block_i, len;
   struct       grst_body_text   rawbody;
   struct       grst_request request_data;
   struct       tm               modified_tm;
@@ -1909,18 +1927,22 @@ static int slashgrid_read(const char *path, char *buf,
   if ((strncmp(path, "/http/",  6) != 0) &&
       (strncmp(path, "/https/", 7) != 0)) return -ENOENT;
 
-  block_start  = GRST_SLASH_BLOCK_SIZE * (offset / GRST_SLASH_BLOCK_SIZE);
-  block_finish = GRST_SLASH_BLOCK_SIZE *
-                                ((offset + size - 1) / GRST_SLASH_BLOCK_SIZE);
+  check_user_environ(NULL, NULL, &blocksize, fuse_ctx.pid);
+
+  if (debugmode) syslog(LOG_DEBUG, "in slashgrid_read, process blocksize=%ld",
+                                    (long) blocksize);
+
+  block_start  = blocksize * (offset / blocksize);
+  block_finish = blocksize * ((offset + size - 1) / blocksize);
 
   encoded_filename = GRSThttpUrlMildencode((char *) path);
   time(&now);
  
-  for (block_i = block_start; block_i <= block_finish; block_i += GRST_SLASH_BLOCK_SIZE)
+  for (block_i = block_start; block_i <= block_finish; block_i += blocksize)
      {     
        asprintf(&disk_filename, "%s/%d%s/%ld-%ld", 
                  GRST_SLASH_BLOCKS, fuse_ctx.uid, encoded_filename, 
-                 (long) block_i, (long) (block_i + GRST_SLASH_BLOCK_SIZE - 1));
+                 (long) block_i, (long) (block_i + blocksize - 1));
 
        if (debugmode) syslog(LOG_DEBUG, "disk_filename=%s", disk_filename);
                  
@@ -1928,7 +1950,7 @@ static int slashgrid_read(const char *path, char *buf,
            (statbuf.st_mtime < now - GRST_SLASH_HEADERS_EXPIRE))
          {
            write_block_to_cache(&fuse_ctx, (char *) path, 
-                            block_i, block_i + GRST_SLASH_BLOCK_SIZE - 1);
+                            block_i, block_i + blocksize - 1);
          }
 
 // need to worry about cached copy being deleted (invalidated by a writing
@@ -1942,8 +1964,8 @@ static int slashgrid_read(const char *path, char *buf,
              {
                lseek(fd, offset - block_start, SEEK_SET);
                read(fd, buf, 
-                        (offset - block_start + size < GRST_SLASH_BLOCK_SIZE) 
-                       ? size : GRST_SLASH_BLOCK_SIZE - offset + block_start);
+                        (offset - block_start + size < blocksize) 
+                       ? size : blocksize - offset + block_start);
              }
            else if (block_i == block_finish)
              {
@@ -1953,7 +1975,7 @@ static int slashgrid_read(const char *path, char *buf,
            else 
              {
                read(fd, buf + (block_i - block_start), 
-                        GRST_SLASH_BLOCK_SIZE);
+                        blocksize);
              }
              
            close(fd);
@@ -2447,7 +2469,8 @@ void slashgrid_logfunc(char *file, int line, int level, char *fmt, ...)
 
 int main(int argc, char *argv[])
 {
-  char *fuse_argv[] = { "slashgrid", "/grid", "-o", "allow_other",
+//  char *fuse_argv[] = { "slashgrid", "/grid", "-o", "allow_other,large_read,entry_timeout=999999,attr_timeout=999999",
+  char *fuse_argv[] = { "slashgrid", "/grid", "-o", "allow_other,large_read",
                         "-s", "-d" };
   int   i, ret, fuse_argc = 4; /* by default, ignore the final 2 args */
   struct passwd *pw;
@@ -2494,6 +2517,25 @@ int main(int argc, char *argv[])
        else if ((strcmp(argv[i], "--gridmapdir") == 0) && (i + 1 < argc))
          {
            gridmapdir = argv[i+1];
+           ++i;
+         }          
+       else if ((strcmp(argv[i], "--blocksize") == 0) && (i + 1 < argc))
+         {
+           default_blocksize = atol(argv[i+1]);
+           if (default_blocksize <= 0)
+             {
+               fprintf(stderr, "if present, blocksize must be greater than zero\n");
+               return 1;
+             }
+
+           if (default_blocksize > GRST_SLASH_MAX_BLOCKSIZE)
+             {
+               fprintf(stderr, 
+                       "if present, blocksize must be no greater than %ld\n",
+                       GRST_SLASH_MAX_BLOCKSIZE);
+               return 1;
+             }
+             
            ++i;
          }          
        else

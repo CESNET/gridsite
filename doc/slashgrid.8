@@ -78,6 +78,14 @@ example, after configuring GridFTP to use this gridmapdir.
 --debug
 Turn on debugging.
  
+.TP
+--blocksize BLOCKSIZE
+Change the default HTTP(S) block size in bytes. For streaming data,
+a much larger value than the default of 4096 may be appropriate. This may
+also be set for 
+.B each user process 
+if users set the environment variable SLASHGRID_BLOCKSIZE.
+ 
 .SH "MORE INFORMATION"
 
 http://www.gridsite.org/wiki/SlashGrid

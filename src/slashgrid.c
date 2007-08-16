@@ -446,7 +446,7 @@ static void check_user_environ(char **capath, char **proxyfile,
          {
            if (p[20] != '\0') 
              {
-               *blocksize = atol(&p[20]);
+               *blocksize = (off_t) atol(&p[20]);
 
                if (*blocksize > GRST_SLASH_MAX_BLOCKSIZE)
                                      *blocksize = GRST_SLASH_MAX_BLOCKSIZE;
@@ -1929,10 +1929,14 @@ static int slashgrid_read(const char *path, char *buf,
 
   check_user_environ(NULL, NULL, &blocksize, fuse_ctx.pid);
 
-  if (debugmode) syslog(LOG_DEBUG, "in slashgrid_read, process blocksize=%ld",
-                                    (long) blocksize);
+  if (debugmode) syslog(LOG_DEBUG, 
+                "in slashgrid_read, process blocksize=%ld offset=%ld",
+                                    (long) blocksize, (long) offset);
 
+  /* start byte of first block required */
   block_start  = blocksize * (offset / blocksize);
+  
+  /* start byte of last block required */
   block_finish = blocksize * ((offset + size - 1) / blocksize);
 
   encoded_filename = GRSThttpUrlMildencode((char *) path);
@@ -1969,12 +1973,12 @@ static int slashgrid_read(const char *path, char *buf,
              }
            else if (block_i == block_finish)
              {
-               read(fd, buf + (block_i - block_start),
+               read(fd, buf + (block_i - offset),
                         offset + size - block_i);
              }
            else 
              {
-               read(fd, buf + (block_i - block_start), 
+               read(fd, buf + (block_i - offset), 
                         blocksize);
              }
              
@@ -1986,6 +1990,9 @@ static int slashgrid_read(const char *path, char *buf,
   free(disk_filename);
   free(encoded_filename);
 
+  if (debugmode) syslog(LOG_DEBUG, 
+                  "slashgrid_read finishes, process blocksize=%ld offset=%ld",
+                  (long) blocksize, (long) offset);
   return size;
 }
 
@@ -2521,7 +2528,7 @@ int main(int argc, char *argv[])
          }          
        else if ((strcmp(argv[i], "--blocksize") == 0) && (i + 1 < argc))
          {
-           default_blocksize = atol(argv[i+1]);
+           default_blocksize = (off_t) atol(argv[i+1]);
            if (default_blocksize <= 0)
              {
                fprintf(stderr, "if present, blocksize must be greater than zero\n");

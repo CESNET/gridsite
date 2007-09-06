@@ -1,5 +1,5 @@
 /*
-   Copyright (c) 2003-6, Andrew McNab,
+   Copyright (c) 2003-7, Andrew McNab,
    University of Manchester. All rights reserved.
 
    Redistribution and use in source and binary forms, with or
@@ -49,6 +49,7 @@
 #include <sys/stat.h>
 #include <sys/vfs.h>
 #include <unistd.h>              
+#include <signal.h>
 #include <dirent.h>
 #include <malloc.h>
 #include <curl/curl.h>
@@ -63,6 +64,7 @@
 
 #define GRST_SLASH_PIDFILE "/var/run/slashgrid.pid"
 
+#define GRST_SLASH_TOPDIR  "/var/spool/slashgrid"
 #define GRST_SLASH_HEADERS "/var/spool/slashgrid/headers"
 #define GRST_SLASH_BLOCKS  "/var/spool/slashgrid/blocks"
 #define GRST_SLASH_TMP     "/var/spool/slashgrid/tmp"
@@ -75,8 +77,8 @@
 #define GRST_SLASH_MOVE   4
 #define GRST_SLASH_TRUNC  5
 
-#define GRST_SLASH_HEADERS_EXPIRE	300
-#define GRST_SLASH_DEFAULT_BLOCKSIZE	4096
+#define GRST_SLASH_CACHE_EXPIRE		300
+#define GRST_SLASH_DEFAULT_BLOCKSIZE	65536
 #define GRST_SLASH_MAX_BLOCKSIZE	104857600
 #define GRST_SLASH_MAX_HANDLES		16
 
@@ -146,6 +148,81 @@ char *sitecast_domain = NULL, *sitecast_groups = NULL, *local_root = NULL,
 off_t default_blocksize = GRST_SLASH_DEFAULT_BLOCKSIZE;
 uid_t local_uid = 0;
 gid_t local_gid = 0;
+
+int cleanup_recurse(char *currentdirname)
+/*
+    returns number of files/dirs LEFT in this directory after scan. ie 0=empty
+*/
+{
+  int            num_left_here = 0;
+  char          *s;
+  DIR           *currentDIR;
+  struct stat    ent_stat;
+  struct dirent *ent;
+  time_t         now;
+  
+  time(&now);
+  
+  if ((currentDIR = opendir(currentdirname)) == NULL)
+    {
+      return 0; /* some error - maybe its empty anyway? */
+    }
+    
+  while ((ent = readdir(currentDIR)) != NULL)
+    {
+      if ((strcmp(ent->d_name, "." ) == 0) ||
+          (strcmp(ent->d_name, "..") == 0)) continue;
+          
+      if (asprintf(&s, "%s/%s", currentdirname, ent->d_name) == -1) continue;
+    
+      syslog(LOG_DEBUG, "cleanup_thread() stat(%s)", s);
+
+      if (stat(s, &ent_stat) == 0) /* ignore if gone already! */
+        {
+          if (S_ISDIR(ent_stat.st_mode))
+            {
+              if ((cleanup_recurse(s) == 0) &&
+                  (ent_stat.st_mtime < now - GRST_SLASH_CACHE_EXPIRE))
+                {
+                  syslog(LOG_DEBUG, "cleanup_thread() rmdir(%s)", s);
+                  rmdir(s);
+                }
+              else ++num_left_here;
+            }
+          else /* not a directory - treat as regular file */
+            {
+              if (ent_stat.st_mtime < now - GRST_SLASH_CACHE_EXPIRE)
+                {
+                  syslog(LOG_DEBUG, "cleanup_thread() unlink(%s)", s);
+                  unlink(s);
+                }
+              else ++num_left_here;
+            }
+        }
+
+      free(s);
+    }
+    
+  closedir(currentDIR);
+  
+  return num_left_here;
+}
+
+void *cleanup_thread(void *unused)
+{
+  while (1)
+   {
+     syslog(LOG_DEBUG, "cleanup_thread() scan starts");
+
+     cleanup_recurse(GRST_SLASH_HEADERS);
+     cleanup_recurse(GRST_SLASH_BLOCKS);
+     cleanup_recurse(GRST_SLASH_TMP);
+ 
+     syslog(LOG_DEBUG, "cleanup_thread() scan completes");
+
+     sleep(GRST_SLASH_CACHE_EXPIRE / 2);
+   }   
+}
 
 size_t headers_callback(void *ptr, size_t size, size_t nmemb, void *p)
 /* Find the values of the return code, Content-Length, Last-Modified
@@ -1174,7 +1251,7 @@ int read_headers_from_cache(struct fuse_context *fuse_ctx, char *filename,
 
   time(&now);
 
-  if (statbuf.st_mtime < now - GRST_SLASH_HEADERS_EXPIRE)
+  if (statbuf.st_mtime < now - GRST_SLASH_CACHE_EXPIRE)
     {
       unlink(disk_filename); /* tidy up expired cache file */
       free(disk_filename);
@@ -1951,7 +2028,7 @@ static int slashgrid_read(const char *path, char *buf,
        if (debugmode) syslog(LOG_DEBUG, "disk_filename=%s", disk_filename);
                  
        if ((stat(disk_filename, &statbuf) != 0) ||
-           (statbuf.st_mtime < now - GRST_SLASH_HEADERS_EXPIRE))
+           (statbuf.st_mtime < now - GRST_SLASH_CACHE_EXPIRE))
          {
            write_block_to_cache(&fuse_ctx, (char *) path, 
                             block_i, block_i + blocksize - 1);
@@ -2418,8 +2495,13 @@ int slashgrid_statfs(const char *path, struct statfs *fs)
 }
 
 void *slashgrid_init(void)
+/*
+   Since this is executed after fuse_main() forks, we can do 
+   various things unset/undone by FUSE.
+*/
 {
   FILE *fp;
+  pthread_t cleanup_thread_t;
   struct rlimit unlimited = { RLIM_INFINITY, RLIM_INFINITY };
   
   if ((fp = fopen(GRST_SLASH_PIDFILE, "w")) != NULL)
@@ -2433,6 +2515,8 @@ void *slashgrid_init(void)
       chdir("/var/tmp"); /* fuse changes to / in demonize: undo this */
       setrlimit(RLIMIT_CORE, &unlimited);
     }
+
+  pthread_create(&cleanup_thread_t, NULL, cleanup_thread, NULL);
 
   return NULL;
 }
@@ -2476,11 +2560,10 @@ void slashgrid_logfunc(char *file, int line, int level, char *fmt, ...)
 
 int main(int argc, char *argv[])
 {
-//  char *fuse_argv[] = { "slashgrid", "/grid", "-o", "allow_other,large_read,entry_timeout=999999,attr_timeout=999999",
   char *fuse_argv[] = { "slashgrid", "/grid", "-o", "allow_other,large_read",
                         "-s", "-d" };
   int   i, ret, fuse_argc = 4; /* by default, ignore the final 2 args */
-  struct passwd *pw;
+  struct passwd *pw;  
   
   for (i=1; i < argc; ++i)
      {
@@ -2561,8 +2644,13 @@ int main(int argc, char *argv[])
     }
 
   openlog("slashgrid", 0, LOG_DAEMON);
-    
+
   umount("/grid"); /* in case of previous crash - will fail if still busy */
+  
+  mkdir(GRST_SLASH_TOPDIR,  0700);
+  mkdir(GRST_SLASH_HEADERS, 0700);
+  mkdir(GRST_SLASH_BLOCKS,  0700);
+  mkdir(GRST_SLASH_TMP,     0700);
 
   for (i=0; i < GRST_SLASH_MAX_HANDLES; ++i)
      {

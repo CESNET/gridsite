@@ -1,6 +1,6 @@
 #
 #   Andrew McNab and Shiv Kaushal, University of Manchester.
-#   Copyright (c) 2002-6. All rights reserved.
+#   Copyright (c) 2002-7. All rights reserved.
 #
 #   Redistribution and use in source and binary forms, with or
 #   without modification, are permitted provided that the following
@@ -246,7 +246,7 @@ slashgrid: slashgrid.c libgridsite.so.$(VERSION)
           $(MYCFLAGS) $(MYLDFLAGS) `xml2-config --cflags` \
           -D_FILE_OFFSET_BITS=64 -D_REENTRANT -DFUSE_USE_VERSION=22 \
           -I/usr/kerberos/include `curl-config --cflags` \
-          -L. `curl-config --libs` -lgridsite
+          -L. `curl-config --libs` -lgridsite -lpthread
 
 # This target is used by make-gridsite-spec to test for FUSE include+libs
 fuse-test: fuse-test.c
@@ -409,9 +409,7 @@ install-slashgrid: slashgrid
 	cp -f ../doc/slashgrid.8 $(prefix)/share/doc/gridsite-$(MINOR_VERSION) ; \
 	cp -f ../doc/slashgrid.8 $(prefix)/share/man/man8
 	gzip -f $(prefix)/share/man/man8/slashgrid.8
-	mkdir -p $(RPM_BUILD_ROOT)/var/spool/slashgrid/headers
-	mkdir -p $(RPM_BUILD_ROOT)/var/spool/slashgrid/blocks
-	mkdir -p $(RPM_BUILD_ROOT)/var/spool/slashgrid/tmp
+	mkdir -p $(RPM_BUILD_ROOT)/var/spool/slashgrid
 
 install-ws: gridsite-delegation.cgi htproxyput
 	mkdir -p $(prefix)/include \

@@ -210,6 +210,51 @@ int parse_content_range(request_rec *r, apr_off_t *range_start,
     return 1;
 }
 
+char *html_escape(apr_pool_t *pool, char *s)
+{
+    int    htmlspecials, i;
+    char  *escaped, *p;
+
+    for (htmlspecials=0,p=s; *p != '\0'; ++p) 
+      if ((*p == '<') || (*p == '>') || (*p == '&') || (*p == '"')) 
+          ++htmlspecials;
+
+    escaped = apr_palloc(pool, strlen(s) + htmlspecials * 6);
+        
+    for (i=0,p=s; *p != '\0'; ++p)
+       {
+             if      (*p == '<') 
+                { 
+                  strcpy(&escaped[i], "&lt;");
+                  i += 4;
+                }
+            else if (*p == '>') 
+                {
+                  strcpy(&escaped[i], "&gt;");
+                  i += 4;
+                }
+            else if (*p == '&') 
+                {
+                  strcpy(&escaped[i], "&amp;");
+                  i += 5;
+                }
+            else if (*p == '"') 
+                {
+                  strcpy(&escaped[i], "&quot;");
+                  i += 6;
+                }
+            else 
+                {
+                  escaped[i] = *p;
+                  ++i;
+                }                  
+       }
+
+    escaped[i] = '\0';
+   
+    return escaped;
+}
+
 char *make_admin_footer(request_rec *r, mod_gridsite_dir_cfg *conf,
                         int isdirectory)
 /*
@@ -273,12 +318,13 @@ char *make_admin_footer(request_rec *r, mod_gridsite_dir_cfg *conf,
         (strncmp(grst_cred_auri_0, "dn:", 3) == 0))
       {
          dn = &grst_cred_auri_0[3];
-         if (dn[0] == '\0') dn = NULL;
+         if (dn[0] == '\0') dn = NULL;         
       }
   
     if (dn != NULL) 
       {
-        temp = apr_psprintf(r->pool, "You are %s<br>\n", dn);
+        temp = apr_psprintf(r->pool, 
+                            "You are %s<br>\n", html_escape(r->pool,dn));
         out = apr_pstrcat(r->pool, out, temp, NULL);
                
         if (r->notes != NULL)
@@ -355,8 +401,8 @@ char *make_admin_footer(request_rec *r, mod_gridsite_dir_cfg *conf,
     return out;
 }
 
-void delegation_header(request_rec *r, mod_gridsite_dir_cfg *conf){
-
+void delegation_header(request_rec *r, mod_gridsite_dir_cfg *conf)
+{
   apr_table_add(r->headers_out,
                 apr_pstrdup(r->pool, "Proxy-Delegation-Service"),
                 apr_psprintf(r->pool,"https://%s%s", r->hostname, conf->delegationuri));
@@ -535,7 +581,8 @@ int html_dir_list(request_rec *r, mod_gridsite_dir_cfg *conf)
     int    i, fd, n, nn;
     char  *buf, *p, *s, *head_formatted, *header_formatted,
           *body_formatted, *admin_formatted, *footer_formatted, *temp,
-           modified[99], *d_namepath, *indexheaderpath, *indexheadertext;
+           modified[99], *d_namepath, *indexheaderpath, *indexheadertext,
+           *encoded, *escaped;
     size_t length;
     struct stat statbuf;
     struct tm   mtime_tm;
@@ -630,24 +677,30 @@ int html_dir_list(request_rec *r, mod_gridsite_dir_cfg *conf)
                strftime(modified, sizeof(modified), 
               "<td align=right>%R</td><td align=right>%e&nbsp;%b&nbsp;%y</td>",
                         &mtime_tm);    
-                              
+
+               encoded = GRSThttpUrlMildencode(namelist[n]->d_name);
+               escaped = html_escape(r->pool, namelist[n]->d_name);
+
                if (S_ISDIR(statbuf.st_mode))
                     temp = apr_psprintf(r->pool, 
                       "<tr><td><a href=\"%s/\" content-length=\"%ld\" "
                       "last-modified=\"%ld\">"
                       "%s/</a></td>"
                       "<td align=right>%ld</td>%s</tr>\n", 
-                      namelist[n]->d_name, statbuf.st_size, statbuf.st_mtime,
-                      namelist[n]->d_name, 
+                      encoded, statbuf.st_size, statbuf.st_mtime,
+                      escaped, 
                       statbuf.st_size, modified);
                else temp = apr_psprintf(r->pool, 
                       "<tr><td><a href=\"%s\" content-length=\"%ld\" "
                       "last-modified=\"%ld\">"
                       "%s</a></td>"
                       "<td align=right>%ld</td>%s</tr>\n", 
-                      namelist[n]->d_name, statbuf.st_size, statbuf.st_mtime,
-                      namelist[n]->d_name, 
+                      encoded, statbuf.st_size, statbuf.st_mtime,
+                      escaped, 
                       statbuf.st_size, modified);
+                      
+               free(encoded);
+               /* escaped done with pool so no free() */
 
                body_formatted = apr_pstrcat(r->pool,body_formatted,temp,NULL);
              }
@@ -1120,7 +1173,8 @@ static void recurse4dirlist(char *dirname, time_t *dirs_time,
 /* try to find DN Lists in dir[] and its subdirs that match the fulluri[]
    prefix. add blobs of HTML to body as they are found. */
 {
-   char          *unencname, modified[99], *oneline, *d_namepath;
+   char          *unencname, modified[99], *oneline, *d_namepath,
+                 *mildencoded;
    DIR           *oneDIR;
    struct dirent *onedirent;
    struct tm      mtime_tm;
@@ -1159,16 +1213,21 @@ static void recurse4dirlist(char *dirname, time_t *dirs_time,
                   strftime(modified, sizeof(modified), 
               "<td align=right>%R</td><td align=right>%e&nbsp;%b&nbsp;%y</td>",
                        &mtime_tm);
-
+                  
+                  mildencoded = GRSThttpUrlMildencode(&unencname[fullurilen]);
+                 
                   oneline = apr_psprintf(pool,
                                      "<tr><td><a href=\"%s\" "
                                      "content-length=\"%ld\" "
                                      "last-modified=\"%ld\">"
                                      "%s</a></td>"
                                      "<td align=right>%ld</td>%s</tr>\n", 
-                                     &unencname[fullurilen], statbuf.st_size, 
-                                     statbuf.st_mtime, unencname, 
+                                     mildencoded, statbuf.st_size, 
+                                     statbuf.st_mtime, 
+                                     html_escape(pool, unencname), 
                                      statbuf.st_size, modified);
+
+                  free(mildencoded);
 
                   *body = apr_pstrcat(pool, *body, oneline, NULL);
                 }      

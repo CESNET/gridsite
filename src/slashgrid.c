@@ -140,6 +140,8 @@ struct grst_handle { pthread_mutex_t	mutex;
                      char 		*capath;
                      time_t		last_used;
                    }  handles[GRST_SLASH_MAX_HANDLES];
+
+pthread_mutex_t cache_mutex;
  
 int debugmode         = 0;
 int number_of_tries   = 1, sitecast_domain_len = 0;
@@ -175,17 +177,28 @@ int cleanup_recurse(char *currentdirname)
           
       if (asprintf(&s, "%s/%s", currentdirname, ent->d_name) == -1) continue;
     
-      syslog(LOG_DEBUG, "cleanup_thread() stat(%s)", s);
+      if (debugmode) syslog(LOG_DEBUG, "cleanup_thread() stat(%s)", s);
 
+      pthread_mutex_lock(&cache_mutex);
       if (stat(s, &ent_stat) == 0) /* ignore if gone already! */
         {
           if (S_ISDIR(ent_stat.st_mode))
             {
-              if ((cleanup_recurse(s) == 0) &&
-                  (ent_stat.st_mtime < now - GRST_SLASH_CACHE_EXPIRE))
+              pthread_mutex_unlock(&cache_mutex); /* unlock during recurse */
+            
+              if (cleanup_recurse(s) == 0) /* directory is now empty */
                 {
-                  syslog(LOG_DEBUG, "cleanup_thread() rmdir(%s)", s);
-                  rmdir(s);
+                  pthread_mutex_lock(&cache_mutex); /* lock for stat/rmdir */
+                
+                  if ((stat(s, &ent_stat) == 0)   &&
+                      (S_ISDIR(ent_stat.st_mode)) &&
+                      (ent_stat.st_mtime < now - GRST_SLASH_CACHE_EXPIRE))
+                       rmdir(s);
+                  else ++num_left_here;
+                  
+                  pthread_mutex_unlock(&cache_mutex);
+
+                  if (debugmode) syslog(LOG_DEBUG, "cleanup_thread() rmdir(%s)", s);
                 }
               else ++num_left_here;
             }
@@ -193,12 +206,15 @@ int cleanup_recurse(char *currentdirname)
             {
               if (ent_stat.st_mtime < now - GRST_SLASH_CACHE_EXPIRE)
                 {
-                  syslog(LOG_DEBUG, "cleanup_thread() unlink(%s)", s);
+                  if (debugmode) syslog(LOG_DEBUG, "cleanup_thread() unlink(%s)", s);
                   unlink(s);
                 }
               else ++num_left_here;
+              
+              pthread_mutex_unlock(&cache_mutex);
             }
         }
+      else pthread_mutex_unlock(&cache_mutex);
 
       free(s);
     }
@@ -212,14 +228,10 @@ void *cleanup_thread(void *unused)
 {
   while (1)
    {
-     syslog(LOG_DEBUG, "cleanup_thread() scan starts");
-
      cleanup_recurse(GRST_SLASH_HEADERS);
      cleanup_recurse(GRST_SLASH_BLOCKS);
      cleanup_recurse(GRST_SLASH_TMP);
  
-     syslog(LOG_DEBUG, "cleanup_thread() scan completes");
-
      sleep(GRST_SLASH_CACHE_EXPIRE / 2);
    }   
 }
@@ -257,17 +269,20 @@ size_t headers_callback(void *ptr, size_t size, size_t nmemb, void *p)
 
         if (strptime(&s[15], "%a, %d %b %Y %T GMT", &modified_tm) != NULL)
           {
-            request_data->modified = mktime(&modified_tm);
+            modified_tm.tm_isdst = 0;
+            request_data->modified = timegm(&modified_tm);
             request_data->modified_set = 1;
           }
         else if (strptime(&s[15], "%a, %d-%b-%y %T GMT", &modified_tm) != NULL)
           {
-            request_data->modified = mktime(&modified_tm);
+            modified_tm.tm_isdst = 0;
+            request_data->modified = timegm(&modified_tm);
             request_data->modified_set = 1;
           }
         else if (strptime(&s[15], "%a %b %d %T %Y", &modified_tm) != NULL)
           {
-            request_data->modified = mktime(&modified_tm);
+            modified_tm.tm_isdst = 0;
+            request_data->modified = timegm(&modified_tm);
             request_data->modified_set = 1;
           }
       }
@@ -300,7 +315,7 @@ int debug_callback(CURL *handle, curl_infotype infotype,
      
   mesg[n] = '\0';
 
-  syslog(LOG_DEBUG, "%d %s%s%s%s", 
+  if (debugmode) syslog(LOG_DEBUG, "%d %s%s%s%s", 
                     *((int *) i), 
                     (infotype == CURLINFO_HEADER_IN ) ? "<<" : "",
                     (infotype == CURLINFO_HEADER_OUT) ? ">>" : "",
@@ -381,8 +396,7 @@ int translate_sitecast_url(char **sitecast_url, char *raw_url)
 
   for (i=0; i <= igroup; ++i)
      {
-       if (debugmode)
-        syslog(LOG_DEBUG, "Querying multicast group %d.%d.%d.%d:%d:%d:%d\n",
+       if (debugmode) syslog(LOG_DEBUG, "Querying multicast group %d.%d.%d.%d:%d:%d:%d\n",
                 groups[i].quad1, groups[i].quad2,
                 groups[i].quad3, groups[i].quad4,
                 groups[i].port, groups[i].ttl,
@@ -1223,7 +1237,7 @@ int read_headers_from_cache(struct fuse_context *fuse_ctx, char *filename,
                             off_t *length, time_t *modified)
 {
   char *encoded_filename, *disk_filename;
-  int   len;
+  int   len, fd;
   long  content_length, last_modified;
   FILE *fp;
   struct stat statbuf;
@@ -1236,15 +1250,22 @@ int read_headers_from_cache(struct fuse_context *fuse_ctx, char *filename,
   if (encoded_filename[len - 1] == '/') /* a directory */
        asprintf(&disk_filename, "%s/%d%s%s", 
                 GRST_SLASH_HEADERS, fuse_ctx->uid, encoded_filename, GRST_SLASH_DIRFILE);
-  else asprintf(&disk_filename, "%s/%d%s%s", 
+  else asprintf(&disk_filename, "%s/%d%s", 
                 GRST_SLASH_HEADERS, fuse_ctx->uid, encoded_filename);
 
   free(encoded_filename);
 
-// Change to fstat for the benefit of multiple threads:
-
-  if (stat(disk_filename, &statbuf) != 0) /* no cache file to read */
+  if ((fd = open(disk_filename, O_RDONLY)) == -1)
     {
+      if (debugmode) syslog(LOG_DEBUG, "open(%s) in cache fails", disk_filename);
+      free(disk_filename);
+      return 0;
+    }
+
+  if (fstat(fd, &statbuf) != 0) /* no cache file to read */
+    {
+      close(fd);
+      if (debugmode) syslog(LOG_DEBUG, "fstat(%s) in cache fails", disk_filename);
       free(disk_filename);
       return 0;
     }
@@ -1253,6 +1274,8 @@ int read_headers_from_cache(struct fuse_context *fuse_ctx, char *filename,
 
   if (statbuf.st_mtime < now - GRST_SLASH_CACHE_EXPIRE)
     {
+      close(fd);
+      if (debugmode) syslog(LOG_DEBUG, "%s in cache has expired", disk_filename);
       unlink(disk_filename); /* tidy up expired cache file */
       free(disk_filename);
       return 0;
@@ -1263,10 +1286,9 @@ int read_headers_from_cache(struct fuse_context *fuse_ctx, char *filename,
 
   if (debugmode) syslog(LOG_DEBUG, "Opening %s from cache", disk_filename);
 
-  fp = fopen(disk_filename, "r");
   free(disk_filename);
 
-  if (fp != NULL)
+  if ((fp = fdopen(fd, "r")) != NULL)
     {
       fscanf(fp, "content-length=%ld last-modified=%ld ", 
                  &content_length, &last_modified);
@@ -1281,13 +1303,15 @@ int read_headers_from_cache(struct fuse_context *fuse_ctx, char *filename,
       return 1;
     }
 
+  close(fd);
+
   return 0;
 }
 
 int write_headers_to_cache(struct fuse_context *fuse_ctx, char *filename, 
                            off_t length, time_t modified)
 {
-  int         fd, len;
+  int         fd, len, ret;
   char       *tempfile, *headline, *encoded_filename, *p, *newdir,
              *new_filename;
   struct stat statbuf;
@@ -1330,8 +1354,10 @@ int write_headers_to_cache(struct fuse_context *fuse_ctx, char *filename,
          {
            if (!S_ISDIR(statbuf.st_mode)) /* exists already - not a directory! */
              {
+               pthread_mutex_lock(&cache_mutex);
                unlink(newdir);
                mkdir(newdir, S_IRUSR | S_IWUSR | S_IXUSR);
+               pthread_mutex_unlock(&cache_mutex);
              }
            /* else it already exists as a directory - so ok */
          }
@@ -1356,10 +1382,12 @@ int write_headers_to_cache(struct fuse_context *fuse_ctx, char *filename,
       rmdir(new_filename);
     }
 
-  rename(tempfile, new_filename);
+  pthread_mutex_lock(&cache_mutex);
+  ret = rename(tempfile, new_filename);
+  pthread_mutex_unlock(&cache_mutex);
 
-  if (debugmode) syslog(LOG_DEBUG, "Added %s to cache (%ld %ld)\n", 
-                                   new_filename, length, modified);
+  if (debugmode) syslog(LOG_DEBUG, "Move %s to %s in cache (%d;%ld,%ld)\n", 
+                              tempfile, new_filename, ret, length, modified);
 
   free(tempfile);
   free(new_filename);
@@ -1585,6 +1613,8 @@ static int slashgrid_getattr(const char *rawpath, struct stat *stbuf)
   memset(stbuf, 0, sizeof(struct stat));
   stbuf->st_mode  = S_IFREG | 0755;
   stbuf->st_nlink = 1;
+  stbuf->st_uid     = fuse_ctx.uid;
+  stbuf->st_gid     = fuse_ctx.gid;
   
   if ((strcmp(rawpath, "/")      == 0) ||
       (strcmp(rawpath, "/http")  == 0) ||
@@ -1654,8 +1684,6 @@ static int slashgrid_getattr(const char *rawpath, struct stat *stbuf)
       else if (ret == 0)
         {
           stbuf->st_nlink   = 1;
-          stbuf->st_uid     = fuse_ctx.uid;
-          stbuf->st_gid     = fuse_ctx.gid;
           stbuf->st_size    = stat_tmp.st_size;
           stbuf->st_blksize = stat_tmp.st_blksize;
           stbuf->st_blocks  = stat_tmp.st_blocks;
@@ -1712,7 +1740,9 @@ static int slashgrid_getattr(const char *rawpath, struct stat *stbuf)
       free(path);
       return 0;    
     }
-  
+  else if (debugmode) syslog(LOG_DEBUG, 
+                      "Headers for %s not found in cache at %s\n", url, path);
+                        
   if (debugmode) syslog(LOG_DEBUG, "Get details for %s over network\n", url);
 
   bzero(&request_data, sizeof(struct grst_request));
@@ -1907,7 +1937,9 @@ int write_block_to_cache(struct fuse_context *fuse_ctx, char *filename,
 
   free(encoded_filename);
   
+  pthread_mutex_lock(&cache_mutex);
   rename(tempfile, new_filename);
+  pthread_mutex_unlock(&cache_mutex);
 
   if (debugmode) syslog(LOG_DEBUG, "Added %s to block cache", new_filename);
 
@@ -1917,22 +1949,41 @@ int write_block_to_cache(struct fuse_context *fuse_ctx, char *filename,
   return 0;
 }
 
-int drop_cache_blocks(struct fuse_context *fuse_ctx, char *filename)
-/* drop ALL the blocks cached for this file, and delete the directory in
-   the blocks cache for this file */
+void drop_cache_blocks(struct fuse_context *fuse_ctx, char *filename)
+/*
+   Drop ALL the blocks cached for this file by moving the whole directory
+   to GRST_SLASH_TMP and letting the cleanup thread deal with them when
+   it has time; and then remove the headers cached for this file.
+*/
 {
-  int   ret;
-  char *encoded_filename, *dirname, *blockname;
-  DIR *blocksDIR;
-  struct dirent *blocks_ent;
+  char *encoded_filename, *dirname, *headersname;
+//  DIR *blocksDIR;
+//  struct dirent *blocks_ent;
 
   encoded_filename = GRSThttpUrlMildencode(filename);
   
-  asprintf(&dirname, "%s/%d%s", 
+  /* move blocks directory */
+
+  asprintf(&dirname, "%s/%d%s",
                      GRST_SLASH_BLOCKS, fuse_ctx->uid, encoded_filename);
 
-  free(encoded_filename);
+  rename(dirname, GRST_SLASH_TMP);
+  free(dirname);
 
+  /* remove headers file */
+
+  asprintf(&headersname, "%s/%d%s",
+                     GRST_SLASH_HEADERS, fuse_ctx->uid, encoded_filename);
+
+  unlink(headersname);
+  free(headersname);
+
+  /* finish */
+
+  free(encoded_filename);
+  return;
+  
+#if 0
   blocksDIR = opendir(dirname);
   
   if (blocksDIR == NULL) /* no directory to delete (probably) */
@@ -1954,6 +2005,7 @@ int drop_cache_blocks(struct fuse_context *fuse_ctx, char *filename)
   free(dirname);  
 
   return ret ? 1 : 0; /* return 1 on error, 0 on rmdir() success */
+#endif
 }
 
 static int slashgrid_read(const char *path, char *buf, 
@@ -2027,19 +2079,24 @@ static int slashgrid_read(const char *path, char *buf,
 
        if (debugmode) syslog(LOG_DEBUG, "disk_filename=%s", disk_filename);
                  
-       if ((stat(disk_filename, &statbuf) != 0) ||
+       fd = open(disk_filename, O_RDONLY);
+       
+       if ((fd == -1) ||
+           (fstat(fd, &statbuf) != 0) ||
            (statbuf.st_mtime < now - GRST_SLASH_CACHE_EXPIRE))
          {
+           if (fd != -1) close(fd);
+         
            write_block_to_cache(&fuse_ctx, (char *) path, 
                             block_i, block_i + blocksize - 1);
+                            
+           fd = open(disk_filename, O_RDONLY);                            
          }
 
-// need to worry about cached copy being deleted (invalidated by a writing
-// thread?) between write_block_to_cache() and these reads?
-// maybe return fd from write_block_to_cache() itself???
-// the initial stat() needs to be part of this too
+       /* even if another thread deletes disk_filename between 
+          open and read, we've still got it open so can carry on */
 
-       if ((fd = open(disk_filename, O_RDONLY)) != -1)
+       if (fd != -1)
          {
            if (block_i == block_start)              
              {
@@ -2659,6 +2716,8 @@ int main(int argc, char *argv[])
        handles[i].proxyfile   = NULL;
        handles[i].last_used   = 0;
      }
+
+  pthread_mutex_init(&cache_mutex, NULL);
 
 //  GRSTerrorLogFunc = slashgrid_logfunc;
  

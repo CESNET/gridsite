@@ -264,7 +264,8 @@ void deletefileaction(char *dn, GRSTgaclPerm perm, char *help_uri,
   struct dirent *subdirfile_ent;
   DIR           *subDIR;
 
-  if (((strcmp(file, GRST_ACL_FILE) != 0) && !GRSTgaclPermHasWrite(perm)) ||
+  if ((file[0] == '\0') ||
+      ((strcmp(file, GRST_ACL_FILE) != 0) && !GRSTgaclPermHasWrite(perm)) ||
       ((strcmp(file, GRST_ACL_FILE) == 0) && !GRSTgaclPermHasAdmin(perm)))
                                                GRSThttpError("403 Forbidden");
 
@@ -438,8 +439,9 @@ void editfileaction(char *dn, GRSTgaclPerm perm, char *help_uri, char *dir_path,
   FILE         *fp;
   GRSThttpBody  bp;
   
-  if (!GRSTgaclPermHasWrite(perm) || (strcmp(file, GRST_ACL_FILE) == 0))
-                                               GRSThttpError("403 Forbidden");
+  if ((file[0] == '\0') ||
+      !GRSTgaclPermHasWrite(perm) || 
+      (strcmp(file, GRST_ACL_FILE) == 0)) GRSThttpError("403 Forbidden");
                                                  
   dnlistsuri = getenv("GRST_DN_LISTS_URI");
   if (dnlistsuri == NULL) dnlistsuri = getenv("REDIRECT_GRST_DN_LISTS_URI");
@@ -576,7 +578,7 @@ void renameaction(char *dn, GRSTgaclPerm perm, char *help_uri, char *dir_path,
   if (!GRSTgaclPermHasWrite(perm) || (strcmp(file, GRST_ACL_FILE) == 0)) 
                                               GRSThttpError("403 Forbidden");
                                               
-  if (index(file, '/') != NULL) GRSThttpError("403 Forbidden");
+  if (file[0] == '\0') GRSThttpError("403 Forbidden");
 
   dir_path_file = malloc(strlen(dir_path) + strlen(file) + 2);  
   strcpy(dir_path_file, dir_path);
@@ -586,8 +588,14 @@ void renameaction(char *dn, GRSTgaclPerm perm, char *help_uri, char *dir_path,
   if (stat(dir_path_file, &statbuf) != 0) GRSThttpError("404 Not Found");
 
   newfile = GRSThttpGetCGI("newfile");
+  if ((index(newfile, '/') != NULL) ||
+      (index(newfile, '<') != NULL) ||
+      (index(newfile, '>') != NULL) ||
+      (index(newfile, '&') != NULL) ||
+      (index(newfile, '"') != NULL)) newfile[0] = '\0';
 
-  if ((strcmp(newfile, GRST_ACL_FILE) == 0) ||
+  if ((newfile[0] == '\0') ||
+      (strcmp(newfile, GRST_ACL_FILE) == 0) ||
       (strcmp(newfile, file) == 0)) GRSThttpError("403 Forbidden");
 
   dir_path_newfile = malloc(strlen(dir_path) + strlen(newfile) + 2);  
@@ -843,7 +851,7 @@ void printfile(char *dn, GRSTgaclPerm perm, char *help_uri, char *dir_path,
   
   if (!GRSTgaclPermHasRead(perm)) GRSThttpError("403 Forbidden");
 
-  if (index(file, '/') != NULL) GRSThttpError("403 Forbidden");
+  if (file[0] == '\0') GRSThttpError("403 Forbidden");
   
   dir_path_file = malloc(strlen(dir_path) + strlen(file) + 2);
   
@@ -881,7 +889,7 @@ void filehistory(char *dn, GRSTgaclPerm perm, char *help_uri, char *dir_path,
   
   if (!GRSTgaclPermHasRead(perm)) GRSThttpError("403 Forbidden");
 
-  if (index(file, '/') != NULL) GRSThttpError("403 Forbidden");
+  if (file[0] == '\0') GRSThttpError("403 Forbidden");
   
   puts("Status: 200 OK\nContent-Type: text/html");
                                                                                 
@@ -989,7 +997,7 @@ void ziplist(char *dn, GRSTgaclPerm perm, char *help_uri, char *dir_path,
     
   if (!GRSTgaclPermHasRead(perm)) GRSThttpError("403 Forbidden");
 
-  if (index(file, '/') != NULL) GRSThttpError("403 Forbidden");
+  if (file[0] == '\0') GRSThttpError("403 Forbidden");
   
   puts("Status: 200 OK\nContent-Type: text/html");
                                                                                 
@@ -1043,7 +1051,7 @@ void unzipfile(char *dn, GRSTgaclPerm perm, char *help_uri, char *dir_path,
     
   if (!GRSTgaclPermHasWrite(perm)) GRSThttpError("403 Forbidden");
   
-  if (index(file, '/') != NULL) GRSThttpError("403 Forbidden");
+  if (file[0] == '\0') GRSThttpError("403 Forbidden");
   
   puts("Status: 200 OK\nContent-Type: text/html");
                                                                                 
@@ -1094,7 +1102,7 @@ void editfileform(char *dn, GRSTgaclPerm perm, char *help_uri, char *dir_path,
   
   if (!GRSTgaclPermHasWrite(perm)) GRSThttpError("403 Forbidden");
   
-  if (index(file, '/') != NULL) GRSThttpError("403 Forbidden");
+  if (file[0] == '\0') GRSThttpError("403 Forbidden");
   
   dir_path_file = malloc(strlen(dir_path) + strlen(file) + 2);
   
@@ -1185,7 +1193,8 @@ void editdnlistform(char *dn, GRSTgaclPerm perm, char *help_uri, char *dir_path,
   dnlistsuri = getenv("GRST_DN_LISTS_URI");
   if (dnlistsuri == NULL) dnlistsuri = getenv("REDIRECT_GRST_DN_LISTS_URI");
 
-  if (!GRSTgaclPermHasWrite(perm) ||
+  if ((file[0] == '\0') ||
+      !GRSTgaclPermHasWrite(perm) ||
       (dnlistsuri == NULL) ||
       (strncmp(dnlistsuri, dir_uri, strlen(dnlistsuri)) != 0)) 
                                              GRSThttpError("403 Forbidden");

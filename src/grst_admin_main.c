@@ -294,8 +294,15 @@ int main()
     }
   
   cmd    = GRSThttpGetCGI("cmd");
-  file   = GRSThttpGetCGI("file");
   button = GRSThttpGetCGI("button");
+
+  file   = GRSThttpGetCGI("file");
+  
+  if ((index(file, '/') != NULL) ||
+      (index(file, '<') != NULL) ||
+      (index(file, '>') != NULL) ||
+      (index(file, '&') != NULL) ||
+      (index(file, '"') != NULL)) file[0] = '\0';
 
   /* file and directory functions in grst_admin_file.c */
 

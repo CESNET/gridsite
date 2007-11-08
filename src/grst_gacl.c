@@ -337,13 +337,13 @@ int GRSTgaclCredCmp(GRSTgaclCred *cred1, GRSTgaclCred *cred2)
                       (this means a string match, not just any-user=DN etc)
 */
 {
-  if ((cred1 == NULL) && (cred2 == NULL) return 0;
+  if ((cred1 == NULL) && (cred2 == NULL)) return 0;
   
   if (cred1 == NULL) return -1;
 
   if (cred2 == NULL) return 1;
   
-  if ((cred1->auri == NULL) && (cred2->auri == NULL) return 0;
+  if ((cred1->auri == NULL) && (cred2->auri == NULL)) return 0;
   
   if (cred1->auri == NULL) return -1;
 

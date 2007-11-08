@@ -349,7 +349,7 @@ install: apidoc install-lib
                  $(prefix)/share/man/man8 \
                  $(prefix)/lib/httpd/modules \
                  $(prefix)/share/doc/gridsite-$(MINOR_VERSION)
-	echo "#define GRST_VERSION $DEFVERSION" > $(prefix)/include/gridsite.h
+	echo '#define' GRST_VERSION $(DEFVERSION) > $(prefix)/include/gridsite.h
 	cat ../interface/gridsite.h >>$(prefix)/include/gridsite.h
 	cp -f ../interface/gridsite-gacl.h $(prefix)/include
 	cp -f urlencode $(prefix)/bin

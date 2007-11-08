@@ -328,7 +328,28 @@ int GRSTgaclCredPrint(GRSTgaclCred *cred, FILE *fp)
       return 1;
     }
     
-  return 0;  
+  return 0;
+}
+
+int GRSTgaclCredCmp(GRSTgaclCred *cred1, GRSTgaclCred *cred2)
+/*
+    GRSTgaclCredCmp - compare two credentials for exact match in AURI values
+                      (this means a string match, not just any-user=DN etc)
+*/
+{
+  if ((cred1 == NULL) && (cred2 == NULL) return 0;
+  
+  if (cred1 == NULL) return -1;
+
+  if (cred2 == NULL) return 1;
+  
+  if ((cred1->auri == NULL) && (cred2->auri == NULL) return 0;
+  
+  if (cred1->auri == NULL) return -1;
+
+  if (cred2->auri == NULL) return 1;
+  
+  return strcmp(cred1->auri, cred2->auri);
 }
 
 /*                                              *

@@ -128,7 +128,7 @@ void show_acl(int admin, GRSTgaclUser *user, char *dn, GRSTgaclPerm perm, char *
   if (acl==NULL){
     GRSThttpPrintf ( &bp,"The ACL was found but could not be loaded - it could be incorrectly formatted<br>\n");
     adminfooter(&bp, dn, help_uri, dir_uri, NULL);
-    GRSThttpPrintHeaderFooter(&bp, dir_path, GRST_FOOTFILE); 
+    GRSThttpPrintFooter(&bp, dir_path); 
     GRSThttpWriteOut(&bp);
     return;
   }
@@ -176,7 +176,7 @@ void show_acl(int admin, GRSTgaclUser *user, char *dn, GRSTgaclPerm perm, char *
   }
 
   adminfooter(&bp, dn, help_uri, dir_uri, NULL);
-  GRSThttpPrintHeaderFooter(&bp, dir_path, GRST_FOOTFILE); GRSThttpWriteOut(&bp); return;
+  GRSThttpPrintFooter(&bp, dir_path); GRSThttpWriteOut(&bp); return;
 }
 
 
@@ -551,7 +551,7 @@ void admin_continue(char *dn, GRSTgaclPerm perm, char *help_uri, char *dir_path,
   // Should ALWAYS be the end of a page
   GRSThttpPrintf (bp, "\n<br><a href=\"%s%s?diruri=%s&cmd=admin_acl&timestamp=%d\">Click&nbsp;Here</a> to return to the editor", dir_uri,admin_file,dir_uri, time(NULL));
   adminfooter(bp, dn, help_uri, dir_uri, NULL);
-  GRSThttpPrintHeaderFooter(bp, dir_path, GRST_FOOTFILE);
+  GRSThttpPrintFooter(bp, dir_path);
   GRSThttpWriteOut(bp);
   return;
 }
@@ -767,7 +767,7 @@ void StartHTML(GRSThttpBody *bp, char *dir_uri, char* dir_path){
   printf("Status: 200 OK\nContent-Type: text/html\n");
   GRSThttpBodyInit(bp);
   GRSThttpPrintf(bp, "<title>Access Control List for %s</title>\n", dir_uri);
-  GRSThttpPrintHeaderFooter(bp, dir_path, GRST_HEADFILE);
+  GRSThttpPrintHeader(bp, dir_path);
   return;
 }
 void StartForm(GRSThttpBody *bp, char* dir_uri, char* dir_path, char* admin_file, int timestamp, char* target_function){

@@ -175,23 +175,23 @@ void uploadfile(char *dn, GRSTgaclPerm perm, char *help_uri, char *dir_path,
           puts("Status: 403 Forbidden filename\nContent-Type: text/html");
                                                                                 
           GRSThttpBodyInit(&bp);
-                                                                   
+
           GRSThttpPrintf(&bp,"<title>Forbidden filename %s</title>\n", filename);
-          GRSThttpPrintHeaderFooter(&bp, dir_path, GRST_HEADFILE);
-                                 
+          GRSThttpPrintHeader(&bp, dir_path);
+
           GRSThttpPrintf(&bp, "<h1 align=center>Forbidden filename %s</h1>\n",
                          filename);
-                                                                                
+
           GRSThttpPrintf(&bp,
                       "<p align=center>New file names cannot include slashes "
                       "or use the reserved ACL name, %s\n", GRST_ACL_FILE);
-                                                                                
+
           GRSThttpPrintf(&bp,"<p align=center>"
                      "<a href=\"%s%s?cmd=managedir\">Return to "
                      "directory listing</a>\n", dir_uri, admin_file);
-                                                                                
+
           adminfooter(&bp, dn, help_uri, dir_uri, admin_file);
-          GRSThttpPrintHeaderFooter(&bp, dir_path, GRST_FOOTFILE);
+          GRSThttpPrintFooter(&bp, dir_path);
                                                                                 
           GRSThttpWriteOut(&bp);
           return;
@@ -233,7 +233,7 @@ void uploadfile(char *dn, GRSTgaclPerm perm, char *help_uri, char *dir_path,
 
   GRSThttpPrintf(&bp, "<title>Failed to upload</title>\n");
 
-  GRSThttpPrintHeaderFooter(&bp, dir_path, GRST_HEADFILE);
+  GRSThttpPrintHeader(&bp, dir_path);
 
   GRSThttpPrintf(&bp, "<h1 align=center>Failed to upload</h1>\n");
   
@@ -247,7 +247,7 @@ void uploadfile(char *dn, GRSTgaclPerm perm, char *help_uri, char *dir_path,
                      "directory listing</a>\n", dir_uri, admin_file);
   
   adminfooter(&bp, dn, help_uri, dir_uri, admin_file);
-  GRSThttpPrintHeaderFooter(&bp, dir_path, GRST_FOOTFILE);
+  GRSThttpPrintFooter(&bp, dir_path);
 
   GRSThttpWriteOut(&bp);
 }
@@ -341,7 +341,7 @@ void deletefileaction(char *dn, GRSTgaclPerm perm, char *help_uri,
 
   GRSThttpPrintf(&bp, "<title>Error deleting %s%s</title>\n", dir_uri, file);
 
-  GRSThttpPrintHeaderFooter(&bp, dir_path, GRST_HEADFILE);
+  GRSThttpPrintHeader(&bp, dir_path);
 
   GRSThttpPrintf(&bp, "<h1 align=center>Error deleting %s%s</h1>\n", 
                       dir_uri, file);
@@ -357,7 +357,7 @@ void deletefileaction(char *dn, GRSTgaclPerm perm, char *help_uri,
                      "directory listing</a>\n", dir_uri, admin_file);
   
   adminfooter(&bp, dn, help_uri, dir_uri, admin_file);
-  GRSThttpPrintHeaderFooter(&bp, dir_path, GRST_FOOTFILE);
+  GRSThttpPrintFooter(&bp, dir_path);
 
   GRSThttpWriteOut(&bp);
 }                    
@@ -375,7 +375,7 @@ void deletefileform(char *dn, GRSTgaclPerm perm, char *help_uri, char *dir_path,
 
   GRSThttpPrintf(&bp, "<title>Delete %s</title>\n", file);
 
-  GRSThttpPrintHeaderFooter(&bp, dir_path, GRST_HEADFILE);
+  GRSThttpPrintHeader(&bp, dir_path);
 
   GRSThttpPrintf(&bp, "<h1 align=center>Delete %s</h1>\n", file);
   
@@ -391,7 +391,7 @@ void deletefileform(char *dn, GRSTgaclPerm perm, char *help_uri, char *dir_path,
                      "directory listing</a>\n", dir_uri, admin_file);
   
   adminfooter(&bp, dn, help_uri, dir_uri, admin_file);
-  GRSThttpPrintHeaderFooter(&bp, dir_path, GRST_FOOTFILE);
+  GRSThttpPrintFooter(&bp, dir_path);
 
   GRSThttpWriteOut(&bp);
 }                    
@@ -409,7 +409,7 @@ void renameform(char *dn, GRSTgaclPerm perm, char *help_uri, char *dir_path,
 
   GRSThttpPrintf(&bp, "<title>Rename %s</title>\n", file);
 
-  GRSThttpPrintHeaderFooter(&bp, dir_path, GRST_HEADFILE);
+  GRSThttpPrintHeader(&bp, dir_path);
 
   GRSThttpPrintf(&bp, "<h1 align=center>Rename %s%s</h1>\n", dir_uri, file);
   
@@ -426,7 +426,7 @@ void renameform(char *dn, GRSTgaclPerm perm, char *help_uri, char *dir_path,
                      "directory listing</a>\n", dir_uri, admin_file, dir_uri);
   
   adminfooter(&bp, dn, help_uri, dir_uri, admin_file);
-  GRSThttpPrintHeaderFooter(&bp, dir_path, GRST_FOOTFILE);
+  GRSThttpPrintFooter(&bp, dir_path);
 
   GRSThttpWriteOut(&bp);
 }                    
@@ -470,7 +470,7 @@ void editfileaction(char *dn, GRSTgaclPerm perm, char *help_uri, char *dir_path,
       GRSThttpBodyInit(&bp);
 
       GRSThttpPrintf(&bp,"<title>Error writing %s%s</title>\n", dir_uri, file);
-      GRSThttpPrintHeaderFooter(&bp, dir_path, GRST_HEADFILE);
+      GRSThttpPrintHeader(&bp, dir_path);
 
       GRSThttpPrintf(&bp, "<h1 align=center>Error writing %s%s</h1>\n", 
                       dir_uri, file);
@@ -486,7 +486,7 @@ void editfileaction(char *dn, GRSTgaclPerm perm, char *help_uri, char *dir_path,
                      "directory listing</a>\n", dir_uri, admin_file);
   
       adminfooter(&bp, dn, help_uri, dir_uri, admin_file);
-      GRSThttpPrintHeaderFooter(&bp, dir_path, GRST_FOOTFILE);
+      GRSThttpPrintFooter(&bp, dir_path);
 
       GRSThttpWriteOut(&bp);
       return;
@@ -542,7 +542,7 @@ void create_acl(char *dn, GRSTgaclPerm perm, char *help_uri, char *dir_path,
 
   GRSThttpPrintf(&bp,"<title>Error creating %s%s</title>\n", dir_uri, 
                                                              GRST_ACL_FILE);
-  GRSThttpPrintHeaderFooter(&bp, dir_path, GRST_HEADFILE);
+  GRSThttpPrintHeader(&bp, dir_path);
 
   GRSThttpPrintf(&bp, "<h1 align=center>Error creating %s%s</h1>\n", 
                       dir_uri, GRST_ACL_FILE);
@@ -557,7 +557,7 @@ void create_acl(char *dn, GRSTgaclPerm perm, char *help_uri, char *dir_path,
                      "directory listing</a>\n", dir_uri, admin_file);
   
   adminfooter(&bp, dn, help_uri, dir_uri, admin_file);
-  GRSThttpPrintHeaderFooter(&bp, dir_path, GRST_FOOTFILE);
+  GRSThttpPrintFooter(&bp, dir_path);
 
   GRSThttpWriteOut(&bp);
 
@@ -625,7 +625,7 @@ void renameaction(char *dn, GRSTgaclPerm perm, char *help_uri, char *dir_path,
   GRSThttpBodyInit(&bp);
 
   GRSThttpPrintf(&bp,"<title>Error renaming %s%s</title>\n", dir_uri, file);
-  GRSThttpPrintHeaderFooter(&bp, dir_path, GRST_HEADFILE);
+  GRSThttpPrintHeader(&bp, dir_path);
 
   GRSThttpPrintf(&bp, "<h1 align=center>Error renaming %s%s</h1>\n", 
                       dir_uri, file);
@@ -640,7 +640,7 @@ void renameaction(char *dn, GRSTgaclPerm perm, char *help_uri, char *dir_path,
                      "directory listing</a>\n", dir_uri, admin_file);
   
   adminfooter(&bp, dn, help_uri, dir_uri, admin_file);
-  GRSThttpPrintHeaderFooter(&bp, dir_path, GRST_FOOTFILE);
+  GRSThttpPrintFooter(&bp, dir_path);
 
   GRSThttpWriteOut(&bp);
 }
@@ -678,7 +678,7 @@ void newdirectory(char *dn, GRSTgaclPerm perm, char *help_uri, char *dir_path,
   GRSThttpBodyInit(&bp);
 
   GRSThttpPrintf(&bp,"<title>Error create %s%s</title>\n", dir_uri, file);
-  GRSThttpPrintHeaderFooter(&bp, dir_path, GRST_HEADFILE);
+  GRSThttpPrintHeader(&bp, dir_path);
 
   GRSThttpPrintf(&bp, "<h1 align=center>Error creating directory %s%s</h1>\n",
                       dir_uri, file);
@@ -694,7 +694,7 @@ void newdirectory(char *dn, GRSTgaclPerm perm, char *help_uri, char *dir_path,
                      "parent directory listing</a>\n", dir_uri, admin_file);
   
   adminfooter(&bp, dn, help_uri, dir_uri, admin_file);
-  GRSThttpPrintHeaderFooter(&bp, dir_path, GRST_FOOTFILE);
+  GRSThttpPrintFooter(&bp, dir_path);
 
   GRSThttpWriteOut(&bp);
 }
@@ -733,7 +733,7 @@ void editdnlistaction(char *dn, GRSTgaclPerm perm, char *help_uri, char *dir_pat
       GRSThttpBodyInit(&bp);
 
       GRSThttpPrintf(&bp,"<title>Error writing %s</title>\n", file);
-      GRSThttpPrintHeaderFooter(&bp, dir_path, GRST_HEADFILE);
+      GRSThttpPrintHeader(&bp, dir_path);
 
       GRSThttpPrintf(&bp, "<h1 align=center>Error writing %s to %s</h1>\n", 
                      file, dir_uri);
@@ -747,7 +747,7 @@ void editdnlistaction(char *dn, GRSTgaclPerm perm, char *help_uri, char *dir_pat
                      "directory listing</a>\n", dir_uri, admin_file);
   
       adminfooter(&bp, dn, help_uri, dir_uri, admin_file);
-      GRSThttpPrintHeaderFooter(&bp, dir_path, GRST_FOOTFILE);
+      GRSThttpPrintFooter(&bp, dir_path);
 
       GRSThttpWriteOut(&bp);
       return;    
@@ -818,7 +818,7 @@ void editdnlistaction(char *dn, GRSTgaclPerm perm, char *help_uri, char *dir_pat
   GRSThttpBodyInit(&bp);
 
   GRSThttpPrintf(&bp,"<title>Error writing %s%s</title>\n", dir_uri, file);
-  GRSThttpPrintHeaderFooter(&bp, dir_path, GRST_HEADFILE);
+  GRSThttpPrintHeader(&bp, dir_path);
 
   GRSThttpPrintf(&bp, "<h1 align=center>Error writing %s%s</h1>\n", 
                       dir_uri, file);
@@ -833,7 +833,7 @@ void editdnlistaction(char *dn, GRSTgaclPerm perm, char *help_uri, char *dir_pat
                      "directory listing</a>\n", dir_uri, admin_file);
   
   adminfooter(&bp, dn, help_uri, dir_uri, admin_file);
-  GRSThttpPrintHeaderFooter(&bp, dir_path, GRST_FOOTFILE);
+  GRSThttpPrintFooter(&bp, dir_path);
 
   GRSThttpWriteOut(&bp);
 
@@ -895,7 +895,7 @@ void filehistory(char *dn, GRSTgaclPerm perm, char *help_uri, char *dir_path,
                                                                                 
   GRSThttpBodyInit(&bp);
   GRSThttpPrintf(&bp, "<title>History of %s%s</title>\n", dir_uri, file);
-  GRSThttpPrintHeaderFooter(&bp, dir_path, GRST_HEADFILE);
+  GRSThttpPrintHeader(&bp, dir_path);
   GRSThttpPrintf(&bp,
    "<h1 align=center>History of <a href=\"%s%s\">%s%s</a></h1>\n",
    dir_uri, file, dir_uri, file);
@@ -984,7 +984,7 @@ void filehistory(char *dn, GRSTgaclPerm perm, char *help_uri, char *dir_path,
        adminfooter(&bp, dn, help_uri, dir_uri, admin_file);
   else adminfooter(&bp, dn, help_uri, dir_uri, NULL);
                                                                                 
-  GRSThttpPrintHeaderFooter(&bp, dir_path, GRST_FOOTFILE);
+  GRSThttpPrintFooter(&bp, dir_path);
   GRSThttpWriteOut(&bp);
 }
 
@@ -1003,7 +1003,7 @@ void ziplist(char *dn, GRSTgaclPerm perm, char *help_uri, char *dir_path,
                                                                                 
   GRSThttpBodyInit(&bp);
   GRSThttpPrintf(&bp, "<title>Contents of %s%s</title>\n", dir_uri, file);
-  GRSThttpPrintHeaderFooter(&bp, dir_path, GRST_HEADFILE);
+  GRSThttpPrintHeader(&bp, dir_path);
   GRSThttpPrintf(&bp,
    "<h1 align=center>Contents of ZIP file <a href=\"%s%s\">%s%s</a></h1>\n",
    dir_uri, file, dir_uri, file);
@@ -1038,7 +1038,7 @@ void ziplist(char *dn, GRSTgaclPerm perm, char *help_uri, char *dir_path,
        adminfooter(&bp, dn, help_uri, dir_uri, admin_file);
   else adminfooter(&bp, dn, help_uri, dir_uri, NULL);
                                                                                 
-  GRSThttpPrintHeaderFooter(&bp, dir_path, GRST_FOOTFILE);
+  GRSThttpPrintFooter(&bp, dir_path);
   GRSThttpWriteOut(&bp);
 }
 
@@ -1057,7 +1057,7 @@ void unzipfile(char *dn, GRSTgaclPerm perm, char *help_uri, char *dir_path,
                                                                                 
   GRSThttpBodyInit(&bp);
   GRSThttpPrintf(&bp, "<title>Unzipping %s%s</title>\n", dir_uri, file);
-  GRSThttpPrintHeaderFooter(&bp, dir_path, GRST_HEADFILE);
+  GRSThttpPrintHeader(&bp, dir_path);
   GRSThttpPrintf(&bp,
    "<h1 align=center>Unzipping <a href=\"%s%s\">%s%s</a></h1>\n",
    dir_uri, file, dir_uri, file);
@@ -1087,7 +1087,7 @@ void unzipfile(char *dn, GRSTgaclPerm perm, char *help_uri, char *dir_path,
        adminfooter(&bp, dn, help_uri, dir_uri, admin_file);
   else adminfooter(&bp, dn, help_uri, dir_uri, NULL);
                                                                                 
-  GRSThttpPrintHeaderFooter(&bp, dir_path, GRST_FOOTFILE);
+  GRSThttpPrintFooter(&bp, dir_path);
   GRSThttpWriteOut(&bp);
 }
 
@@ -1126,7 +1126,7 @@ void editfileform(char *dn, GRSTgaclPerm perm, char *help_uri, char *dir_path,
 
   GRSThttpPrintf(&bp, "<title>Edit file %s</title>\n", file);
 
-  GRSThttpPrintHeaderFooter(&bp, dir_path, GRST_HEADFILE);
+  GRSThttpPrintHeader(&bp, dir_path);
 
   GRSThttpPrintf(&bp, "<h1>Edit file %s</h1>\n", file);
   
@@ -1176,7 +1176,7 @@ void editfileform(char *dn, GRSTgaclPerm perm, char *help_uri, char *dir_path,
 
   adminfooter(&bp, dn, help_uri, dir_uri, admin_file);
   
-  GRSThttpPrintHeaderFooter(&bp, dir_path, GRST_FOOTFILE);
+  GRSThttpPrintFooter(&bp, dir_path);
   GRSThttpWriteOut(&bp);
 }
 
@@ -1223,7 +1223,7 @@ void editdnlistform(char *dn, GRSTgaclPerm perm, char *help_uri, char *dir_path,
 
   GRSThttpPrintf(&bp, "<title>Edit DN List %s</title>\n", file);
 
-  GRSThttpPrintHeaderFooter(&bp, dir_path, GRST_HEADFILE);
+  GRSThttpPrintHeader(&bp, dir_path);
 
   GRSThttpPrintf(&bp, "<h1>Edit DN List</h1>\n");
   
@@ -1265,17 +1265,16 @@ void editdnlistform(char *dn, GRSTgaclPerm perm, char *help_uri, char *dir_path,
 
   adminfooter(&bp, dn, help_uri, dir_uri, admin_file);
   
-  GRSThttpPrintHeaderFooter(&bp, dir_path, GRST_FOOTFILE);
+  GRSThttpPrintFooter(&bp, dir_path);
   GRSThttpWriteOut(&bp);
 }
 
 void managedir(char *dn, GRSTgaclPerm perm, char *help_uri, char *dir_path,
                char *dir_uri, char *admin_file)
 {
-  int         n, is_dnlists_dir = 0, enclen, numfiles, encprefixlen;
+  int         n, numfiles;
   char       *d_namepath, modified[99], *absaclpath, *editable, *p, *unzip,
-             *dnlistsuri, *d_name, *server_name, *fulluri, *encfulluri,
-             *encprefix, *dnlistsprefix;
+             *d_name;
   GRSThttpBody    bp;
   struct tm       mtime_tm;
   struct stat     statbuf;
@@ -1293,30 +1292,13 @@ void managedir(char *dn, GRSTgaclPerm perm, char *help_uri, char *dir_path,
   unzip = getenv("GRST_UNZIP");
   if (unzip == NULL) unzip = getenv("REDIRECT_GRST_UNZIP");
   
-  dnlistsuri = getenv("GRST_DN_LISTS_URI");
-  if (dnlistsuri == NULL) dnlistsuri = getenv("REDIRECT_GRST_DN_LISTS_URI");
-
-  if (dnlistsuri && (strncmp(dnlistsuri, dir_uri, strlen(dnlistsuri)) == 0))
-    {
-      is_dnlists_dir = 1;
-      server_name = getenv("SERVER_NAME");
-
-      asprintf(&fulluri, "https://%s%s", server_name, dir_uri);
-      encfulluri = GRSThttpUrlEncode(fulluri);
-      enclen = strlen(encfulluri);
-
-      asprintf(&dnlistsprefix, "https://%s%s", server_name, dnlistsuri);
-      encprefix = GRSThttpUrlEncode(dnlistsprefix);
-      encprefixlen = strlen(encprefix);
-    }
-  
   printf("Status: 200 OK\nContent-Type: text/html\n");
 
   GRSThttpBodyInit(&bp);
 
   GRSThttpPrintf(&bp,"<title>Manage directory %s</title>\n", dir_uri);
 
-  GRSThttpPrintHeaderFooter(&bp, dir_path, GRST_HEADFILE);
+  GRSThttpPrintHeader(&bp, dir_path);
     
   GRSThttpPrintf(&bp, "<h1>Manage directory %s</h1>\n<table>\n", dir_uri);
   
@@ -1339,25 +1321,17 @@ void managedir(char *dn, GRSTgaclPerm perm, char *help_uri, char *dir_path,
            "<td align=right>%R</td><td align=right>%e&nbsp;%b&nbsp;%y</td>",
                         &mtime_tm);    
 
-          if (!is_dnlists_dir)
-            {
-              GRSThttpPrintf(&bp,
+          GRSThttpPrintf(&bp,
                       "<tr><td><a href=\"%s\">%s</a></td>"
                       "<td align=right>%ld</td>%s\n",
                       GRST_ACL_FILE,
                       GRST_ACL_FILE,
                       statbuf.st_size, modified);
 
-              GRSThttpPrintf(&bp,
+          GRSThttpPrintf(&bp,
                    "<td><a href=\"%s%s?cmd=history&amp;file=%s\">"
-                      "History</a></td>",
-                      dir_uri, admin_file, GRST_ACL_FILE);
-            }
-          else GRSThttpPrintf(&bp,
-                      "<tr><td>%s</td>"
-                      "<td align=right>%ld</td>%s\n",
-                      GRST_ACL_FILE,
-                      statbuf.st_size, modified);
+                   "History</a></td>",
+                   dir_uri, admin_file, GRST_ACL_FILE);
 
           if (GRSTgaclPermHasAdmin(perm)) 
                GRSThttpPrintf(&bp,
@@ -1438,41 +1412,7 @@ void managedir(char *dn, GRSTgaclPerm perm, char *help_uri, char *dir_path,
                       
                    GRSThttpPrintf(&bp, "<td>&nbsp;</td></tr>\n");
                  }
-               else if (is_dnlists_dir) 
-                 {        
-                   if ((strlen(namelist[n]->d_name) <= encprefixlen) ||
-                       (strncmp(namelist[n]->d_name, encprefix, 
-                                              encprefixlen) != 0)) continue;
-
-                   d_name = GRSThttpUrlDecode(namelist[n]->d_name);
-
-                   GRSThttpPrintf(&bp, "<tr><td><a href=\"%s\">%s</a></td>"
-                                       "<td align=right>%ld</td>%s"
-                                       "<td>&nbsp;</td>",
-                                       d_name, d_name,
-                                       statbuf.st_size, modified);
-
-                   if (GRSTgaclPermHasWrite(perm))
-                     GRSThttpPrintf(&bp, "<form action=\"%s%s\" method=post>"
-                        "<td><input type=submit value=Edit></td>"
-                        "<input type=hidden name=cmd value=editdnlist>"
-                        "<input type=hidden name=file value=\"%s\">"
-                        "</form>\n",
-                        dir_uri, admin_file, d_name);
-                   else GRSThttpPrintf(&bp, "<td>&nbsp;</td>\n");
-                   
-                   if (GRSTgaclPermHasWrite(perm))
-                     GRSThttpPrintf(&bp, "<form action=\"%s%s\" method=post>"
-                        "<td><input type=submit value=Delete></td>"
-                        "<input type=hidden name=cmd value=delete>"
-                        "<input type=hidden name=file value=\"%s\">"
-                        "</form>\n",
-                        dir_uri, admin_file, d_name);
-                   else GRSThttpPrintf(&bp, "<td>&nbsp;</td>\n");
-
-                   GRSThttpPrintf(&bp, "<td>&nbsp;</td></tr>");
-                 }
-               else /* regular directory, not DN Lists */
+               else /* regular file */
                  {        
                    d_name = namelist[n]->d_name;
 
@@ -1531,26 +1471,7 @@ void managedir(char *dn, GRSTgaclPerm perm, char *help_uri, char *dir_path,
 
   if (GRSTgaclPermHasWrite(perm))
     {
-      if (is_dnlists_dir)
-        {
-          GRSThttpPrintf(&bp, "<form method=post action=\"%s%s\">\n"
-        "<tr><td colspan=4>New list name: "
-        "<input type=text name=file value=\"%sNEW_LIST\" size=%d>\n"
-        "<input type=hidden name=cmd value=editdnlist></td>"
-        "<td colspan=2 align=center><input type=submit value=Create></td>\n"
-        "</tr></form>\n",
-        dir_uri, admin_file, fulluri, strlen(fulluri)+8);
-
-          GRSThttpPrintf(&bp, "<form method=post action=\"%s%s\">\n"
-        "<tr><td colspan=4>New directory: "
-        "<input type=text name=file>\n"
-        "<td colspan=2 align=center><input type=submit name=button value=\"Create\"></td>\n"
-        "<input type=hidden name=cmd value=edit></td></tr></form>\n",
-        dir_uri, admin_file);      
-        }
-      else
-        {
-          GRSThttpPrintf(&bp, "<form method=post action=\"%s%s\">\n"
+      GRSThttpPrintf(&bp, "<form method=post action=\"%s%s\">\n"
         "<tr><td colspan=8><hr width=\"75%\"></td></tr>\n"
         "<tr><td>New name:</td>"
         "<td colspan=3><input type=text name=file size=25>\n"
@@ -1559,7 +1480,7 @@ void managedir(char *dn, GRSTgaclPerm perm, char *help_uri, char *dir_path,
         "<input type=hidden name=cmd value=edit></td></tr></form>\n",
         dir_uri, admin_file);
       
-          GRSThttpPrintf(&bp,
+      GRSThttpPrintf(&bp,
         "<form method=post action=\"%s%s\" enctype=\"multipart/form-data\">\n"
         "<tr><td colspan=8><hr width=\"75%\"></td></tr>\n"
         "<tr><td rowspan=2>Upload file:</td>"
@@ -1569,14 +1490,164 @@ void managedir(char *dn, GRSTgaclPerm perm, char *help_uri, char *dir_path,
         "<tr><td colspan=2>Local name:</td>"
         "<td colspan=6><input type=file name=uploadfile size=25></td></tr>\n"
         "</form>\n", dir_uri, admin_file);
-        }
     }
 
   GRSThttpPrintf(&bp, "</table>\n");
 
-  if (!is_dnlists_dir) adminfooter(&bp, dn, help_uri, dir_uri, NULL);
+  adminfooter(&bp, dn, help_uri, dir_uri, NULL);
 
-  GRSThttpPrintHeaderFooter(&bp, dir_path, GRST_FOOTFILE);
+  GRSThttpPrintFooter(&bp, dir_path);
+  GRSThttpWriteOut(&bp);
+}
+
+int userisgroupadmin(GRSTgaclUser *user, char *adminrole, char *uri)
+{
+  char *uri_workspace, *p;
+  
+  if (uri[strlen(uri) - 1] == '/') 
+       asprintf(&uri_workspace, "%sRole=%s",  uri, adminrole);
+  else asprintf(&uri_workspace, "%s/Role=%s", uri, adminrole);
+  
+  while (1)
+       {
+         if (GRSTgaclUserHasAURI(user, uri_workspace))
+           {
+             free(uri_workspace);
+             return 1;
+           }
+
+         p = rindex(uri_workspace, '/');
+         if (p == NULL) 
+           {
+             free(uri_workspace);
+             return 0;
+           }
+
+         *p = '\0';
+         strcat(uri_workspace, "/Role=");
+         strcat(uri_workspace, adminrole);
+       }
+}
+
+void managednlists(GRSTgaclUser *user, char *dn, GRSTgaclPerm perm, 
+                   char *help_uri, char *dir_path,
+                   char *dir_uri, char *admin_file)
+{
+  int         n, enclen, numfiles, encprefixlen, has_any_admin = 0;
+  char       *d_namepath, modified[99], *p, *adminrole, *dnlists_path,
+             *dnlistsuri, *d_name, *server_name, *fulluri, *encfulluri,
+             *encprefix, *dnlistsprefix, *unencuri;
+  GRSThttpBody    bp;
+  struct tm       mtime_tm;
+  struct stat     statbuf;
+  struct dirent **namelist, *subdirfile_ent;
+  DIR            *subDIR;
+
+  /* need to have got GACL list permission from somewhere, 
+     but we dont use GACL permissions apart from this */
+
+  if (!GRSTgaclPermHasList(perm)) GRSThttpError("403 Forbidden");
+
+  p = getenv("REDIRECT_GRST_DN_LISTS");
+
+  if (p == NULL) p = getenv("GRST_DN_LISTS");
+  
+  if (p == NULL) p = GRST_DN_LISTS;
+
+  dnlists_path = strdup(p);
+          
+  p = index(dnlists_path, ':');
+  if (p != NULL) *p = '\0';
+
+  dnlistsuri = getenv("REDIRECT_GRST_DN_LISTS_URI");
+  if (dnlistsuri == NULL) dnlistsuri = getenv("GRST_DN_LISTS_URI");
+
+  adminrole = getenv("REDIRECT_GRST_DN_LISTS_ADMIN_ROLE");
+  if (adminrole == NULL) adminrole = getenv("GRST_DN_LISTS_ADMIN_ROLE");
+
+  server_name = getenv("SERVER_NAME");
+  asprintf(&dnlistsprefix, "https://%s%s", server_name, dnlistsuri);
+  encprefix = GRSThttpUrlEncode(dnlistsprefix);
+  encprefixlen = strlen(encprefix);
+  
+//  asprintf(&fulluri, "https://%s%s", server_name, dir_uri);
+//  encfulluri = GRSThttpUrlEncode(fulluri);
+//  enclen = strlen(encfulluri);
+
+  printf("Status: 200 OK\nContent-Type: text/html\n");
+
+  GRSThttpBodyInit(&bp);
+
+  GRSThttpPrintf(&bp,"<title>Manage DN lists</title>\n");
+
+  GRSThttpPrintHeader(&bp, dir_path);
+    
+  GRSThttpPrintf(&bp, "<h1>Manage DN lists</h1>\n<table>\n");
+
+  n = scandir(dnlists_path, &namelist, 0, alphasort);
+  while (n--)
+       {       
+         if (namelist[n]->d_name[0] == '.') continue;
+         
+         if (strncmp(namelist[n]->d_name, encprefix, encprefixlen) != 0) continue;
+
+         unencuri = GRSThttpUrlDecode(namelist[n]->d_name);
+
+         if (userisgroupadmin(user, adminrole, unencuri))
+           {
+             has_any_admin = 1;
+           
+             localtime_r(&(statbuf.st_mtime), &mtime_tm);
+             strftime(modified, sizeof(modified), 
+               "<td align=right>%R</td><td align=right>%e&nbsp;%b&nbsp;%y</td>",
+                        &mtime_tm);    
+                              
+             GRSThttpPrintf(&bp, "<tr><td><a href=\"%s\">%s</a></td>"
+                                 "<td align=right>%ld</td>%s"
+                                 "<td>&nbsp;</td>",
+                                 unencuri, unencuri,
+                                 statbuf.st_size, modified);
+
+             GRSThttpPrintf(&bp, 
+                        "<form action=\"./%s\" method=post>"
+                        "<td><input type=submit value=Edit></td>"
+                        "<input type=hidden name=cmd value=editdnlist>"
+                        "<input type=hidden name=file value=\"%s\">"
+                        "</form>\n",
+                        admin_file, unencuri);
+                   
+             GRSThttpPrintf(&bp, 
+                        "<form action=\"./%s\" method=post>"
+                        "<td><input type=submit value=Delete></td>"
+                        "<input type=hidden name=cmd value=delete>"
+                        "<input type=hidden name=file value=\"%s\">"
+                        "</form>\n",
+                        admin_file, unencuri);
+
+             GRSThttpPrintf(&bp, "<td>&nbsp;</td></tr>");             
+           }
+           
+         free(unencuri);
+         free(namelist[n]);
+       }
+                    
+  free(namelist);
+
+  if (has_any_admin)
+    {
+      GRSThttpPrintf(&bp, "<form method=post action=\"./%s\">\n"
+        "<tr><td colspan=4>New DN list name: "
+        "<input type=text name=file value=\"%s\" size=%d>\n"
+        "<input type=hidden name=cmd value=editdnlist></td>"
+        "<td colspan=2 align=center><input type=submit value=Create></td>\n"
+        "</tr></form>\n",
+        admin_file, dnlistsprefix, strlen(dnlistsprefix)+8);
+    }
+
+  GRSThttpPrintf(&bp, "</table>\n");
+
+// change everywhere else too!
+  GRSThttpPrintFooter(&bp, dir_path);
   GRSThttpWriteOut(&bp);
 }
 

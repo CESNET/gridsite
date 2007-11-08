@@ -170,7 +170,7 @@ void justheader(char *dn, GRSTgaclPerm perm, char *help_uri, char *dir_path,
    
   GRSThttpBodyInit(&bp);
  
-  GRSThttpPrintHeaderFooter(&bp, dir_path, GRST_HEADFILE);
+  GRSThttpPrintHeader(&bp, dir_path);
 
   GRSThttpWriteOut(&bp);
 }
@@ -188,7 +188,7 @@ void justfooter(char *dn, GRSTgaclPerm perm, char *help_uri, char *dir_path,
                                 || GRSTgaclPermHasAdmin(perm))
                adminfooter(&bp, dn, help_uri, dir_uri, admin_file);
 
-  GRSThttpPrintHeaderFooter(&bp, dir_path, GRST_FOOTFILE);
+  GRSThttpPrintFooter(&bp, dir_path);
                                                                                 
   GRSThttpWriteOut(&bp);
 }
@@ -316,6 +316,8 @@ int main()
       printfile(dn, perm, help_uri, dir_path, file, dir_uri, admin_file);
   else if (strcmp(cmd, "history") == 0) 
       filehistory(dn, perm, help_uri, dir_path, file, dir_uri, admin_file);
+  else if (strcmp(cmd, "managednlists") == 0) 
+      managednlists(user, dn, perm, help_uri, dir_path, dir_uri, admin_file);
   else if (strcmp(cmd, "editdnlist") == 0) 
       editdnlistform(dn, perm, help_uri, dir_path, file, dir_uri, admin_file);
   else if (strcmp(cmd, "edit") == 0)

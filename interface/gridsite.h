@@ -33,6 +33,10 @@
  * For more about GridSite: http://www.gridsite.org/             *
  *---------------------------------------------------------------*/
 
+#ifndef GRST_VERSION
+#define GRST_VERSION 010500
+#endif
+
 #ifndef HEADER_SSL_H
 #include <openssl/ssl.h>
 #endif
@@ -391,6 +395,8 @@ void  GRSThttpPrintf(GRSThttpBody *, char *, ...);
 int   GRSThttpCopy(GRSThttpBody *, char *);
 void  GRSThttpWriteOut(GRSThttpBody *);
 int   GRSThttpPrintHeaderFooter(GRSThttpBody *, char *, char *);
+int   GRSThttpPrintHeader(GRSThttpBody *, char *);
+int   GRSThttpPrintFooter(GRSThttpBody *, char *);
 char *GRSThttpGetCGI(char *);
 
 time_t GRSTasn1TimeToTimeT(char *, size_t);

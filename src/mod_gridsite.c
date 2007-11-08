@@ -129,6 +129,8 @@ struct sitecast_alias	sitecastaliases[GRST_SITECAST_ALIASES];
 typedef struct
 {
    int			auth;
+   int                  autopasscode;
+   int			zoneslashes;
    int			envs;
    int			format;
    int			indexes;
@@ -219,7 +221,7 @@ char *html_escape(apr_pool_t *pool, char *s)
       if ((*p == '<') || (*p == '>') || (*p == '&') || (*p == '"')) 
           ++htmlspecials;
 
-    escaped = apr_palloc(pool, strlen(s) + htmlspecials * 6);
+    escaped = apr_palloc(pool, strlen(s) + htmlspecials * 6 + 1);
         
     for (i=0,p=s; *p != '\0'; ++p)
        {
@@ -442,24 +444,32 @@ int html_format(request_rec *r, mod_gridsite_dir_cfg *conf)
 
     /* **** try to find a header file in this or parent directories **** */
 
-    /* first make a buffer big enough to hold path names we want to try */
     fd = -1;
-    s = apr_palloc(r->pool, 
+
+    if (conf->headfile[0] == '/') /* try absolute */
+      {
+        fd = open(conf->headfile, O_RDONLY);
+      }
+    else /* try relative */
+      {
+        /* first make a buffer big enough to hold path names we want to try */
+        s = apr_palloc(r->pool, 
                        strlen(r->filename) + strlen(conf->headfile) + 1);
-    strcpy(s, r->filename);
+        strcpy(s, r->filename);
 
-    for (;;)
-       {
-         p = rindex(s, '/');
-         if (p == NULL) break; /* failed to find one */
-         p[1] = '\0';
-         strcat(p, conf->headfile);
+        for (;;)
+           {
+             p = rindex(s, '/');
+             if (p == NULL) break; /* failed to find one */
+             p[1] = '\0';
+             strcat(p, conf->headfile);
 
-         fd = open(s, O_RDONLY);
-         if (fd != -1) break; /* found one */
+             fd = open(s, O_RDONLY);
+             if (fd != -1) break; /* found one */
 
-         *p = '\0';
-       }
+             *p = '\0';
+           }
+      }
 
     if (fd == -1) /* not found, so set up not to output one */
       {
@@ -519,24 +529,32 @@ int html_format(request_rec *r, mod_gridsite_dir_cfg *conf)
 
     /* **** try to find a footer file in this or parent directories **** */
 
-    /* first make a buffer big enough to hold path names we want to try */
     fd = -1;
-    s = apr_palloc(r->pool, 
+
+    if (conf->footfile[0] == '/') /* try absolute */
+      {
+        fd = open(conf->footfile, O_RDONLY);
+      }
+    else /* try relative */
+      {
+        /* first make a buffer big enough to hold path names we want to try */
+        s = apr_palloc(r->pool, 
                        strlen(r->filename) + strlen(conf->footfile) + 1);
-    strcpy(s, r->filename);
+        strcpy(s, r->filename);
 
-    for (;;)
-       {
-         p = rindex(s, '/');
-         if (p == NULL) break; /* failed to find one */
+        for (;;)
+           {
+             p = rindex(s, '/');
+             if (p == NULL) break; /* failed to find one */
 
-         p[1] = '\0';
-         strcat(p, conf->footfile);
+             p[1] = '\0';
+             strcat(p, conf->footfile);
 
-         fd = open(s, O_RDONLY);
-         if (fd != -1) break; /* found one */
+             fd = open(s, O_RDONLY);
+             if (fd != -1) break; /* found one */
 
-         *p = '\0';
+             *p = '\0';
+           }
        }
 
     if (fd == -1) /* failed to find a footer, so set up empty default */
@@ -581,7 +599,7 @@ int html_dir_list(request_rec *r, mod_gridsite_dir_cfg *conf)
     int    i, fd, n, nn;
     char  *buf, *p, *s, *head_formatted, *header_formatted,
           *body_formatted, *admin_formatted, *footer_formatted, *temp,
-           modified[99], *d_namepath, *indexheaderpath, *indexheadertext,
+           modified[999], *d_namepath, *indexheaderpath, *indexheadertext,
            *encoded, *escaped;
     size_t length;
     struct stat statbuf;
@@ -779,25 +797,21 @@ int html_dir_list(request_rec *r, mod_gridsite_dir_cfg *conf)
     return OK;
 }
 
-int http_gridhttp(request_rec *r, mod_gridsite_dir_cfg *conf)
-{ 
-    int          i;
-    char        *httpurl, *filetemplate, *cookievalue, *envname_i, 
-                *grst_cred_i, expires_str[APR_RFC822_DATE_LEN];
-    apr_uint64_t gridauthcookie;
-    apr_table_t *env;
-    apr_time_t   expires_time;
-    apr_file_t  *fp;
+char *make_passcode_file(request_rec *r, mod_gridsite_dir_cfg *conf, 
+                         char *path, apr_time_t expires_time)
+{
+    int           i;
+    char         *filetemplate, *notename_i, *grst_cred_i, *cookievalue=NULL;
+    apr_uint64_t  gridauthcookie;
+    apr_table_t  *env;
+    apr_file_t   *fp;
 
-    /* create random cookie and gridauthcookie file */
+    /* create random for use in GRIDHTTP_PASSCODE cookies and file name */
 
     if (apr_generate_random_bytes((char *) &gridauthcookie, 
                                   sizeof(gridauthcookie))
-         != APR_SUCCESS) return HTTP_INTERNAL_SERVER_ERROR;
+         != APR_SUCCESS) return NULL;
     
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-               "Generated GridHTTP passcode %016llx", gridauthcookie);
-
     filetemplate = apr_psprintf(r->pool, "%s/passcode-%016llxXXXXXX", 
      ap_server_root_relative(r->pool,
      sessionsdir),
@@ -807,35 +821,31 @@ int http_gridhttp(request_rec *r, mod_gridsite_dir_cfg *conf)
                         filetemplate, 
                         APR_CREATE | APR_WRITE | APR_EXCL,
                         r->pool)
-                      != APR_SUCCESS) return HTTP_INTERNAL_SERVER_ERROR;
+                      != APR_SUCCESS) return NULL;
                       
     ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
                "Created passcode file %s", filetemplate);
 
-    expires_time = apr_time_now() + apr_time_from_sec(300);
-    /* passcode cookies are valid for only 5 mins! */
+    if (expires_time > 0) apr_file_printf(fp, "expires=%lu\n",
+                                      (time_t) apr_time_sec(expires_time));
 
-    apr_file_printf(fp,
-              "expires=%lu\ndomain=%s\npath=%s\nonetime=yes\nmethod=%s\n",
-              (time_t) apr_time_sec(expires_time),
-              r->hostname, r->uri, r->method);
-    /* above variables are evaluated in order and method= MUST be last! */
+    apr_file_printf(fp, "domain=%s\npath=%s\n", r->hostname, path);
 
     for (i=0; ; ++i)
        {
-         envname_i = apr_psprintf(r->pool, "GRST_CRED_AURI_%d", i);
+         notename_i = apr_psprintf(r->pool, "GRST_CRED_AURI_%d", i);
          if (grst_cred_i = (char *)
-                           apr_table_get(r->connection->notes, envname_i))
+                           apr_table_get(r->connection->notes, notename_i))
            {
-             apr_file_printf(fp, "%s=%s\n", envname_i, grst_cred_i);
+             apr_file_printf(fp, "%s=%s\n", notename_i, grst_cred_i);
            }
          else break; /* GRST_CRED_AURI_i are numbered consecutively */
 
-         envname_i = apr_psprintf(r->pool, "GRST_CRED_VALID_%d", i);
+         notename_i = apr_psprintf(r->pool, "GRST_CRED_VALID_%d", i);
          if (grst_cred_i = (char *)
-                           apr_table_get(r->connection->notes, envname_i))
+                           apr_table_get(r->connection->notes, notename_i))
            {
-             apr_file_printf(fp, "%s=%s\n", envname_i, grst_cred_i);
+             apr_file_printf(fp, "%s=%s\n", notename_i, grst_cred_i);
            }
          else break; /* GRST_CRED_VALID_i are numbered consecutively */
        }
@@ -843,20 +853,38 @@ int http_gridhttp(request_rec *r, mod_gridsite_dir_cfg *conf)
     if (apr_file_close(fp) != APR_SUCCESS) 
       {
         apr_file_remove(filetemplate, r->pool); /* try to clean up */
-        return HTTP_INTERNAL_SERVER_ERROR;
+        return NULL;
       }
+      
+    cookievalue = rindex(filetemplate, '-');
+    if (cookievalue != NULL) 
+      {
+        ++cookievalue;
+        return cookievalue;
+      }
+    else return NULL;
+}
+
+int http_gridhttp(request_rec *r, mod_gridsite_dir_cfg *conf)
+{ 
+    char        *httpurl, *cookievalue, expires_str[APR_RFC822_DATE_LEN];
+    apr_time_t   expires_time;
+
+    /* passcode cookies are valid for only 5 mins! */
+    expires_time = apr_time_now() + apr_time_from_sec(300);
+
+    /* try to generate passcode and make passcode file */
+    cookievalue = make_passcode_file(r, conf, r->uri, expires_time);
+    
+    if (cookievalue == NULL) return HTTP_INTERNAL_SERVER_ERROR;
     
     /* send redirection header back to client */
-       
-    cookievalue = rindex(filetemplate, '-');
-    if (cookievalue != NULL) ++cookievalue;
-    else cookievalue = filetemplate;
        
     apr_rfc822_date(expires_str, expires_time);
 
     apr_table_add(r->headers_out, 
-                  apr_pstrdup(r->pool, "Set-Cookie"), 
-                  apr_psprintf(r->pool, 
+                  apr_pstrdup(r->pool, "Set-Cookie"),
+                  apr_psprintf(r->pool,
                   "GRIDHTTP_PASSCODE=%s; "
                   "expires=%s; "
                   "domain=%s; "
@@ -1168,7 +1196,7 @@ static int mod_gridsite_nondir_handler(request_rec *r, mod_gridsite_dir_cfg *con
 static void recurse4dirlist(char *dirname, time_t *dirs_time,
                              char *fulluri, int fullurilen,
                              char *encfulluri, int enclen,
-                             apr_pool_t *pool, char **body,
+                             request_rec *r, char **body,
                              int recurse_level)
 /* try to find DN Lists in dir[] and its subdirs that match the fulluri[]
    prefix. add blobs of HTML to body as they are found. */
@@ -1191,13 +1219,17 @@ static void recurse4dirlist(char *dirname, time_t *dirs_time,
         {
           if (onedirent->d_name[0] == '.') continue;
         
-          d_namepath = apr_psprintf(pool, "%s/%s", dirname, onedirent->d_name);
+          d_namepath = apr_psprintf(r->pool, "%s/%s", dirname, onedirent->d_name);
+
           if (stat(d_namepath, &statbuf) != 0) continue;
 
-          if (S_ISDIR(statbuf.st_mode) && (recurse_level < GRST_RECURS_LIMIT)) 
+          if (S_ISDIR(statbuf.st_mode))
+            {
+              if (recurse_level < GRST_RECURS_LIMIT)
                  recurse4dirlist(d_namepath, dirs_time, fulluri,
                                  fullurilen, encfulluri, enclen, 
-                                 pool, body, recurse_level + 1);
+                                 r, body, recurse_level + 1);
+            }
           else if ((strncmp(onedirent->d_name, encfulluri, enclen) == 0) &&
                    (onedirent->d_name[strlen(onedirent->d_name) - 1] != '~'))
             {
@@ -1205,7 +1237,6 @@ static void recurse4dirlist(char *dirname, time_t *dirs_time,
                     
               if (strncmp(unencname, fulluri, fullurilen) == 0)
                 {
-
                   if (statbuf.st_mtime > *dirs_time) 
                                                 *dirs_time = statbuf.st_mtime;
 
@@ -1216,7 +1247,7 @@ static void recurse4dirlist(char *dirname, time_t *dirs_time,
                   
                   mildencoded = GRSThttpUrlMildencode(&unencname[fullurilen]);
                  
-                  oneline = apr_psprintf(pool,
+                  oneline = apr_psprintf(r->pool,
                                      "<tr><td><a href=\"%s\" "
                                      "content-length=\"%ld\" "
                                      "last-modified=\"%ld\">"
@@ -1224,15 +1255,15 @@ static void recurse4dirlist(char *dirname, time_t *dirs_time,
                                      "<td align=right>%ld</td>%s</tr>\n", 
                                      mildencoded, statbuf.st_size, 
                                      statbuf.st_mtime, 
-                                     html_escape(pool, unencname), 
+                                     html_escape(r->pool, unencname), 
                                      statbuf.st_size, modified);
 
                   free(mildencoded);
 
-                  *body = apr_pstrcat(pool, *body, oneline, NULL);
+                  *body = apr_pstrcat(r->pool, *body, oneline, NULL);
                 }      
                       
-              free(unencname); /* libgridsite doesnt use pools */    
+              free(unencname); /* libgridsite doesnt use pools */
             }
         }
         
@@ -1264,7 +1295,7 @@ static int mod_gridsite_dnlistsuri_dir_handler(request_rec *r,
     if (permstr != NULL) sscanf(permstr, "%d", &perm);
 
     fulluri = apr_psprintf(r->pool, "https://%s%s",
-                                    ap_get_server_name(r), conf->dnlistsuri);
+                                    r->hostname, conf->dnlistsuri);
     fullurilen = strlen(fulluri);
 
     encfulluri = GRSThttpUrlEncode(fulluri);
@@ -1283,26 +1314,34 @@ static int mod_gridsite_dnlistsuri_dir_handler(request_rec *r,
       {
         /* **** try to find a header file in this or parent directories **** */
 
-        /* first make a buffer big enough to hold path names we want to try */
         fd = -1;
-        s = malloc(strlen(r->filename) + strlen(conf->headfile) + 1);
-        strcpy(s, r->filename);
-    
-        for (;;)
-           {
-             p = rindex(s, '/');
-             if (p == NULL) break; /* failed to find one */
-             p[1] = '\0';
-             strcat(p, conf->headfile);
-    
-             fd = open(s, O_RDONLY);
-             if (fd != -1) break; /* found one */
 
-             *p = '\0';
-           }
+        if (conf->headfile[0] == '/') /* try absolute */
+          {
+            fd = open(conf->headfile, O_RDONLY);
+          }
+        else /* try relative */
+          {
+            /* first make a buffer big enough to hold path names we want to try */
+            s = malloc(strlen(r->filename) + strlen(conf->headfile) + 1);
+            strcpy(s, r->filename);
+    
+            for (;;)
+               {
+                 p = rindex(s, '/');
+                 if (p == NULL) break; /* failed to find one */
+                 p[1] = '\0';
+                 strcat(p, conf->headfile);
+    
+                 fd = open(s, O_RDONLY);
+                 if (fd != -1) break; /* found one */
+
+                 *p = '\0';
+               }
             
-        free(s);
-
+             free(s);
+           }
+           
         if (fd == -1) /* not found, so set up to output sensible default */
           {
             header_formatted = apr_pstrdup(r->pool, "<body bgcolor=white>");
@@ -1328,21 +1367,20 @@ static int mod_gridsite_dnlistsuri_dir_handler(request_rec *r,
 
     while ((dirname = strsep(&dn_list_ptr, ":")) != NULL)
         recurse4dirlist(dirname, &dirs_time, fulluri, fullurilen,
-                                 encfulluri, enclen, r->pool, &body, 0);
+                                 encfulluri, enclen, r, &body, 0);
 
-    if ((stat(r->filename, &statbuf) == 0) &&
-        S_ISDIR(statbuf.st_mode) && 
-        GRSTgaclPermHasWrite(perm))
+    p = (char *) apr_table_get(r->subprocess_env, "HTTPS");
+    if ((p != NULL) && (strcmp(p, "on") == 0))
       {
         oneline = apr_psprintf(r->pool,
            "<form action=\"%s%s\" method=post>\n"
-           "<input type=hidden name=cmd value=managedir>"
+           "<input type=hidden name=cmd value=managednlists>"
            "<tr><td colspan=4 align=center><small><input type=submit "
-           "value=\"Manage directory\"></small></td></tr></form>\n",
+           "value=\"Manage DN lists\"></small></td></tr></form>\n",
            r->uri, conf->adminfile);
           
         body = apr_pstrcat(r->pool, body, oneline, NULL);
-      } 
+      }
 
     body = apr_pstrcat(r->pool, body, "</table>\n", NULL);
 
@@ -1352,26 +1390,34 @@ static int mod_gridsite_dnlistsuri_dir_handler(request_rec *r,
       {
         /* **** try to find a footer file in this or parent directories **** */
 
-        /* first make a buffer big enough to hold path names we want to try */
         fd = -1;
-        s  = malloc(strlen(r->filename) + strlen(conf->footfile));
-        strcpy(s, r->filename);
-    
-        for (;;)
-           {
-             p = rindex(s, '/');
-             if (p == NULL) break; /* failed to find one */
-    
-             p[1] = '\0';
-             strcat(p, conf->footfile);
-    
-             fd = open(s, O_RDONLY);
-             if (fd != -1) break; /* found one */
 
-             *p = '\0';
-           }
+        if (conf->headfile[0] == '/') /* try absolute */
+          {
+            fd = open(conf->headfile, O_RDONLY);
+          }
+        else /* try relative */
+          {
+            /* first make a buffer big enough to hold path names we want to try */
+            s  = malloc(strlen(r->filename) + strlen(conf->footfile));
+            strcpy(s, r->filename);
+    
+            for (;;)
+               {
+                 p = rindex(s, '/');
+                 if (p == NULL) break; /* failed to find one */
+
+                 p[1] = '\0';
+                 strcat(p, conf->footfile);
+    
+                 fd = open(s, O_RDONLY);
+                 if (fd != -1) break; /* found one */
+
+                 *p = '\0';
+               }
             
-        free(s);
+            free(s);
+          }
 
         if (fd == -1) /* failed to find a footer, so use standard default */
           {
@@ -1475,9 +1521,18 @@ static int mod_gridsite_dnlistsuri_handler(request_rec *r,
         ap_internal_redirect(conf->adminuri, r);
         return OK;
       }
+      
+    if (r->uri[strlen(r->uri) - 1] == '/') 
+      {
+        apr_table_setn(r->headers_out, apr_pstrdup(r->pool, "Location"), 
+                                       apr_pstrdup(r->pool, conf->dnlistsuri));
+
+        r->status = HTTP_MOVED_TEMPORARILY;
+        return OK;                   
+      }
 
     fulluri = apr_psprintf(r->pool, "https://%s%s", 
-                                    ap_get_server_name(r), r->uri);
+                                    r->hostname, r->uri);
 
     encfulluri = GRSThttpUrlEncode(fulluri);
     
@@ -1563,6 +1618,8 @@ static void *create_gridsite_dir_config(apr_pool_t *p, char *path)
     if (path == NULL) /* set up document root defaults */
       {
         conf->auth          = 0;     /* GridSiteAuth          on/off       */
+        conf->autopasscode  = 1;     /* GridSiteAutoPasscode  on/off       */
+        conf->zoneslashes   = 1;     /* GridSiteZoneSlashes   number       */
         conf->envs          = 1;     /* GridSiteEnvs          on/off       */
         conf->format        = 0;     /* GridSiteHtmlFormat    on/off       */
         conf->indexes       = 0;     /* GridSiteIndexes       on/off       */
@@ -1607,6 +1664,8 @@ static void *create_gridsite_dir_config(apr_pool_t *p, char *path)
     else
       {
         conf->auth          = UNSET; /* GridSiteAuth          on/off       */
+        conf->autopasscode  = UNSET; /* GridSiteAutoPasscode  on/off       */
+        conf->zoneslashes   = UNSET; /* GridSiteZoneSlashes   number       */
         conf->envs          = UNSET; /* GridSiteEnvs          on/off       */
         conf->format        = UNSET; /* GridSiteHtmlFormat    on/off       */
         conf->indexes       = UNSET; /* GridSiteIndexes       on/off       */
@@ -1650,6 +1709,12 @@ static void *merge_gridsite_dir_config(apr_pool_t *p, void *vserver,
 
     if (direct->auth != UNSET) conf->auth = direct->auth;
     else                       conf->auth = server->auth;
+
+    if (direct->autopasscode != UNSET) conf->autopasscode = direct->autopasscode;
+    else                               conf->autopasscode = server->autopasscode;
+
+    if (direct->zoneslashes != UNSET) conf->zoneslashes = direct->zoneslashes;
+    else                              conf->zoneslashes = server->zoneslashes;
 
     if (direct->envs != UNSET) conf->envs = direct->envs;
     else                       conf->envs = server->envs;
@@ -1753,6 +1818,13 @@ static const char *mod_gridsite_take1_cmds(cmd_parms *a, void *cfg,
        return "GridSiteOnetimesDir cannot be used inside a virtual server";
     
       sessionsdir = apr_pstrdup(a->pool, parm);
+    }
+    else if (strcasecmp(a->cmd->name, "GridSiteZoneSlashes") == 0)
+    {
+      ((mod_gridsite_dir_cfg *) cfg)->zoneslashes = atoi(parm);
+      
+      if (((mod_gridsite_dir_cfg *) cfg)->zoneslashes < 1)
+       return "GridSiteZoneSlashes must be greater than 0";
     }
     else if (strcasecmp(a->cmd->name, "GridSiteGridHTTPport") == 0)
     {
@@ -2038,6 +2110,10 @@ static const char *mod_gridsite_flag_cmds(cmd_parms *a, void *cfg,
     {
       ((mod_gridsite_dir_cfg *) cfg)->auth = flag;
     }
+    else if (strcasecmp(a->cmd->name, "GridSiteAutoPasscode") == 0)
+    {
+      ((mod_gridsite_dir_cfg *) cfg)->autopasscode = flag;
+    }
     else if (strcasecmp(a->cmd->name, "GridSiteEnvs") == 0)
     {
       ((mod_gridsite_dir_cfg *) cfg)->envs = flag;
@@ -2069,6 +2145,8 @@ static const command_rec mod_gridsite_cmds[] =
 // TODO: need to check and document valid contexts for each command!
 
     AP_INIT_FLAG("GridSiteAuth", mod_gridsite_flag_cmds, 
+                 NULL, OR_FILEINFO, "on or off"),
+    AP_INIT_FLAG("GridSiteAutoPasscode", mod_gridsite_flag_cmds,
                  NULL, OR_FILEINFO, "on or off"),
     AP_INIT_FLAG("GridSiteEnvs", mod_gridsite_flag_cmds, 
                  NULL, OR_FILEINFO, "on or off"),
@@ -2118,6 +2196,8 @@ static const command_rec mod_gridsite_cmds[] =
 /* GridSiteOnetimesDir is deprecated in favour of GridSiteSessionsDir */
     AP_INIT_TAKE1("GridSiteOnetimesDir", mod_gridsite_take1_cmds,
                  NULL, RSRC_CONF, "directory with GridHTTP passcodes"),
+    AP_INIT_TAKE1("GridSiteZoneSlashes", mod_gridsite_take1_cmds,
+                 NULL, OR_FILEINFO, "number of slashes in passcode cookie paths"),
 
     AP_INIT_TAKE1("GridSiteCastDNlists", mod_gridsite_take1_cmds,
                  NULL, RSRC_CONF, "DN Lists directories search path for SiteCast"),
@@ -2211,7 +2291,7 @@ int GRST_get_session_id(SSL *ssl, char *session_id, size_t len)
 
 int GRST_load_ssl_creds(SSL *ssl, conn_rec *conn)
 {
-   char session_id[(SSL_MAX_SSL_SESSION_ID_LENGTH+1)*2], *sessionfile = NULL,
+   char session_id[(SSL_MAX_SSL_SESSION_ID_LENGTH+1)*2+1], *sessionfile = NULL,
         line[512], *p;
    apr_file_t  *fp = NULL;
    int i;
@@ -2285,7 +2365,7 @@ void GRST_save_ssl_creds(conn_rec *conn, GRSTx509Chain *grst_chain)
    if ((grst_chain != NULL) && (conn->notes != NULL) &&
        (apr_table_get(conn->notes, "GRST_save_ssl_creds") != NULL)) return;
 
-   /* we at least need to say we've been run */
+   /* we at least need to say we've been run - even if creds not save-able*/
 
    apr_table_set(conn->notes, "GRST_save_ssl_creds", "yes");
    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, conn->base_server,
@@ -2519,16 +2599,17 @@ static int mod_gridsite_perm_handler(request_rec *r)
     We also publish environment variables here if requested by GridSiteEnv.
 */
 {
-    int          retcode = DECLINED, i, n, file_is_acl = 0, cc_delegation,
-                 destination_is_acl = 0, ishttps = 0, nist_loa, delegation;
-    char        *dn, *p, envname1[30], envname2[30], 
-                *grst_cred_auri_0 = NULL, *dir_path, 
+    int          retcode = DECLINED, i, j, n, file_is_acl = 0, cc_delegation,
+                 destination_is_acl = 0, ishttps = 0, nist_loa, delegation,
+                 from_cookie = 0;
+    char        *dn, *p, *q, envname1[30], envname2[30], 
+                *grst_cred_auri_0 = NULL, *dir_path,
                 *remotehost, s[99], *grst_cred_auri_i, *cookies, *file, *https,
-                *gridauthpasscode = NULL, *cookiefile, oneline[1025], *key_i,
+                *cookiefile, oneline[1025], *key_i,
                 *destination = NULL, *destination_uri = NULL, *querytmp, 
                 *destination_prefix = NULL, *destination_translated = NULL,
-                *aclpath = NULL, *grst_cred_valid_0 = NULL, *grst_cred_valid_i;
-    char        *vomsAttribute = NULL, *loa;
+                *aclpath = NULL, *grst_cred_valid_0 = NULL, *grst_cred_valid_i,
+                *gridauthpasscode = NULL;
     const char  *content_type;
     time_t       now, notbefore, notafter;
     apr_table_t *env;
@@ -2549,67 +2630,17 @@ static int mod_gridsite_perm_handler(request_rec *r)
 
     if (cfg == NULL) return DECLINED;
 
-    if ((cfg->auth == 0) &&
-        (cfg->envs == 0))
+    if ((cfg->auth == 0) && (cfg->envs == 0))
                return DECLINED; /* if not turned on, look invisible */
 
     env = r->subprocess_env;
-    
-    /* Get the user's attributes from Shibboleth and set up user credential
-       based on the attributes if authentication has been carried out using
-       a Shibboleth Identity Provider.*/
 
-    /* Get DN from a Shibboleth attribute */
-
-    dn = (char *) apr_table_get(r->headers_in, "User-Distinguished-Name");
-#if 0
-    if ((dn == NULL) || (*dn == '\0'))
-     dn = (char *) apr_table_get(r->headers_in, "User-Distinguished-Name-2");
-#endif
-
-    if ((dn != NULL) && (*dn == '\0')) dn = NULL;
-    
-    if (dn != NULL) ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server, "DN: %s", dn);
-
-    /* Get the NIST LoA attribute */
-    loa = (char *) apr_table_get(r->headers_in, "nist-loa");
-
-    if ((loa == NULL) || (*loa == '\0'))
-     loa = (char *) apr_table_get(r->headers_in, "loa");
-    
-    if ((loa != NULL) && (*loa == '\0')) loa = NULL;
-
-    if (loa != NULL) ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server, "nist-loa: %s", loa);
-
-    /* Set up user credential based on the DN and LoA attributes */
-                                  
-    if (dn != NULL)
-      {
-        cred = GRSTgaclCredCreate("dn:", dn);
-
-        if (loa != NULL) GRSTgaclCredSetNistLoa(cred, atoi(loa));
-        else GRSTgaclCredSetNistLoa(cred, 2);
-
-        user = GRSTgaclUserNew(cred);
-      }
-            
-    /* Set up user credential based on VOMS Attribute from Shibboleth? */
-
-    vomsAttribute = (char *) apr_table_get(r->headers_in, "VOMS-Attribute");
-    if (vomsAttribute != NULL)
-      {
-        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server, 
-                 "VOMS-Attribute: %s", vomsAttribute);
-
-        cred = GRSTgaclCredCreate("fqan:", vomsAttribute);
-        if (user == NULL) user = GRSTgaclUserNew(cred);
-        else GRSTgaclUserAddCred(user, cred);
-      }
-
-    p = (char *) apr_table_get(r->subprocess_env, "HTTPS");
+    p = (char *) apr_table_get(env, "HTTPS");
     if ((p != NULL) && (strcmp(p, "on") == 0)) ishttps = 1;
 
-    /* reload per-connection (SSL) cred variables? */
+    delegation = ((mod_gridsite_dir_cfg *) cfg)->gsiproxylimit + 1;
+
+    /* reload per-connection (SSL) cred variables? (TO CONNECTION) */
 
     sslconn = (SSLConnRec *) ap_get_module_config(r->connection->conn_config, 
                                                   &ssl_module);
@@ -2625,7 +2656,186 @@ static int mod_gridsite_perm_handler(request_rec *r)
                          "Restored SSL session data from session cache file");
       }
 
-    delegation = ((mod_gridsite_dir_cfg *) cfg)->gsiproxylimit + 1;
+    /* look for GRIDHTTP_PASSCODE in QUERY_STRING ie after ? */
+      
+    if ((r->parsed_uri.query != NULL) && (r->parsed_uri.query[0] != '\0'))
+      {
+        querytmp = apr_pstrcat(r->pool,"&",r->parsed_uri.query,"&",NULL);
+            
+        gridauthpasscode = strstr(querytmp, "&GRIDHTTP_PASSCODE=");
+        if (gridauthpasscode != NULL)
+          {
+            gridauthpasscode = &gridauthpasscode[19];
+
+            for (p = gridauthpasscode; (*p != '\0') && (*p != '&'); ++p)
+                                                if (!isalnum(*p)) *p = '\0';
+          }
+      }
+
+    /* then look for GRIDHTTP_PASSCODE cookie */
+      
+    if ((gridauthpasscode == NULL) &&
+        ((q = (char *) apr_table_get(r->headers_in, "Cookie")) != NULL))
+      {
+        cookies = apr_pstrcat(r->pool, " ", q, NULL);
+        gridauthpasscode = strstr(cookies, " GRIDHTTP_PASSCODE=");
+
+        if (gridauthpasscode != NULL)
+          {
+            gridauthpasscode = &gridauthpasscode[19];
+          
+            for (p = gridauthpasscode; 
+                 (*p != '\0') && (*p != ';'); ++p)
+                                      if (!isalnum(*p)) *p = '\0';
+
+            if (gridauthpasscode[0] != '\0') from_cookie = 1;
+          }
+      }
+
+    /* try to load user structure from passcode file */
+
+    if ((user == NULL) && 
+        (gridauthpasscode != NULL) &&
+        (gridauthpasscode[0] != '\0'))
+      {
+        cookiefile = apr_psprintf(r->pool, "%s/passcode-%s",
+                 ap_server_root_relative(r->pool,
+                 sessionsdir),
+                 gridauthpasscode);
+                                      
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                             "Opening GridHTTP passcode file %s", cookiefile);
+              
+        if ((apr_stat(&cookiefile_info, cookiefile, 
+                          APR_FINFO_TYPE, r->pool) == APR_SUCCESS) &&
+            (cookiefile_info.filetype == APR_REG) &&
+            (apr_file_open(&fp, cookiefile, APR_READ, 0, r->pool)
+                                                         == APR_SUCCESS))
+              {
+                ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                             "Reading GridHTTP passcode file %s", cookiefile);
+               
+                i = -1;
+                cred = NULL;
+              
+                while (apr_file_gets(oneline, 
+                                     sizeof(oneline), fp) == APR_SUCCESS)
+                     {
+                       p = index(oneline, '\n');
+                       if (p != NULL) *p = '\0';
+                       
+                       ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                                    "%s: %s", cookiefile, oneline);
+
+                       if ((strncmp(oneline, "expires=", 8) == 0) &&
+                           (apr_time_from_sec(atoll(&oneline[8])) < 
+                                                       apr_time_now()))
+                         {
+                           if (user != NULL) 
+                             {
+                               ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, 
+                                            r->server, "Bad expires");
+                               GRSTgaclUserFree(user);
+                               user = NULL;
+                             }
+                           break;
+                         }
+                       else if ((strncmp(oneline, "domain=", 7) == 0) &&
+                                (strcmp(&oneline[7], r->hostname) != 0))
+                         {
+                           if (user != NULL) 
+                             {
+                               ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, 
+                                            r->server, "Bad domain/host");
+                               GRSTgaclUserFree(user);
+                               user = NULL;
+                             }
+                           break;
+                         }
+                       else if (strncmp(oneline, "path=", 5) == 0)
+                         {
+                           /* count number of slashes in Request URI */
+                           
+                           for (n=0,p=r->uri; *p != '\0'; ++p)
+                                                     if (*p == '/') ++n;
+
+                           /* if too few slashes or path mismatch, then stop */
+                              
+                           if ((n < ((mod_gridsite_dir_cfg *) cfg)->zoneslashes) ||
+                               (strncmp(&oneline[5], r->uri, strlen(&oneline[5])) != 0))
+                             {
+                               if (user != NULL)
+                                 {
+                                   ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, 
+                                            r->server, "Bad path");
+                                   GRSTgaclUserFree(user);
+                                   user = NULL;
+                                 }
+
+                               break;
+                             }
+                         }
+                       else if ((sscanf(oneline,"GRST_CRED_AURI_%d=",&j) == 1)
+                                && (j == i+1)
+                                && ((p = index(oneline, '=')) != NULL))
+                         {
+                           cred = GRSTgaclCredCreate(&p[1], NULL);
+                           
+                           if (cred != NULL) ++i;
+                           
+                           if (user == NULL) user = GRSTgaclUserNew(cred);
+                           else GRSTgaclUserAddCred(user, cred);                           
+                         }
+                       else if ((sscanf(oneline,"GRST_CRED_VALID_%d=",&j) == 1)
+                                && (j == i)
+                                && ((p = index(oneline, '=')) != NULL)
+                                && (sscanf(&p[1], 
+                       "notbefore=%ld notafter=%ld delegation=%d nist-loa=%d", 
+                                  &notbefore, &notafter, &delegation, 
+                                  &nist_loa) == 4))
+                         {
+                           if ((i == 0) && 
+             (delegation > ((mod_gridsite_dir_cfg *) cfg)->gsiproxylimit))
+                             {
+                               ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, 
+                                            r->server, "Bad delegation");
+                               if (user != NULL) GRSTgaclUserFree(user);
+                               user = NULL;
+                               break;
+                             }
+                         
+                           GRSTgaclCredSetNotBefore( cred, notbefore);
+                           GRSTgaclCredSetNotAfter(  cred, notafter);
+                           GRSTgaclCredSetDelegation(cred, delegation);
+ 
+                           if (delegation == 0) GRSTgaclCredSetNistLoa(cred, 3);
+                           else                 GRSTgaclCredSetNistLoa(cred, 2);
+                         }
+                     }
+
+                apr_file_close(fp);
+
+                /* delete passcode file if used over HTTP not HTTPS */
+                if (!ishttps) remove(cookiefile);
+
+                /* if successful and we got passcode from a cookie, then
+                   we put cookie value into environment variables, so
+                   can be used for double-submit cookie CSRF protection */
+
+                if ((user != NULL) && 
+                    from_cookie && 
+                    ((mod_gridsite_dir_cfg *) cfg)->envs)
+                        apr_table_setn(env, "GRST_PASSCODE_COOKIE",
+                                            gridauthpasscode);
+              }
+      }
+
+    /* 
+        if not succeeded from passcode file, try from connection notes
+        if a GSI Proxy or have  GridSiteAutoPasscode on  (the default)
+        (if  GridSiteAutoPasscode off  then interactive websites must use
+        a login script to make passcode and file instead.)
+    */
     
     if ((user == NULL) && 
         (r->connection->notes != NULL) &&
@@ -2637,7 +2847,8 @@ static int mod_gridsite_perm_handler(request_rec *r)
         (sscanf(grst_cred_valid_0, 
                 "notbefore=%ld notafter=%ld delegation=%d nist-loa=%d", 
                 &notbefore, &notafter, &delegation, &nist_loa) == 4) &&
-        (delegation <= ((mod_gridsite_dir_cfg *) cfg)->gsiproxylimit))
+        (delegation <= ((mod_gridsite_dir_cfg *) cfg)->gsiproxylimit) &&
+        ((delegation > 0) || ((mod_gridsite_dir_cfg *) cfg)->autopasscode))
       {
         cred_0 = GRSTgaclCredCreate(grst_cred_auri_0, NULL);
         if (cred_0 != NULL)
@@ -2689,12 +2900,64 @@ static int mod_gridsite_perm_handler(request_rec *r)
                  else break; /* GRST_CRED_AURI_i are numbered consecutively */
                }
           }
+
+         /* if passcode absent but SSL ok and not a GSI Proxy, we must 
+            have  GridSiteAutoPasscode on  so we create passcode and file
+            automatically, and return cookie to client. 
+            (if  GridSiteAutoPasscode off  then the site must use
+            a login script to make passcode and file instead.) */
+
+         if ((user != NULL) &&
+             (GRSTgaclCredGetDelegation(cred_0) == 0))
+           {
+             n = 0; /* number of slashes seen */
+
+             for (i=0; r->uri[i] != '\0'; ++i)
+                {
+                  if (n >= ((mod_gridsite_dir_cfg *) cfg)->zoneslashes) break;
+
+                  if (r->uri[i] == '/') ++n;
+                }
+ 
+             if ((n >= ((mod_gridsite_dir_cfg *) cfg)->zoneslashes)
+                 && (i > 0))
+               {
+                 p = apr_pstrdup(r->pool, r->uri);
+                 p[i] = '\0';
+               
+                 /* try to generate passcode and make passcode file */
+                 gridauthpasscode = make_passcode_file(r, cfg, p, 0);
+
+                 if (gridauthpasscode != NULL)
+                   {
+                     apr_table_add(r->headers_out,
+                        apr_pstrdup(r->pool, "Set-Cookie"),
+                        apr_psprintf(r->pool,
+                        "GRIDHTTP_PASSCODE=%s; "
+                        "domain=%s; "
+                        "path=%s; "
+                        "secure; httponly", gridauthpasscode, r->hostname, p));
+                   }
+               }
+           }
       }
+
+    /* 
+       GridSite passcode files don't include groups, IP or DNS so we add
+       them last so they're not written to passcode files by GridSite.
+
+       (site-supplied login scripts might create passcode files with 
+       optional or additional AURIs. for example, valid roles selected by
+       the user on the login page.)
+       
+    */
+      
+    /* first add groups from DN lists - ie non-optional attributes */
 
     if ((user != NULL) && ((mod_gridsite_dir_cfg *) cfg)->dnlists)
           GRSTgaclUserLoadDNlists(user, ((mod_gridsite_dir_cfg *) cfg)->dnlists);
 
-    /* add DNS credential */
+    /* then add DNS credential */
     
     remotehost = (char *) ap_get_remote_host(r->connection,
                                   r->per_dir_config, REMOTE_DOUBLE_REV, NULL);
@@ -2707,7 +2970,7 @@ static int mod_gridsite_perm_handler(request_rec *r)
         else              GRSTgaclUserAddCred(user, cred);
       }
 
-    /* add IP credential */
+    /* finally add IP credential */
     
     remotehost = (char *) ap_get_remote_host(r->connection,
                                   r->per_dir_config, REMOTE_DOUBLE_REV, NULL);
@@ -2858,7 +3121,14 @@ static int mod_gridsite_perm_handler(request_rec *r)
                         "Failed to make ACL file from ACL path %s, URI %s)",
                         ((mod_gridsite_dir_cfg *) cfg)->aclpath, r->uri);
           }
-        else acl = GRSTgaclAclLoadforFile(r->filename);
+        else if ((((mod_gridsite_dir_cfg *) cfg)->dnlistsuri == NULL) ||
+                 (strncmp(r->uri,
+                          ((mod_gridsite_dir_cfg *) cfg)->dnlistsuri,
+                          strlen(((mod_gridsite_dir_cfg *) cfg)->dnlistsuri)) != 0) ||
+                 (strlen(r->uri) <= strlen(((mod_gridsite_dir_cfg *) cfg)->dnlistsuri)))
+          {
+            acl = GRSTgaclAclLoadforFile(r->filename);
+          }
 
         if (acl != NULL) perm = GRSTgaclAclTestUser(acl, user);
         GRSTgaclAclFree(acl);
@@ -2877,95 +3147,6 @@ static int mod_gridsite_perm_handler(request_rec *r)
                               apr_psprintf(r->pool, "%d", destination_perm));
           }
       }
-      
-    /* first look for GRIDHTTP_PASSCODE cookie */
-      
-    if ((p = (char *) apr_table_get(r->headers_in, "Cookie")) != NULL)
-      {
-        cookies = apr_pstrcat(r->pool, " ", p, NULL);
-        gridauthpasscode = strstr(cookies, " GRIDHTTP_PASSCODE=");
-                
-        if (gridauthpasscode != NULL)
-          {
-            gridauthpasscode = &gridauthpasscode[19];
-          
-            for (p = gridauthpasscode; 
-                 (*p != '\0') && (*p != ';'); ++p)
-                                      if (!isalnum(*p)) *p = '\0';
-          }
-      }
-
-    /* then look for GRIDHTTP_PASSCODE in QUERY_STRING ie after ? */
-      
-    if (gridauthpasscode == NULL)
-      {
-        if ((r->parsed_uri.query != NULL) && (r->parsed_uri.query[0] != '\0'))
-          {
-            querytmp = apr_pstrcat(r->pool,"&",r->parsed_uri.query,"&",NULL);
-            
-            gridauthpasscode = strstr(querytmp, "&GRIDHTTP_PASSCODE=");
-            
-            if (gridauthpasscode != NULL)                         
-              {
-                gridauthpasscode = &gridauthpasscode[19];
-              
-                for (p = gridauthpasscode; 
-                     (*p != '\0') && (*p != '&'); ++p)
-                                          if (!isalnum(*p)) *p = '\0';
-              }            
-          }
-      }
-
-    if ((gridauthpasscode != NULL) && (gridauthpasscode[0] != '\0')) 
-      {
-        cookiefile = apr_psprintf(r->pool, "%s/passcode-%s",
-                 ap_server_root_relative(r->pool,
-                 sessionsdir),
-                 gridauthpasscode);
-                                      
-        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                             "Opening GridHTTP passcode file %s", cookiefile);
-              
-        if ((apr_stat(&cookiefile_info, cookiefile, 
-                          APR_FINFO_TYPE, r->pool) == APR_SUCCESS) &&
-            (cookiefile_info.filetype == APR_REG) &&
-            (apr_file_open(&fp, cookiefile, APR_READ, 0, r->pool)
-                                                         == APR_SUCCESS))
-              {
-                ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                             "Reading GridHTTP passcode file %s", cookiefile);
-              
-                while (apr_file_gets(oneline, 
-                                     sizeof(oneline), fp) == APR_SUCCESS)
-                     {
-                       p = index(oneline, '\n');
-                       if (p != NULL) *p = '\0';
-                       
-                       ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                                    "%s: %s", cookiefile, oneline);
-
-                       if ((strncmp(oneline, "expires=", 8) == 0) &&
-                           (apr_time_from_sec(atoll(&oneline[8])) < 
-                                                       apr_time_now()))
-                                  break;                
-                       else if ((strncmp(oneline, "domain=", 7) == 0) &&
-                                (strcmp(&oneline[7], r->hostname) != 0))
-                                  break; /* exact needed in the version */
-                       else if ((strncmp(oneline, "path=", 5) == 0) &&
-                                (strcmp(&oneline[5], r->uri) != 0))
-                                  break;
-                       else if  ((strncmp(oneline, "onetime=yes", 11) == 0)
-                                 && !ishttps)
-                                  apr_file_remove(cookiefile, r->pool);
-                       else if  (strncmp(oneline, "method=PUT", 10) == 0)
-                                  perm |= GRST_PERM_WRITE;
-                       else if  (strncmp(oneline, "method=GET", 10) == 0)
-                                  perm |= GRST_PERM_READ;
-                     }
-
-                apr_file_close(fp);
-              }
-      }
     
     ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
                  "After GACL/Onetime evaluation, GRST_PERM=%d", perm);
@@ -2976,6 +3157,29 @@ static int mod_gridsite_perm_handler(request_rec *r)
 
     if (((mod_gridsite_dir_cfg *) cfg)->envs)
       {
+        /* copy any credentials from (SSL) connection to environment */
+        
+        for (i=0; ; ++i) 
+           {
+             snprintf(envname1, sizeof(envname1), "GRST_CRED_AURI_%d",  i);
+             snprintf(envname2, sizeof(envname2), "GRST_CRED_VALID_%d", i);
+
+             if ((grst_cred_auri_i = (char *) 
+                         apr_table_get(r->connection->notes,envname1)) &&
+                 (grst_cred_valid_i = (char *) 
+                         apr_table_get(r->connection->notes,envname2)))
+               { 
+                 apr_table_setn(env,
+                                apr_psprintf(r->pool, "GRST_CONN_AURI_%d", i),
+                                apr_pstrdup(r->pool, grst_cred_auri_i));
+
+                 apr_table_setn(env,
+                                apr_psprintf(r->pool, "GRST_CONN_VALID_%d", i),
+                                apr_pstrdup(r->pool, grst_cred_valid_i));
+               }
+             else break;
+           }
+
         apr_table_setn(env, "GRST_PERM", apr_psprintf(r->pool, "%d", perm));
 
         if (((dir_path = apr_pstrdup(r->pool, r->filename)) != NULL) &&
@@ -3781,14 +3985,24 @@ static int mod_gridsite_handler(request_rec *r)
    conf = (mod_gridsite_dir_cfg *)
                     ap_get_module_config(r->per_dir_config, &gridsite_module);
 
-   if ((conf->dnlistsuri != NULL) &&
-       (strncmp(r->uri, conf->dnlistsuri, strlen(conf->dnlistsuri)) == 0))
+   if (conf->dnlistsuri != NULL)
      {
        if (strcmp(r->uri, conf->dnlistsuri) == 0)
               return mod_gridsite_dnlistsuri_dir_handler(r, conf);
 
-       return mod_gridsite_dnlistsuri_handler(r, conf);
-    }
+       if (strncmp(r->uri, conf->dnlistsuri, strlen(conf->dnlistsuri)) == 0)
+              return mod_gridsite_dnlistsuri_handler(r, conf);
+
+       if ((strncmp(r->uri, conf->dnlistsuri, strlen(r->uri)) == 0)
+           && (strlen(r->uri) == strlen(conf->dnlistsuri) - 1))
+         {
+           apr_table_setn(r->headers_out, apr_pstrdup(r->pool, "Location"), 
+                          apr_pstrcat(r->pool, r->uri, "/", NULL));
+
+           r->status = HTTP_MOVED_TEMPORARILY;  
+           return OK;           
+         }      
+     }
 
    if (strcmp(r->handler, DIR_MAGIC_TYPE) == 0)
                    return mod_gridsite_dir_handler(r, conf);

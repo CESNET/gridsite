@@ -201,6 +201,38 @@ int GRSThttpPrintHeaderFooter(GRSThttpBody *bp, char *file, char *headfootname)
   return found;
 }
 
+int GRSThttpPrintHeader(GRSThttpBody *bp, char *file)
+{
+  char *headname;
+  
+  headname = getenv("REDIRECT_GRST_HEAD_FILE");
+  if (headname == NULL) headname = getenv("GRST_HEAD_FILE");
+  if (headname == NULL) headname = GRST_HEADFILE;
+
+  if (headname[0] == '/') /* absolute location */
+    {
+      return GRSThttpCopy(bp, headname);
+    }
+    
+  return GRSThttpPrintHeaderFooter(bp, file, headname);
+}
+
+int GRSThttpPrintFooter(GRSThttpBody *bp, char *file)
+{
+  char *footname;
+  
+  footname = getenv("REDIRECT_GRST_FOOT_FILE");
+  if (footname == NULL) footname = getenv("GRST_FOOT_FILE");
+  if (footname == NULL) footname = GRST_FOOTFILE;
+
+  if (footname[0] == '/') /* absolute location */
+    {
+      return GRSThttpCopy(bp, footname);
+    }
+    
+  return GRSThttpPrintHeaderFooter(bp, file, footname);
+}
+
 char *GRSThttpGetCGI(char *name)
 /* 
    Return a malloc()ed copy of CGI form parameter identified by name[],

@@ -53,8 +53,10 @@ elements. If header and footer files are found, they will be used too.
 
 .IP "GridSiteHeadFile file"
 .IP "GridSiteFootFile file"
-Set the filenames to be searched for as standard headers and footers
-for HTML pages. For each HTML page, the directory of that page is tried
+Set the filenames to be used for as standard headers and footers
+for HTML pages. If the file name begins with "/" then this is used
+as the absolute path to that file to be used. Otherwise,
+for each HTML page, the directory of that page is tried
 first, and then parent directories in ascending order until a header / 
 footer file is found. Header files are inserted in place of HTML
 <body[ ...]> tags; footer files in place of </body>. (These

@@ -339,7 +339,7 @@ int GRSTgaclCredPrint(GRSTgaclCred *cred, FILE *fp)
   return 0;
 }
 
-int GRSTgaclCredCmp(GRSTgaclCred *cred1, GRSTgaclCred *cred2)
+int GRSTgaclCredCmpAuri(GRSTgaclCred *cred1, GRSTgaclCred *cred2)
 /*
     GRSTgaclCredCmp - compare two credentials for exact match in AURI values
                       (this means a string match, not just any-user=DN etc)

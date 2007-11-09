@@ -1110,7 +1110,7 @@ GRSTgaclCred *GRSTx509CompactToCred(char *grst_cred)
 /// Returns pointer to created GRSTgaclCred or NULL or failure.
 {
    int       delegation;
-   char     *p;
+   char     *p, *encoded;
    time_t    now, notbefore, notafter;
    GRSTgaclCred *cred = NULL;
 
@@ -1129,7 +1129,9 @@ GRSTgaclCred *GRSTx509CompactToCred(char *grst_cred)
             && (p = index(++p, ' '))
             && (p = index(++p, ' ')))
          {
-           cred = GRSTgaclCredCreate("dn:", &p[1]);
+           encoded = GRSThttpUrlMildencode(&p[1]);
+           cred = GRSTgaclCredCreate("dn:", encoded);
+           free(encoded);
            GRSTgaclCredSetDelegation(cred, delegation);
          }
 
@@ -1151,7 +1153,9 @@ GRSTgaclCred *GRSTx509CompactToCred(char *grst_cred)
 
            if (p[1] != '/') return NULL; /* must begin with / */
 
-           cred = GRSTgaclCredCreate("fqan:", &p[1]);
+           encoded = GRSThttpUrlMildencode(&p[1]);
+           cred = GRSTgaclCredCreate("fqan:", encoded);
+           free(encoded);
            GRSTgaclCredSetDelegation(cred, delegation);
          }
 

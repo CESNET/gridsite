@@ -1198,7 +1198,7 @@ GRSTgaclPerm get_gaclPerm(struct fuse_context *fuse_ctx, char *path)
   GRSTgaclCred *cred;
   GRSTgaclUser *user = NULL;
   GRSTgaclAcl  *acl;
-  char *dn = NULL;
+  char *dn = NULL, *encoded_dn;
 
 // eventually want a UID cache here...
 
@@ -1216,9 +1216,12 @@ GRSTgaclPerm get_gaclPerm(struct fuse_context *fuse_ctx, char *path)
   
   if (dn != NULL)
     {
-      cred = GRSTgaclCredCreate("dn:", dn);
+      encoded_dn = GRSThttpMildUrlEncode(dn);
+    
+      cred = GRSTgaclCredCreate("dn:", encoded_dn);
       user = GRSTgaclUserNew(cred);
       free(dn);
+      free(encoded_dn);
     }   
   
   acl  = GRSTgaclAclLoadforFile(path); 

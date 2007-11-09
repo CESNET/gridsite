@@ -252,7 +252,7 @@ int        GRSTgaclEntryDelCred(GRSTgaclEntry *, GRSTgaclCred *);
 /*  #define GACLprintCred(x,y)	GRSTgaclCredPrint((x),(y)) */
 int        GRSTgaclCredCredPrint(GRSTgaclCred *, FILE *);
 
-int	   GRSTgaclCredCmp(GRSTgaclCred *, GRSTgaclCred *);
+int	   GRSTgaclCredCmpAuri(GRSTgaclCred *, GRSTgaclCred *);
 
 /*  #define GACLnewEntry(x)		GRSTgaclEntryNew((x)) */
 GRSTgaclEntry *GRSTgaclEntryNew(void);

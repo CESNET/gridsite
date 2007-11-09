@@ -319,8 +319,12 @@ char *make_admin_footer(request_rec *r, mod_gridsite_dir_cfg *conf,
     if ((grst_cred_auri_0 != NULL) && 
         (strncmp(grst_cred_auri_0, "dn:", 3) == 0))
       {
-         dn = &grst_cred_auri_0[3];
-         if (dn[0] == '\0') dn = NULL;         
+         dn = GRSThttpUrlDecode(&grst_cred_auri_0[3]);
+         if (dn[0] == '\0') 
+           {
+             free(dn);
+             dn = NULL;
+           }         
       }
   
     if (dn != NULL) 
@@ -360,6 +364,8 @@ char *make_admin_footer(request_rec *r, mod_gridsite_dir_cfg *conf,
                 out = apr_pstrcat(r->pool, out, temp, NULL);
               }                 
           }
+          
+        free(dn);
       }
     
     if ((https != NULL) && (strcasecmp(https, "on") == 0))
@@ -2353,7 +2359,7 @@ int GRST_load_ssl_creds(SSL *ssl, conn_rec *conn)
 void GRST_save_ssl_creds(conn_rec *conn, GRSTx509Chain *grst_chain)
 {
    int          i, lastcred, lowest_voms_delegation = 65535;
-   char         envname[14], *tempfile = NULL,
+   char         envname[14], *tempfile = NULL, *encoded,
                *sessionfile, session_id[(SSL_MAX_SSL_SESSION_ID_LENGTH+1)*2];
    apr_file_t  *fp = NULL;
    SSL         *ssl;
@@ -2405,12 +2411,14 @@ void GRST_save_ssl_creds(conn_rec *conn, GRSTx509Chain *grst_chain)
         else if ((grst_cert->type == GRST_CERT_TYPE_EEC) ||
                  (grst_cert->type == GRST_CERT_TYPE_PROXY))
           {
+            encoded = GRSThttpUrlMildencode(grst_cert->dn);
+          
             apr_table_setn(conn->notes,
                    apr_psprintf(conn->pool, "GRST_CRED_AURI_%d", i),
-                   apr_pstrcat(conn->pool, "dn:", grst_cert->dn, NULL));
+                   apr_pstrcat(conn->pool, "dn:", encoded, NULL));
 
             if (fp != NULL) apr_file_printf(fp, "GRST_CRED_AURI_%d=dn:%s\n",
-                                                i, grst_cert->dn);
+                                                i, encoded);
 
             apr_table_setn(conn->notes,
                    apr_psprintf(conn->pool, "GRST_CRED_VALID_%d", i),
@@ -2427,7 +2435,9 @@ void GRST_save_ssl_creds(conn_rec *conn, GRSTx509Chain *grst_chain)
                                                grst_cert->delegation, 0);
 
             ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, conn->base_server,
-                      "store GRST_CRED_AURI_%d=dn:%s", i, grst_cert->dn);
+                      "store GRST_CRED_AURI_%d=dn:%s", i, encoded);
+
+            free(encoded);
 
             ++i;
           }
@@ -2440,13 +2450,15 @@ void GRST_save_ssl_creds(conn_rec *conn, GRSTx509Chain *grst_chain)
             (grst_cert->delegation == lowest_voms_delegation))
           {
             /* only export attributes from the last proxy to contain them */
+
+            encoded = GRSThttpUrlMildencode(grst_cert->value);
           
             apr_table_setn(conn->notes,
                    apr_psprintf(conn->pool, "GRST_CRED_AURI_%d", i),
-                   apr_pstrcat(conn->pool, "fqan:", grst_cert->value, NULL));
+                   apr_pstrcat(conn->pool, "fqan:", encoded, NULL));
 
             if (fp != NULL) apr_file_printf(fp, "GRST_CRED_AURI_%d=fqan:%s\n",
-                                                i, grst_cert->value);
+                                                i, encoded);
 
             apr_table_setn(conn->notes,
                    apr_psprintf(conn->pool, "GRST_CRED_VALID_%d", i),
@@ -2463,7 +2475,9 @@ void GRST_save_ssl_creds(conn_rec *conn, GRSTx509Chain *grst_chain)
                                                grst_cert->delegation, 0);
 
             ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, conn->base_server,
-                      "store GRST_CRED_AURI_%d=fqan:%s", i, grst_cert->value);
+                      "store GRST_CRED_AURI_%d=fqan:%s", i, encoded);
+
+            free(encoded);
 
             ++i;
           }
@@ -2605,7 +2619,7 @@ static int mod_gridsite_perm_handler(request_rec *r)
     char        *dn, *p, *q, envname1[30], envname2[30], 
                 *grst_cred_auri_0 = NULL, *dir_path,
                 *remotehost, s[99], *grst_cred_auri_i, *cookies, *file, *https,
-                *cookiefile, oneline[1025], *key_i,
+                *cookiefile, oneline[1025], *key_i, *decoded,
                 *destination = NULL, *destination_uri = NULL, *querytmp, 
                 *destination_prefix = NULL, *destination_translated = NULL,
                 *aclpath = NULL, *grst_cred_valid_0 = NULL, *grst_cred_valid_i,
@@ -2999,6 +3013,7 @@ static int mod_gridsite_perm_handler(request_rec *r)
              {                                    
                if (strncmp(cred->auri, "dn:", 3) == 0)
                  {
+                   decoded = GRSThttpUrlDecode(&(cred->auri[3]));
                    apr_table_setn(env, 
                                   apr_psprintf(r->pool, "GRST_CRED_%d", i),
                                   apr_psprintf(r->pool, 
@@ -3007,16 +3022,19 @@ static int mod_gridsite_perm_handler(request_rec *r)
                                                cred->notbefore,
                                                cred->notafter,
                                                cc_delegation, 
-                                               &(cred->auri[3])));
+                                               decoded));
+                   free(decoded);
                  }
                else if (strncmp(cred->auri, "fqan:", 5) == 0)
                  {
+                   decoded = GRSThttpUrlDecode(&(cred->auri[5]));
                    apr_table_setn(env, 
                                   apr_psprintf(r->pool, "GRST_CRED_%d", i),
                                   apr_psprintf(r->pool, 
                                                   "VOMS %ld %ld 0 %s",
                                                   notbefore, notafter, 
-                                                  &(cred->auri[5])));
+                                                  decoded));
+                   free(decoded);
                  }
 
                apr_table_setn(env,

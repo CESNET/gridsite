@@ -61,7 +61,7 @@ int main()
 
   /* build up an ACL, starting with a credential */
 
-  cred = GRSTgaclCredCreate("dn:", "/O=Grid/CN=Mr Grid Person");
+  cred = GRSTgaclCredCreate("dn:", "/O=Grid/CN=Mr%20Grid%20Person");
   
   /* create an entry to put it in */ 
    

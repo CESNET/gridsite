@@ -163,7 +163,7 @@ int GRSTgaclCredAddValue(GRSTgaclCred *cred, char *name, char *rawvalue)
 */
 {
   int                i;
-  char              *value;
+  char              *value, *encoded_value;
 
   if ((cred == NULL) || (cred->auri == NULL)) return 0;
   free(cred->auri);
@@ -177,38 +177,46 @@ int GRSTgaclCredAddValue(GRSTgaclCred *cred, char *name, char *rawvalue)
   value = strdup(value);
   for (i=strlen(value) - 1; (i >= 0) && isspace(value[i]); --i) value[i]='\0';
 
+  encoded_value = GRSThttpUrlMildencode(value);
+
   if (strcmp(name, "dn") == 0)
     {
-      asprintf(&(cred->auri), "dn:%s", value);
+      asprintf(&(cred->auri), "dn:%s", encoded_value);
       free(value);
+      free(encoded_value);
       return 1;
     }
   else if (strcmp(name, "fqan") == 0)
     {
-      asprintf(&(cred->auri), "fqan:%s", value);
+      asprintf(&(cred->auri), "fqan:%s", encoded_value);
       free(value);
+      free(encoded_value);
       return 1;
     }
   else if (strcmp(name, "url") == 0)
     {
-      asprintf(&(cred->auri), "%s", value);
+      asprintf(&(cred->auri), "%s", encoded_value);
       free(value);
+      free(encoded_value);
       return 1;
     }
   else if (strcmp(name, "hostname") == 0)
     {
-      asprintf(&(cred->auri), "dns:%s", value);
+      asprintf(&(cred->auri), "dns:%s", encoded_value);
       free(value);
+      free(encoded_value);
       return 1;
     }
   else if (strcmp(name, "nist-loa") == 0)
     {
-      asprintf(&(cred->auri), "nist-loa:%s", value);
+      asprintf(&(cred->auri), "nist-loa:%s", encoded_value);
       free(value);
+      free(encoded_value);
       return 1;
     }
     
   free(value);  
+  free(encoded_value);
   return 0;
 }
 
@@ -673,7 +681,7 @@ static GRSTgaclCred *GRSTgaclCredParse(xmlNodePtr cur)
      {
        if (!xmlIsBlankNode(cur2))
         GRSTgaclCredAddValue(cred, (char *) cur2->name, 
-                             (char *) xmlNodeGetContent(cur2));     
+                             (char *) xmlNodeGetContent(cur2));
      }
 
   return cred;

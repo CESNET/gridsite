@@ -1216,7 +1216,7 @@ GRSTgaclPerm get_gaclPerm(struct fuse_context *fuse_ctx, char *path)
   
   if (dn != NULL)
     {
-      encoded_dn = GRSThttpMildUrlEncode(dn);
+      encoded_dn = GRSThttpUrlMildencode(dn);
     
       cred = GRSTgaclCredCreate("dn:", encoded_dn);
       user = GRSTgaclUserNew(cred);

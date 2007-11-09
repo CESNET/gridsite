@@ -226,6 +226,8 @@ GRSTgaclCred *GRSTgaclCredCreate(char *, char *);
 __attribute__ ((deprecated))
 int	GRSTgaclCredAddValue(GRSTgaclCred *, char *, char *);
 
+#define GRSTgaclCredGetAuri(cred) ((cred)->auri)
+
 #define GRSTgaclCredSetNotBefore(cred, time) ((cred)->notbefore = (time))
 #define GRSTgaclCredGetNotBefore(cred) ((cred)->notbefore)
 

@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <string.h>
 
+#ifndef GRST_NO_OPENSSL
 #include <openssl/x509_vfy.h>
 #include <openssl/err.h>
 #include <openssl/pem.h>
@@ -10,6 +11,7 @@
 #include <openssl/buffer.h>
 #include <openssl/objects.h>
 #include <openssl/asn1.h>
+#endif
 
 #include "gridsite.h"
 

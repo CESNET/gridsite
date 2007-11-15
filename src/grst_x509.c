@@ -50,6 +50,7 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 
+#ifndef GRST_NO_OPENSSL
 #include <openssl/x509.h>
 #include <openssl/x509v3.h>
 #include <openssl/err.h>
@@ -62,6 +63,7 @@
 #include <openssl/bio.h>    
 #include <openssl/des.h>    
 #include <openssl/rand.h>
+#endif
 
 #include "gridsite.h"
 

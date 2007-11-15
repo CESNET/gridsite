@@ -1,5 +1,5 @@
 /*
-   Copyright (c) 2002-6, Andrew McNab, University of Manchester
+   Copyright (c) 2002-7, Andrew McNab, University of Manchester
    All rights reserved.
 
    Redistribution and use in source and binary forms, with or
@@ -37,12 +37,24 @@
 #define GRST_VERSION 010500
 #endif
 
+#ifndef GRST_NO_OPENSSL
+
 #ifndef HEADER_SSL_H
 #include <openssl/ssl.h>
 #endif
 
 #ifndef HEADER_CRYPTO_H
 #include <openssl/crypto.h>
+#endif
+
+#endif
+
+#ifndef _TIME_H
+#include <time.h>
+#endif
+
+#ifndef _STDIO_H
+#include <stdio.h>
 #endif
 
 #ifndef FALSE
@@ -178,8 +190,10 @@ typedef struct { int    type;		/* CA, user, proxy, VOMS, ... */
 /* a chain of certs, starting from the first CA */
 typedef struct { GRSTx509Cert *firstcert; } GRSTx509Chain;
 
+#ifndef GRST_NO_OPENSSL
 int GRSTx509CertLoad(GRSTx509Cert *, X509 *);
 int GRSTx509ChainLoadCheck(GRSTx509Chain **, STACK_OF(X509) *, X509 *, char *, char *);
+#endif
 int GRSTx509ChainFree(GRSTx509Chain *);
 
 #define GRST_HTTP_PORT		777
@@ -354,6 +368,7 @@ char      *GRSThttpUrlMildencode(char *);
 
 int GRSTx509NameCmp(char *, char *);
 
+#ifndef GRST_NO_OPENSSL
 int GRSTx509KnownCriticalExts(X509 *);
 
 int GRSTx509IsCA(X509 *);
@@ -368,6 +383,7 @@ GRSTgaclCred *GRSTx509CompactToCred(char *);
 
 __attribute__ ((deprecated))
 int GRSTx509CompactCreds(int *, int, size_t, char *, STACK_OF(X509) *, char *, X509 *);
+#endif 
 
 char *GRSTx509CachedProxyFind(char *, char *, char *);
 char *GRSTx509FindProxyFileName(void);
@@ -377,9 +393,14 @@ int GRSTx509ProxyDestroy(char *, char *, char *);
 int GRSTx509ProxyGetTimes(char *, char *, char *, time_t *, time_t *);
 int GRSTx509CreateProxyRequest(char **, char **, char *);
 int GRSTx509MakeProxyRequest(char **, char *, char *, char *);
-int GRSTx509StringToChain(STACK_OF(X509) **, char *);
+
 char *GRSTx509MakeDelegationID(void);
+
+#ifndef GRST_NO_OPENSSL
+int GRSTx509StringToChain(STACK_OF(X509) **, char *);
 char *GRSTx509MakeProxyFileName(char *, STACK_OF(X509) *);
+#endif
+
 int GRSTx509CacheProxy(char *, char *, char *, char *);
 
 #define GRST_HEADFILE   "gridsitehead.txt"
@@ -404,8 +425,10 @@ char *GRSThttpGetCGI(char *);
 
 time_t GRSTasn1TimeToTimeT(char *, size_t);
 int    GRSTasn1SearchTaglist(struct GRSTasn1TagList taglist[], int, char *);
+#ifndef GRST_NO_OPENSSL
 int    GRSTasn1ParseDump(BIO *, unsigned char *, long,
                          struct GRSTasn1TagList taglist[], int, int *);
+#endif
 int    GRSTasn1GetX509Name(char *, int, char *, char *,
                            struct GRSTasn1TagList taglist[], int);
 

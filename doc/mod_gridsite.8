@@ -72,6 +72,16 @@ per-directory. The current directory is tried and then parent
 directories in ascending order until a .gacl file is found. 
 (Default: GridSiteAuth off)
 
+.IP "GridSiteAutoPasscode on|off"
+Whether to automatically issue passcodes in response to HTTPS
+requests made using a full X.509 certificate (not a GSI proxy.)
+(Default: GridSiteAutoPasscode on)
+
+.IP "GridSiteRequirePasscode on|off"
+Whether to require passcode cookies when processing HTTPS
+requests made using a full X.509 certificate (not a GSI proxy.)
+(Default: GridSiteAutoPasscode off)
+
 .IP "GridSiteAdminList uri"
 All members of the DN List with name "uri" receive the full set
 of permissions, irrespective of per-directory .gacl files. People in
@@ -251,6 +261,12 @@ directive is in effect.
 Numerical value of the permission bit-map obtained by comparing the
 user with the GACL in force. (These should be tested using the
 GRSTgaclPermHasXXXX functions from GACL.)
+
+.IP GRST_PASSCODE_COOKIE
+Value of GRIDHTTP_PASSCODE cookie that should be returned when using
+a double-submit cookie procedure to guard against Cross Site Request
+Forgery (CSRF) attacks. This is only set if a valid passcode file
+was found in the server's sessions directory.
 
 .IP GRST_ADMIN_LIST
 URI of the DN List, listing people with full admin and write access

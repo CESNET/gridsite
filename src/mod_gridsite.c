@@ -130,6 +130,7 @@ typedef struct
 {
    int			auth;
    int                  autopasscode;
+   int                  requirepasscode;
    int			zoneslashes;
    int			envs;
    int			format;
@@ -1625,6 +1626,7 @@ static void *create_gridsite_dir_config(apr_pool_t *p, char *path)
       {
         conf->auth          = 0;     /* GridSiteAuth          on/off       */
         conf->autopasscode  = 1;     /* GridSiteAutoPasscode  on/off       */
+        conf->requirepasscode = 0;   /* GridSiteRequirePasscode on/off     */
         conf->zoneslashes   = 1;     /* GridSiteZoneSlashes   number       */
         conf->envs          = 1;     /* GridSiteEnvs          on/off       */
         conf->format        = 0;     /* GridSiteHtmlFormat    on/off       */
@@ -1671,6 +1673,7 @@ static void *create_gridsite_dir_config(apr_pool_t *p, char *path)
       {
         conf->auth          = UNSET; /* GridSiteAuth          on/off       */
         conf->autopasscode  = UNSET; /* GridSiteAutoPasscode  on/off       */
+        conf->requirepasscode = UNSET; /* GridSiteRequirePasscode on/off   */
         conf->zoneslashes   = UNSET; /* GridSiteZoneSlashes   number       */
         conf->envs          = UNSET; /* GridSiteEnvs          on/off       */
         conf->format        = UNSET; /* GridSiteHtmlFormat    on/off       */
@@ -1718,6 +1721,9 @@ static void *merge_gridsite_dir_config(apr_pool_t *p, void *vserver,
 
     if (direct->autopasscode != UNSET) conf->autopasscode = direct->autopasscode;
     else                               conf->autopasscode = server->autopasscode;
+
+    if (direct->requirepasscode != UNSET) conf->requirepasscode = direct->requirepasscode;
+    else                               conf->requirepasscode = server->requirepasscode;
 
     if (direct->zoneslashes != UNSET) conf->zoneslashes = direct->zoneslashes;
     else                              conf->zoneslashes = server->zoneslashes;
@@ -2120,6 +2126,10 @@ static const char *mod_gridsite_flag_cmds(cmd_parms *a, void *cfg,
     {
       ((mod_gridsite_dir_cfg *) cfg)->autopasscode = flag;
     }
+    else if (strcasecmp(a->cmd->name, "GridSiteRequirePasscode") == 0)
+    {
+      ((mod_gridsite_dir_cfg *) cfg)->requirepasscode = flag;
+    }
     else if (strcasecmp(a->cmd->name, "GridSiteEnvs") == 0)
     {
       ((mod_gridsite_dir_cfg *) cfg)->envs = flag;
@@ -2153,6 +2163,8 @@ static const command_rec mod_gridsite_cmds[] =
     AP_INIT_FLAG("GridSiteAuth", mod_gridsite_flag_cmds, 
                  NULL, OR_FILEINFO, "on or off"),
     AP_INIT_FLAG("GridSiteAutoPasscode", mod_gridsite_flag_cmds,
+                 NULL, OR_FILEINFO, "on or off"),
+    AP_INIT_FLAG("GridSiteRequirePasscode", mod_gridsite_flag_cmds,
                  NULL, OR_FILEINFO, "on or off"),
     AP_INIT_FLAG("GridSiteEnvs", mod_gridsite_flag_cmds, 
                  NULL, OR_FILEINFO, "on or off"),
@@ -2847,8 +2859,10 @@ static int mod_gridsite_perm_handler(request_rec *r)
     /* 
         if not succeeded from passcode file, try from connection notes
         if a GSI Proxy or have  GridSiteAutoPasscode on  (the default)
-        (if  GridSiteAutoPasscode off  then interactive websites must use
-        a login script to make passcode and file instead.)
+        or have  GridSiteRequirePasscode off  (the default).
+        If  GridSiteAutoPasscode off  and  GridSiteRequirePasscode on
+        then interactive websites must use a login script to make passcode
+        and file instead.
     */
     
     if ((user == NULL) && 
@@ -2862,7 +2876,9 @@ static int mod_gridsite_perm_handler(request_rec *r)
                 "notbefore=%ld notafter=%ld delegation=%d nist-loa=%d", 
                 &notbefore, &notafter, &delegation, &nist_loa) == 4) &&
         (delegation <= ((mod_gridsite_dir_cfg *) cfg)->gsiproxylimit) &&
-        ((delegation > 0) || ((mod_gridsite_dir_cfg *) cfg)->autopasscode))
+        ((delegation > 0) || 
+         ((mod_gridsite_dir_cfg *) cfg)->autopasscode ||
+         !(((mod_gridsite_dir_cfg *) cfg)->requirepasscode)))
       {
         cred_0 = GRSTgaclCredCreate(grst_cred_auri_0, NULL);
         if (cred_0 != NULL)

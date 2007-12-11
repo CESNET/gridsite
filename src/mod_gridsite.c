@@ -140,6 +140,7 @@ typedef struct
    char			*adminfile;
    char			*adminuri;
    char			*helpuri;
+   char			*loginuri;
    char			*dnlists;
    char			*dnlistsuri;
    char			*adminlist;
@@ -148,7 +149,7 @@ typedef struct
    char			*methods;
    char			*editable;
    char			*headfile;
-   char			*footfile;
+   char			*footfile;   
    int			gridhttp;
    char			*aclformat;
    char			*aclpath;
@@ -378,6 +379,14 @@ char *make_admin_footer(request_rec *r, mod_gridsite_dir_cfg *conf,
                    r->server->server_hostname, r->unparsed_uri);
     
     out = apr_pstrcat(r->pool, out, temp, NULL);
+
+    if ((conf->loginuri != NULL) && (conf->loginuri[0] != '\0'))
+      {
+        temp = apr_psprintf(r->pool,
+                   ". <a href=\"%s%s\">Login/Logout</a>\n", 
+                   conf->loginuri, r->uri);
+        out = apr_pstrcat(r->pool, out, temp, NULL);
+      }
 
     if ((conf->helpuri != NULL) && (conf->helpuri[0] != '\0'))
       {
@@ -1637,6 +1646,7 @@ static void *create_gridsite_dir_config(apr_pool_t *p, char *path)
                                 /* GridSiteAdminFile      File-value   */
         conf->adminuri      = NULL;  /* GridSiteAdminURI      URI-value    */
         conf->helpuri       = NULL;  /* GridSiteHelpURI       URI-value    */
+        conf->loginuri      = NULL;  /* GridSiteLoginURI      URI-value    */
         conf->dnlists       = NULL;  /* GridSiteDNlists       Search-path  */
         conf->dnlistsuri    = NULL;  /* GridSiteDNlistsURI    URI-value    */
         conf->adminlist     = NULL;  /* GridSiteAdminList     URI-value    */
@@ -1683,6 +1693,7 @@ static void *create_gridsite_dir_config(apr_pool_t *p, char *path)
         conf->adminfile     = NULL;  /* GridSiteAdminFile     File-value   */
         conf->adminuri      = NULL;  /* GridSiteAdminURI      URI-value    */
         conf->helpuri       = NULL;  /* GridSiteHelpURI       URI-value    */
+        conf->loginuri      = NULL;  /* GridSiteLoginURI      URI-value    */
         conf->dnlists       = NULL;  /* GridSiteDNlists       Search-path  */
         conf->dnlistsuri    = NULL;  /* GridSiteDNlistsURI    URI-value    */
         conf->adminlist     = NULL;  /* GridSiteAdminList     URI-value    */
@@ -1751,6 +1762,9 @@ static void *merge_gridsite_dir_config(apr_pool_t *p, void *vserver,
         
     if (direct->helpuri != NULL) conf->helpuri = direct->helpuri;
     else                         conf->helpuri = server->helpuri;
+        
+    if (direct->loginuri != NULL) conf->loginuri = direct->loginuri;
+    else                          conf->loginuri = server->loginuri;
         
     if (direct->dnlists != NULL) conf->dnlists = direct->dnlists;
     else                         conf->dnlists = server->dnlists;
@@ -1903,6 +1917,11 @@ static const char *mod_gridsite_take1_cmds(cmd_parms *a, void *cfg,
       if (*parm != '/') return "GridSiteHelpURI must begin with /";
 
       ((mod_gridsite_dir_cfg *) cfg)->helpuri =
+        apr_pstrdup(a->pool, parm);
+    }
+    else if (strcasecmp(a->cmd->name, "GridSiteLoginURI") == 0)
+    {
+      ((mod_gridsite_dir_cfg *) cfg)->loginuri =
         apr_pstrdup(a->pool, parm);
     }
     else if (strcasecmp(a->cmd->name, "GridSiteDNlists") == 0)
@@ -2181,6 +2200,8 @@ static const command_rec mod_gridsite_cmds[] =
                    NULL, OR_FILEINFO, "URI of real gridsite-admin.cgi"),
     AP_INIT_TAKE1("GridSiteHelpURI", mod_gridsite_take1_cmds,
                    NULL, OR_FILEINFO, "URI of Website Help pages"),
+    AP_INIT_TAKE1("GridSiteLoginURI", mod_gridsite_take1_cmds,
+                   NULL, OR_FILEINFO, "URI prefix of login/logout page"),
     AP_INIT_TAKE1("GridSiteDNlists", mod_gridsite_take1_cmds,
                    NULL, OR_FILEINFO, "DN Lists directories search path"),
     AP_INIT_TAKE1("GridSiteDNlistsURI", mod_gridsite_take1_cmds,
@@ -3226,6 +3247,10 @@ static int mod_gridsite_perm_handler(request_rec *r)
         if (((mod_gridsite_dir_cfg *) cfg)->helpuri != NULL)
                   apr_table_setn(env, "GRST_HELP_URI",
                               ((mod_gridsite_dir_cfg *) cfg)->helpuri);
+
+        if (((mod_gridsite_dir_cfg *) cfg)->loginuri != NULL)
+                  apr_table_setn(env, "GRST_LOGIN_URI",
+                              ((mod_gridsite_dir_cfg *) cfg)->loginuri);
 
         if (((mod_gridsite_dir_cfg *) cfg)->adminfile != NULL)
                   apr_table_setn(env, "GRST_ADMIN_FILE",

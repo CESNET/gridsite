@@ -80,7 +80,14 @@ requests made using a full X.509 certificate (not a GSI proxy.)
 .IP "GridSiteRequirePasscode on|off"
 Whether to require passcode cookies when processing HTTPS
 requests made using a full X.509 certificate (not a GSI proxy.)
-(Default: GridSiteAutoPasscode off)
+(Default: GridSiteRequirePasscode off)
+
+.IP "GridSiteZoneSlashes number"
+How many slashes to include in passcode paths. The path is the
+prefix of REQUEST_URI that includes that number of slashes. 
+Path matching is checked by mod_gridsite in addition to any
+selection of cookies by path made by the browser.
+(Default: GridSiteZoneSlashes 1)
 
 .IP "GridSiteAdminList uri"
 All members of the DN List with name "uri" receive the full set
@@ -163,6 +170,12 @@ the virtual host, outside any Directory or Location containers.
 .IP "GridSiteHelpURI uri"
 If set, gives the URI to use for "Website Help" links in HTML
 page footers. (Default: none)
+
+.IP "GridSiteLoginURI uri"
+If set, gives the URI prefix to use for login/logout links in
+page footers. The text "Login/Logout" will be a link to the
+prefix followed by the value of REQUEST_URI for the page in
+question. (Default: none)
 
 .IP "GridSiteLink on|off"
 Turns off the link in the HTML page footers which gives credit to GridSite.

@@ -1,3 +1,5 @@
+* Fri Feb 8 2008 Andrew McNab <Andrew.McNab@cern.ch>
+- ==== GridSite version 1.6.0 ====
 * Thu Nov 15 2007 Andrew McNab <Andrew.McNab@cern.ch>
 - Add libgridsite_nossl.[so|a] with no dependencies 
   on OpenSSL (for gLite L&B.)

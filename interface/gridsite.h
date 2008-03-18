@@ -72,7 +72,7 @@
 
 #define GRSTerrorLog(GRSTerrorLevel, ...) if (GRSTerrorLogFunc != NULL) (GRSTerrorLogFunc)(__FILE__, __LINE__, GRSTerrorLevel, __VA_ARGS__)
 
-void (*GRSTerrorLogFunc)(char *, int, int, char *, ...);
+extern void (*GRSTerrorLogFunc)(char *, int, int, char *, ...);
 
 /* these levels are the same as Unix syslog() and Apache ap_log_error() */
 

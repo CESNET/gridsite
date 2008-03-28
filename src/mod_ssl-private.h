@@ -1,5 +1,5 @@
 /*
-   Copyright (c) 2003-4, Andrew McNab, University of Manchester
+   Copyright (c) 2003-8, Andrew McNab, University of Manchester
    All rights reserved.
 
    Redistribution and use in source and binary forms, with or
@@ -67,12 +67,23 @@
 
 #include <openssl/ssl.h>
 
+#ifndef BOOL
+#define BOOL unsigned int
+#endif
+
 typedef enum {
     SSL_SHUTDOWN_TYPE_UNSET,
     SSL_SHUTDOWN_TYPE_STANDARD,
     SSL_SHUTDOWN_TYPE_UNCLEAN,
     SSL_SHUTDOWN_TYPE_ACCURATE
 } ssl_shutdown_type_e;
+
+typedef enum {
+    SSL_ENABLED_UNSET    = -1,
+    SSL_ENABLED_FALSE    = 0,
+    SSL_ENABLED_TRUE     = 1,
+    SSL_ENABLED_OPTIONAL = 3
+} ssl_enabled_t;
 
 typedef struct {
   SSL *ssl;
@@ -94,11 +105,14 @@ typedef struct {
 
 typedef struct {
   void            *mc;
-  unsigned int     enabled;
-  unsigned int     proxy_enabled;
+  BOOL		   enabled;
+  BOOL		   proxy_enabled;
   const char      *vhost_id;
   int              vhost_id_len;
   int              session_cache_timeout;
+#if AP_MODULE_MAGIC_AT_LEAST(20051115,0)
+  BOOL             cipher_server_pref;
+#endif
   modssl_ctx_t    *server;
   modssl_ctx_t    *proxy;
 } SSLSrvConfigRec;

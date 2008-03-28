@@ -1,5 +1,5 @@
 /*
-   Copyright (c) 2002-7, Andrew McNab, University of Manchester
+   Copyright (c) 2002-8, Andrew McNab, University of Manchester
    All rights reserved.
 
    Redistribution and use in source and binary forms, with or
@@ -79,12 +79,12 @@
 // No such file or directory
 #define GRST_RET_NO_SUCH_FILE	1003
 
-
 // #define GRSTerrorLog(GRSTerrorLevel, GRSTerrorFmt, ...) if (GRSTerrorLogFunc != NULL) (GRSTerrorLogFunc)(__FILE__, __LINE__, GRSTerrorLevel, GRSTerrorFmt, __VA_ARGS__)
+// void (*GRSTerrorLogFunc)(char *, int, int, char *, ...);
 
 #define GRSTerrorLog(GRSTerrorLevel, ...) if (GRSTerrorLogFunc != NULL) (GRSTerrorLogFunc)(__FILE__, __LINE__, GRSTerrorLevel, __VA_ARGS__)
 
-void (*GRSTerrorLogFunc)(char *, int, int, char *, ...);
+extern void (*GRSTerrorLogFunc)(char *, int, int, char *, ...);
 
 /* these levels are the same as Unix syslog() and Apache ap_log_error() */
 

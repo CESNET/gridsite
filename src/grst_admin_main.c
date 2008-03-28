@@ -255,7 +255,7 @@ int main()
     }
   else if ((dn = getenv("SSL_CLIENT_S_DN")) != NULL)
     {
-      cred = GRSTgaclCredCreate("dn:", dn);
+      cred = GRSTgaclCredCreate("dn:", GRSThttpUrlMildencode(dn));
       user = GRSTgaclUserNew(cred);
     }
 

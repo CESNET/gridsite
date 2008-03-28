@@ -40,7 +40,7 @@ Prefix: ${MYPREFIX:-/usr}
 URL: http://www.gridsite.org/
 Vendor: GridPP
 Requires: libxml2
-Buildrequires: libxml2-devel,curl-ssl-devel,httpd-devel,openssl-devel
+Buildrequires: libxml2-devel,curl-devel,httpd-devel,openssl-devel
 Packager: Andrew McNab <Andrew.McNab@manchester.ac.uk>
 
 %description

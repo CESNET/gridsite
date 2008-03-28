@@ -38,4 +38,3 @@
 #include "gridsite.h"
 
 void (*GRSTerrorLogFunc)(char *, int, int, char *, ...) = NULL;
-

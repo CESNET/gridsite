@@ -1,5 +1,5 @@
 /*
-   Copyright (c) 2003-7, Andrew McNab, Shiv Kaushal, Joseph Dada,
+   Copyright (c) 2003-8, Andrew McNab, Shiv Kaushal, Joseph Dada,
    and Yibiao Li, University of Manchester. All rights reserved.
 
    Redistribution and use in source and binary forms, with or
@@ -312,10 +312,10 @@ char *make_admin_footer(request_rec *r, mod_gridsite_dir_cfg *conf,
 
     out = apr_pstrcat(r->pool, out, "<hr><small>", NULL);
 
-    if (r->connection->notes != NULL)
+    if (r->notes != NULL)
       {
-        grst_cred_auri_0 = (char *) 
-                  apr_table_get(r->connection->notes, "GRST_CRED_AURI_0");
+        grst_cred_auri_0 = (char *)
+                  apr_table_get(r->notes, "GRST_CRED_AURI_0");
       }                       
 
     if ((grst_cred_auri_0 != NULL) && 
@@ -384,7 +384,7 @@ char *make_admin_footer(request_rec *r, mod_gridsite_dir_cfg *conf,
       {
         temp = apr_psprintf(r->pool,
                    ". <a href=\"%s%s\">Login/Logout</a>\n", 
-                   conf->loginuri, r->uri);
+                   conf->loginuri, r->unparsed_uri);
         out = apr_pstrcat(r->pool, out, temp, NULL);
       }
 
@@ -2952,13 +2952,14 @@ static int mod_gridsite_perm_handler(request_rec *r)
                }
           }
 
-         /* if passcode absent but SSL ok and not a GSI Proxy, we must 
-            have  GridSiteAutoPasscode on  so we create passcode and file
+         /* if user from SSL ok and not a GSI Proxy and have 
+            GridSiteAutoPasscode on  we create passcode and file
             automatically, and return cookie to client. 
             (if  GridSiteAutoPasscode off  then the site must use
             a login script to make passcode and file instead.) */
 
-         if ((user != NULL) &&
+         if (((mod_gridsite_dir_cfg *) cfg)->autopasscode &&
+             (user != NULL) &&
              (GRSTgaclCredGetDelegation(cred_0) == 0))
            {
              n = 0; /* number of slashes seen */
@@ -2987,7 +2988,7 @@ static int mod_gridsite_perm_handler(request_rec *r)
                         "GRIDHTTP_PASSCODE=%s; "
                         "domain=%s; "
                         "path=%s; "
-                        "secure; httponly", gridauthpasscode, r->hostname, p));
+                        "secure", gridauthpasscode, r->hostname, p));
                    }
                }
            }
@@ -3206,9 +3207,17 @@ static int mod_gridsite_perm_handler(request_rec *r)
     ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
                  "After GACL/Onetime evaluation, GRST_PERM=%d", perm);
 
-    /* set permission and GACL environment variables */
+    /* add permission and first AURI to request notes */
     
     apr_table_setn(r->notes, "GRST_PERM", apr_psprintf(r->pool, "%d", perm));
+
+    cred = user->firstcred;
+    if ((cred != NULL) && (strncmp(cred->auri, "dn:", 3) == 0))
+      {
+        apr_table_setn(r->notes, "GRST_CRED_AURI_0", 
+                       apr_psprintf(r->pool, "%s", cred->auri));
+      }
+        
 
     if (((mod_gridsite_dir_cfg *) cfg)->envs)
       {
@@ -4101,7 +4110,7 @@ static void register_hooks(apr_pool_t *p)
 
     ap_hook_fixups(mod_gridsite_first_fixups,NULL,NULL,APR_HOOK_FIRST);
     
-    ap_hook_fixups(mod_gridsite_perm_handler,NULL,NULL,APR_HOOK_LAST);
+    ap_hook_fixups(mod_gridsite_perm_handler,NULL,NULL,APR_HOOK_REALLY_LAST);
     
     ap_hook_handler(mod_gridsite_handler, NULL, NULL, APR_HOOK_FIRST);    
     

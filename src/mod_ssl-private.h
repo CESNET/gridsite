@@ -1,5 +1,5 @@
 /*
-   Copyright (c) 2003-4, Andrew McNab, University of Manchester
+   Copyright (c) 2003-8, Andrew McNab, University of Manchester
    All rights reserved.
 
    Redistribution and use in source and binary forms, with or
@@ -67,12 +67,33 @@
 
 #include <openssl/ssl.h>
 
+#ifndef BOOL
+#define BOOL unsigned int
+#endif
+
 typedef enum {
     SSL_SHUTDOWN_TYPE_UNSET,
     SSL_SHUTDOWN_TYPE_STANDARD,
     SSL_SHUTDOWN_TYPE_UNCLEAN,
     SSL_SHUTDOWN_TYPE_ACCURATE
 } ssl_shutdown_type_e;
+
+typedef enum {
+    SSL_ENABLED_UNSET    = -1,
+    SSL_ENABLED_FALSE    = 0,
+    SSL_ENABLED_TRUE     = 1,
+    SSL_ENABLED_OPTIONAL = 3
+} ssl_enabled_t;
+
+#if AP_MODULE_MAGIC_AT_LEAST(20051115,0)
+typedef enum {
+    SSL_CVERIFY_UNSET           = -1,
+    SSL_CVERIFY_NONE            = 0,
+    SSL_CVERIFY_OPTIONAL        = 1,
+    SSL_CVERIFY_REQUIRE         = 2,
+    SSL_CVERIFY_OPTIONAL_NO_CA  = 3
+} ssl_verify_t;
+#endif
 
 typedef struct {
   SSL *ssl;
@@ -87,20 +108,68 @@ typedef struct {
   int non_ssl_request;
 } SSLConnRec;
 
+#if AP_MODULE_MAGIC_AT_LEAST(20051115,0)
+typedef struct {
+    const char  *ca_cert_path;
+    const char  *ca_cert_file;
+
+    const char  *cipher_suite;
+
+    int          verify_depth;
+    ssl_verify_t verify_mode;
+} modssl_auth_ctx_t;
+#endif
+
 typedef struct {
   void    *sc; /* pointer back to server config */
   SSL_CTX *ssl_ctx;
+#if AP_MODULE_MAGIC_AT_LEAST(20051115,0)
+  void *pks;
+  void *pkp;
+
+  int  protocol;
+
+  int           pphrase_dialog_type;
+  const char   *pphrase_dialog_path;
+
+  const char  *cert_chain;
+
+  const char  *crl_path;
+  const char  *crl_file;
+  X509_STORE  *crl;
+
+  modssl_auth_ctx_t auth;
+#endif
 } modssl_ctx_t;
 
 typedef struct {
   void            *mc;
-  unsigned int     enabled;
-  unsigned int     proxy_enabled;
+  BOOL		   enabled;
+  BOOL		   proxy_enabled;
   const char      *vhost_id;
   int              vhost_id_len;
   int              session_cache_timeout;
+#if AP_MODULE_MAGIC_AT_LEAST(20051115,0)
+  BOOL             cipher_server_pref;
+#endif
   modssl_ctx_t    *server;
   modssl_ctx_t    *proxy;
 } SSLSrvConfigRec;
+
+#if AP_MODULE_MAGIC_AT_LEAST(20051115,0)
+typedef struct {
+    BOOL          bSSLRequired;
+    apr_array_header_t *aRequirement;
+    int		  nOptions;
+    int           nOptionsAdd;
+    int           nOptionsDel;
+    const char   *szCipherSuite;
+    ssl_verify_t  nVerifyClient;
+    int           nVerifyDepth;
+    const char   *szCACertificatePath;
+    const char   *szCACertificateFile;
+    const char   *szUserName;
+} SSLDirConfigRec;
+#endif
 
 extern module AP_MODULE_DECLARE_DATA ssl_module;

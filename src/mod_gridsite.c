@@ -71,8 +71,14 @@
 #include <http_log.h>
 #include <http_protocol.h>
 #include <http_request.h>
-#include <unixd.h>
 
+#if AP_MODULE_MAGIC_AT_LEAST(20051115,0)
+#ifndef _LARGEFILE64_SOURCE
+#define _LARGEFILE64_SOURCE
+#endif
+#endif
+
+#include <unixd.h>
 #include <stdio.h>
 #include <sys/types.h>
 #include <sys/stat.h>

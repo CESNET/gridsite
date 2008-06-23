@@ -29,6 +29,13 @@
  *
  */
 
+#include <ap_mmn.h>
+#if AP_MODULE_MAGIC_AT_LEAST(20051115,0)
+#ifndef _LARGEFILE64_SOURCE
+#define _LARGEFILE64_SOURCE
+#endif
+#endif
+
 #include "apr.h"
 #include "apr_file_io.h"
 #include "ap_config.h"

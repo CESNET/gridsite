@@ -3429,8 +3429,126 @@ int GRST_callback_SSLVerify_wrapper(int ok, X509_STORE_CTX *ctx)
    int errdepth        = X509_STORE_CTX_get_error_depth(ctx);
    int returned_ok;
    int first_non_ca;
+#if AP_MODULE_MAGIC_AT_LEAST(20051115,0)
+   request_rec *r      = (request_rec *)SSL_get_app_data2(ssl);
+   SSLSrvConfigRec *sc = (SSLSrvConfigRec *) ap_get_module_config(s->module_config, &ssl_module);
+   SSLDirConfigRec *dc = r ? (SSLDirConfigRec *) ap_get_module_config(r->per_dir_config, &ssl_module) : NULL;
+   modssl_ctx_t *mctx  = sslconn->is_proxy ? sc->proxy : sc->server;
+   int verify, depth;
+#endif
    STACK_OF(X509) *certstack;
    GRSTx509Chain *grst_chain;
+
+#if AP_MODULE_MAGIC_AT_LEAST(20051115,0)
+    /*
+     * Log verification information
+     */
+    if (s->loglevel >= APLOG_DEBUG) 
+      {
+        X509 *cert  = X509_STORE_CTX_get_current_cert(ctx);
+        char *sname = X509_NAME_oneline(X509_get_subject_name(cert), NULL, 0);
+        char *iname = X509_NAME_oneline(X509_get_issuer_name(cert),  NULL, 0);
+
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                     "Certificate Verification: "
+                     "depth: %d, subject: %s, issuer: %s",
+                     errdepth,
+                     sname ? sname : "-unknown-",
+                     iname ? iname : "-unknown-");
+
+        if (sname) modssl_free(sname);
+
+        if (iname) modssl_free(iname);
+      } 
+
+    /*
+     * Check for optionally acceptable non-verifiable issuer situation
+     */
+    if (dc && (dc->nVerifyClient != SSL_CVERIFY_UNSET)) 
+      {
+        verify = dc->nVerifyClient;
+      }
+    else 
+      {
+        verify = mctx->auth.verify_mode;
+      }
+
+    if (verify == SSL_CVERIFY_NONE) 
+      {
+        /*
+         * SSLProxyVerify is either not configured or set to "none".
+         * (this callback doesn't happen in the server context if SSLVerify
+         *  is not configured or set to "none")
+         */
+        return TRUE;
+      }
+
+   if (ssl_verify_error_is_optional(errnum) &&
+        (verify == SSL_CVERIFY_OPTIONAL_NO_CA))
+    {
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                     "Certificate Verification: Verifiable Issuer is "
+                     "configured as optional, therefore we're accepting "
+                     "the certificate");
+
+        sslconn->verify_info = "GENEROUS";
+        ok = TRUE;
+    }
+
+    /*
+     * Additionally perform CRL-based revocation checks
+     */
+   if (ok) 
+     {
+        if (!(ok = ssl_callback_SSLVerify_CRL(ok, ctx, conn))) 
+          {
+            errnum = X509_STORE_CTX_get_error(ctx);
+          }
+     }
+
+    /*
+     * If we already know it's not ok, log the real reason
+     */
+    if (!ok) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
+                     "Certificate Verification: Error (%d): %s",
+                     errnum, X509_verify_cert_error_string(errnum));
+
+        if (sslconn->client_cert) {
+            X509_free(sslconn->client_cert);
+            sslconn->client_cert = NULL;
+        }
+        sslconn->client_dn = NULL;
+        sslconn->verify_error = X509_verify_cert_error_string(errnum);
+    }
+
+    /*
+     * Finally check the depth of the certificate verification
+     */
+    if (dc && (dc->nVerifyDepth != UNSET)) 
+      {
+        depth = dc->nVerifyDepth;
+      }
+    else 
+      {
+        depth = mctx->auth.verify_depth;
+      }
+
+    if (errdepth > depth) 
+      {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
+                     "Certificate Verification: Certificate Chain too long "
+                     "(chain has %d certificates, but maximum allowed are "
+                     "only %d)",
+                     errdepth, depth);
+
+        errnum = X509_V_ERR_CERT_CHAIN_TOO_LONG;
+        sslconn->verify_error = X509_verify_cert_error_string(errnum);
+
+        ok = FALSE;
+      }
+
+#endif
 
    /*
     * GSI Proxy user-cert-as-CA handling:
@@ -3471,7 +3589,11 @@ int GRST_callback_SSLVerify_wrapper(int ok, X509_STORE_CTX *ctx)
          }
      }
 
+#if AP_MODULE_MAGIC_AT_LEAST(20051115,0)
+   returned_ok = ok;
+#else
    returned_ok = ssl_callback_SSLVerify(ok, ctx);
+#endif
 
    /* in case ssl_callback_SSLVerify changed it */
    errnum = X509_STORE_CTX_get_error(ctx); 
@@ -4066,7 +4188,7 @@ static void register_hooks(apr_pool_t *p)
 
     ap_hook_fixups(mod_gridsite_first_fixups,NULL,NULL,APR_HOOK_FIRST);
     
-    ap_hook_fixups(mod_gridsite_perm_handler,NULL,NULL,APR_HOOK_LAST);
+    ap_hook_fixups(mod_gridsite_perm_handler,NULL,NULL,APR_HOOK_REALLY_LAST);
     
     ap_hook_handler(mod_gridsite_handler, NULL, NULL, APR_HOOK_FIRST);    
     

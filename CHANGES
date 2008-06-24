@@ -1,3 +1,15 @@
+* Mon Jun 23 2008 Andrew McNab <Andrew.McNab@man.ac.uk>
+- Backport changes from 1.7.x for Apache 2.2 and 
+  Debian/SL5. 
+- Define _LARGEFILE64_SOURCE in mod_gridsite.c and
+  gsexec.c if using Apache 2.2
+- Rely on GRSTx509ChainLoadCheck() instead of mod_ssl
+  checking if using Apache 2.2, as these functions are
+  no longer exposed by mod_ssl.
+- mod_gridsite_perm_handler now run at hook level
+  APR_HOOK_REALLY_LAST to avoid httpd.conf gotchas.
+* Mon Jun 23 2008 Andrew McNab <Andrew.McNab@man.ac.uk>
+- ==== GridSite version 1.5.9 ====
 * Tue Mar 18 2008 Andrew McNab <Andrew.McNab@man.ac.uk>
 - Add extern to declaration of GRSTerrorLogFunc in
   gridsite.h (bug #34658 from Luca Petronzio)

@@ -31,7 +31,7 @@ cat <<EOF >gridsite.spec
 Name: gridsite
 Version: ${PATCH_VERSION:-1.x.x}
 # This next piece of .spec/sed magic puts the build OS version in the release
-Release: %(if [ "$RELEASE_VERSION" ] ; then echo $RELEASE_VERSION ; else sed 's/^\([A-Z]\)[^ ]* \([A-Z]\)[^0-9]*\([0-9][^ ]*\).*/1\1\2\3/g' /etc/redhat-release | sed 's/[^A-Z,a-z,0-9]//g' ; fi)
+Release: %(if [ "$RELEASE_VERSION" ] ; then echo $RELEASE_VERSION ; else sed 's/^\([A-Z]\)[^ ]* \([A-Z]\)[^0-9]*\([0-9][^ ]*\).*/1\1\2\3/g' /etc/redhat-release | sed 's/[^A-Z,0-9]//g' ; fi)
 Summary: GridSite
 License: Modified BSD
 Group: System Environment/Daemons
@@ -181,8 +181,12 @@ fi
 
 %files shared
 %attr(-, root, root) %{prefix}/%{_lib}/libgridsite.so.%{version}
+%attr(-, root, root) %{prefix}/%{_lib}/libgridsite.so.${MINOR_VERSION:-1.x}
+%attr(-, root, root) %{prefix}/%{_lib}/libgridsite.so.${MAJOR_VERSION:-1}
 %attr(-, root, root) %{prefix}/%{_lib}/libgridsite.so
 %attr(-, root, root) %{prefix}/%{_lib}/libgridsite_globus.so.%{version}
+%attr(-, root, root) %{prefix}/%{_lib}/libgridsite_globus.so.${MINOR_VERSION:-1.x}
+%attr(-, root, root) %{prefix}/%{_lib}/libgridsite_globus.so.${MAJOR_VERSION:-1}
 %attr(-, root, root) %{prefix}/%{_lib}/libgridsite_globus.so
 %attr(-, root, root) %{prefix}/share/doc/gridsite-${MINOR_VERSION:-1.x}
 

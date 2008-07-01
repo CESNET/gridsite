@@ -488,7 +488,7 @@ htcp-bin: htcp
 	rm -Rf ../htcp-bin-$(PATCH_VERSION)
 
 # RPM targets: build and RPMs go into subdirectories of ../RPMTMP/
-rpm: dist
+rpm: dist wtf
 	export PATCH_VERSION=$(PATCH_VERSION) ; \
 	 export MINOR_VERSION=$(MINOR_VERSION) ; \
 	 export MYPREFIX=/usr ; \
@@ -505,8 +505,8 @@ rpm: dist
 wtf: 
 	pwd
 	printenv
-	ls -l
-	ls -lR /usr/local/
-	ls -lR $(GSOAPDIR)
+#	ls -l
+#	ls -lR /usr/local/
+#	ls -lR $(GSOAPDIR)
 
 

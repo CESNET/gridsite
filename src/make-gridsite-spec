@@ -191,9 +191,9 @@ fi
 %files devel
 %attr(-, root, root) %{prefix}/include/gridsite.h
 %attr(-, root, root) %{prefix}/include/gridsite-gacl.h
-%attr(-, root, root) %{prefix}/lib/libgridsite.a
-%attr(-, root, root) %{prefix}/lib/libgridsite_globus.a
-%attr(-, root, root) %{prefix}/lib/libgridsite_nossl.a
+%attr(-, root, root) %{prefix}/%{_lib}/libgridsite.a
+%attr(-, root, root) %{prefix}/%{_lib}/libgridsite_globus.a
+%attr(-, root, root) %{prefix}/%{_lib}/libgridsite_nossl.a
 
 %files apache
 %attr(-, root, root) %{prefix}/share/man/man8/mod_gridsite.8.gz

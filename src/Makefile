@@ -505,6 +505,7 @@ rpm: dist wtf
 wtf: 
 	pwd
 	printenv
+	ls -lR /home/condor/execute/dir_5846/userdir/repository/externals/httpd-devel/2.2.3/deb4_ia32_gcc412/include/
 #	ls -l
 #	ls -lR /usr/local/
 #	ls -lR $(GSOAPDIR)

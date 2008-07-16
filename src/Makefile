@@ -62,7 +62,8 @@ endif
 # Build
 #
 
-build: apidoc build-lib \
+build: wtf \
+       apidoc build-lib \
        htcp gridsite-copy.cgi gridsite-storage.cgi mod_gridsite.so \
        urlencode findproxyfile gsexec real-gridsite-admin.cgi
 
@@ -488,7 +489,7 @@ htcp-bin: htcp
 	rm -Rf ../htcp-bin-$(PATCH_VERSION)
 
 # RPM targets: build and RPMs go into subdirectories of ../RPMTMP/
-rpm: dist wtf
+rpm: dist
 	export PATCH_VERSION=$(PATCH_VERSION) ; \
 	 export MINOR_VERSION=$(MINOR_VERSION) ; \
 	 export MYPREFIX=/usr ; \

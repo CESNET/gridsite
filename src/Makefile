@@ -62,8 +62,7 @@ endif
 # Build
 #
 
-build: wtf \
-       apidoc build-lib \
+build: apidoc build-lib \
        htcp gridsite-copy.cgi gridsite-storage.cgi mod_gridsite.so \
        urlencode findproxyfile gsexec real-gridsite-admin.cgi
 

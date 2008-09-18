@@ -89,21 +89,21 @@ ln -sf %(echo ${MYPREFIX:-/usr})/share/doc/gridsite-%{version} \
 rm -f %(echo ${MYPREFIX:-/usr})/share/doc/gridsite
 
 %files shared
-%attr(-, root, root) %(echo ${MYPREFIX:-/usr})/lib/libgridsite.so.%{version}
-%attr(-, root, root) %(echo ${MYPREFIX:-/usr})/lib/libgridsite.so
-%attr(-, root, root) %(echo ${MYPREFIX:-/usr})/lib/libgridsite_globus.so.%{version}
-%attr(-, root, root) %(echo ${MYPREFIX:-/usr})/lib/libgridsite_globus.so
+%attr(-, root, root) %(echo ${MYPREFIX:-/usr})/%{_lib}/libgridsite.so.%{version}
+%attr(-, root, root) %(echo ${MYPREFIX:-/usr})/%{_lib}/libgridsite.so
+%attr(-, root, root) %(echo ${MYPREFIX:-/usr})/%{_lib}/libgridsite_globus.so.%{version}
+%attr(-, root, root) %(echo ${MYPREFIX:-/usr})/%{_lib}/libgridsite_globus.so
 %attr(-, root, root) %(echo ${MYPREFIX:-/usr})/share/doc/gridsite-%{version}
 
 %files devel
 %attr(-, root, root) %(echo ${MYPREFIX:-/usr})/include/gridsite.h
 %attr(-, root, root) %(echo ${MYPREFIX:-/usr})/include/gridsite-gacl.h
-%attr(-, root, root) %(echo ${MYPREFIX:-/usr})/lib/libgridsite.a
-%attr(-, root, root) %(echo ${MYPREFIX:-/usr})/lib/libgridsite_globus.a
+%attr(-, root, root) %(echo ${MYPREFIX:-/usr})/%{_lib}/libgridsite.a
+%attr(-, root, root) %(echo ${MYPREFIX:-/usr})/%{_lib}/libgridsite_globus.a
 
 %files apache
 %attr(-, root, root) %(echo ${MYPREFIX:-/usr})/share/man/man8/mod_gridsite.8.gz
-%attr(-, root, root) %(echo ${MYPREFIX:-/usr})/lib/httpd/modules/mod_gridsite.so
+%attr(-, root, root) %(echo ${MYPREFIX:-/usr})/%{_lib}/httpd/modules/mod_gridsite.so
 %attr(-, root, root) %(echo ${MYPREFIX:-/usr})/sbin/real-gridsite-admin.cgi
 %attr(-, root, root) %(echo ${MYPREFIX:-/usr})/sbin/gridsite-copy.cgi
 

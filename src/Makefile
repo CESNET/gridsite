@@ -228,12 +228,12 @@ clean:
 
 install: apidoc
 	mkdir -p $(prefix)/include \
-                 $(prefix)/lib \
+                 $(prefix)/$(libdir) \
                  $(prefix)/bin \
                  $(prefix)/sbin \
                  $(prefix)/share/man/man1 \
                  $(prefix)/share/man/man8 \
-                 $(prefix)/lib/httpd/modules \
+                 $(prefix)/$(libdir)/httpd/modules \
                  $(prefix)/share/doc/gridsite-$(PATCH_VERSION)
 	cp -f ../interface/gridsite.h $(prefix)/include
 	cp -f ../interface/gridsite-gacl.h $(prefix)/include
@@ -241,22 +241,22 @@ install: apidoc
 	cp -f findproxyfile $(prefix)/bin
 	cp -f real-gridsite-admin.cgi $(prefix)/sbin
 	cp -f gridsite-copy.cgi $(prefix)/sbin
-	cp -f  libgridsite.a $(prefix)/lib
-	cp -f  libgridsite.so.$(PATCH_VERSION) $(prefix)/lib
+	cp -f  libgridsite.a $(prefix)/$(libdir)
+	cp -f  libgridsite.so.$(PATCH_VERSION) $(prefix)/$(libdir)
 	ln -sf libgridsite.so.$(PATCH_VERSION) \
-                                 $(prefix)/lib/libgridsite.so
+                                 $(prefix)/$(libdir)/libgridsite.so
 	ln -sf libgridsite.so.$(PATCH_VERSION) \
-                                 $(prefix)/lib/libgridsite.so.$(MAJOR_VERSION)
+                                 $(prefix)/$(libdir)/libgridsite.so.$(MAJOR_VERSION)
 	ln -sf libgridsite.so.$(PATCH_VERSION) \
-                                 $(prefix)/lib/libgridsite.so.$(MINOR_VERSION)
-	cp -f  libgridsite_globus.a $(prefix)/lib
-	cp -f  libgridsite_globus.so.$(PATCH_VERSION) $(prefix)/lib
+                                 $(prefix)/$(libdir)/libgridsite.so.$(MINOR_VERSION)
+	cp -f  libgridsite_globus.a $(prefix)/$(libdir)
+	cp -f  libgridsite_globus.so.$(PATCH_VERSION) $(prefix)/$(libdir)
 	ln -sf libgridsite_globus.so.$(PATCH_VERSION) \
-                                 $(prefix)/lib/libgridsite_globus.so
+                                 $(prefix)/$(libdir)/libgridsite_globus.so
 	ln -sf libgridsite_globus.so.$(PATCH_VERSION) \
-                                 $(prefix)/lib/libgridsite_globus.so.$(MAJOR_VERSION)
+                                 $(prefix)/$(libdir)/libgridsite_globus.so.$(MAJOR_VERSION)
 	ln -sf libgridsite_globus.so.$(PATCH_VERSION) \
-                                 $(prefix)/lib/libgridsite_globus.so.$(MINOR_VERSION)
+                                 $(prefix)/$(libdir)/libgridsite_globus.so.$(MINOR_VERSION)
 	cp -f ../CHANGES ../README ../INSTALL ../LICENSE ../VERSION \
                $(prefix)/share/doc/gridsite-$(PATCH_VERSION)
 	cp -f ../doc/*.html ../doc/*.conf ../doc/*.1 ../doc/*.8 ../doc/*.sh \
@@ -274,7 +274,7 @@ install: apidoc
 	ln -sf htcp $(prefix)/bin/htping
 	ln -sf htcp $(prefix)/bin/htfind
 	cp -f gsexec $(prefix)/sbin
-	cp -f mod_gridsite.so $(prefix)/lib/httpd/modules
+	cp -f mod_gridsite.so $(prefix)/$(libdir)/httpd/modules
 
 #
 # Distributions

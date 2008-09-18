@@ -1,9 +1,0 @@
-	<!-- ======================================================
-		 Define extra properties here ...
-		 ====================================================== -->
-
-	<project name="configure options">
-        <property name="build.make.arguments"
-               value='prefix=${stage.abs.dir} GSOAPDIR=${ext.gsoap.subdir} OPENSSL_GLOBUS_FLAGS=-I${with.globus.prefix}/include/${with.globus.dbg.nothr.flavor} OPENSSL_GLOBUS_LIBS=-L${with.globus.prefix}/lib/ FLAVOR_GLOBUS_EXT=_${with.globus.dbg.nothr.flavor} HTTPD_FLAGS="-I${with.httpd.prefix:-/usr}/include/httpd"' />
-	</project>
-

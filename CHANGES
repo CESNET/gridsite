@@ -1,3 +1,6 @@
+* Thu Sep 18 2008 <Eamonn.Kenny@cs.tcd.ie>
+- Changed makefile and spec file to include platform
+  independent use of lib/lib64.
 * Mon Apr 24 2006 Andrew McNab <Andrew.McNab@man.ac.uk>
 - Merge delegation functions from before 1.1.18 with
   fixes and mod_gridsite improvements from 1.1.18

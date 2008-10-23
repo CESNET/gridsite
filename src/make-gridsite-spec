@@ -191,13 +191,18 @@ fi
 %files devel
 %attr(-, root, root) %{prefix}/include/gridsite.h
 %attr(-, root, root) %{prefix}/include/gridsite-gacl.h
+<<<<<<< make-gridsite-spec
+%attr(-, root, root) %{prefix}/%{_lib}/libgridsite.a
+%attr(-, root, root) %{prefix}/%{_lib}/libgridsite_globus.a
+=======
 %attr(-, root, root) %{prefix}/%{_lib}/libgridsite.a
 %attr(-, root, root) %{prefix}/%{_lib}/libgridsite_globus.a
 %attr(-, root, root) %{prefix}/%{_lib}/libgridsite_nossl.a
+>>>>>>> 1.17
 
 %files apache
 %attr(-, root, root) %{prefix}/share/man/man8/mod_gridsite.8.gz
-%attr(-, root, root) %{prefix}/lib/httpd/modules/mod_gridsite.so
+%attr(-, root, root) %{prefix}/%{_lib}/httpd/modules/mod_gridsite.so
 %attr(-, root, root) %{prefix}/sbin/real-gridsite-admin.cgi
 %attr(-, root, root) %{prefix}/sbin/gridsite-copy.cgi
 %attr(-, root, root) %{prefix}/sbin/gridsite-storage.cgi

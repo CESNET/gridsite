@@ -1,6 +1,6 @@
 Name: gridsite
 Version: %(echo ${MYVERSION:-1.1.x})
-Release: 1
+Release: 2
 Summary: GridSite
 License: Modified BSD
 Group: System Environment/Daemons

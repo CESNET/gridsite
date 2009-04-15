@@ -1,3 +1,6 @@
+* Thu Jan 29 2009 Andrew McNab <Andrew.McNab@cern.ch>
+- Merge in private version changes from Yibiao Li.
+- Merge in major 1.7.x vs 1.5.x divergences.
 * Fri Feb 8 2008 Andrew McNab <Andrew.McNab@cern.ch>
 - ==== GridSite version 1.7.0 ====
 * Thu Nov 15 2007 Andrew McNab <Andrew.McNab@cern.ch>

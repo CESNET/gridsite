@@ -47,6 +47,10 @@ extern int grst_perm_vals[];
 
 #include "grst_admin.h"
 
+//char *GRST_PASSCODE_JS1 = "<script type=\"text/javascript\" language=\"Javascript\"><!--\nfunction changeValue(formName){        if( document.formName.passcode.value==\"\" )        {                document.formName.passcode.value=getCookie(\"GRIDHTTP_PASSCODE\");                return true;        }        return false;} \nfunction getCookie(c_name){ if (document.cookie.length>0)  {  c_start=document.cookie.indexOf(c_name + \"=\");  if (c_start!=-1)    {    c_start=c_start + c_name.length+1;    c_end=document.cookie.indexOf(\";\",c_start);    if (c_end==-1) c_end=document.cookie.length;    return unescape(document.cookie.substring(c_start,c_end)); }} return \"\"; } \n-->\n</script>";
+
+
+
 // CGI GACL Editor interface functions
 void show_acl(int admin, GRSTgaclUser *user, char *dn, GRSTgaclPerm perm, char *help_uri, char *dir_path, char *file, char *dir_uri, char *admin_file);
 void new_entry_form(GRSTgaclUser *user, char *dn, GRSTgaclPerm perm, char *help_uri, char *dir_path, char *file, char *dir_uri, char *admin_file);
@@ -210,6 +214,12 @@ void new_entry(GRSTgaclUser *user, char *dn, GRSTgaclPerm perm, char *help_uri, 
   GRSTgaclCred *cred;
   char *cred_auri_1, *p;
   GRSThttpBody bp;
+
+  if( verifypasscode()==0 ){
+      outputformactionerror(dn, perm, help_uri, dir_path, dir_uri, admin_file);
+      return;
+  }
+
   if (!GRSTgaclPermHasAdmin(perm)) GRSThttpError ("403 Forbidden");
 
   // Get new credential info and perform checks
@@ -251,6 +261,10 @@ void del_entry(GRSTgaclUser *user, char *dn, GRSTgaclPerm perm, char *help_uri, 
   GRSTgaclEntry *previous, *entry;
   GRSThttpBody bp;
 
+  if( verifypasscode()==0 ){
+      outputformactionerror(dn, perm, help_uri, dir_path, dir_uri, admin_file);
+      return;
+  }
   if (!GRSTgaclPermHasAdmin(perm)) GRSThttpError ("403 Forbidden");
 
   // Load the ACL
@@ -343,6 +357,10 @@ void edit_entry(GRSTgaclUser *user, char *dn, GRSTgaclPerm perm, char *help_uri,
   char variable[30], *cred_auri_i, *p;
   GRSThttpBody bp;
 
+  if( verifypasscode()==0 ){
+      outputformactionerror(dn, perm, help_uri, dir_path, dir_uri, admin_file);
+      return;
+  }
   if (!GRSTgaclPermHasAdmin(perm)) GRSThttpError ("403 Forbidden");
 
   // Load the ACL
@@ -470,6 +488,10 @@ void add_cred(GRSTgaclUser *user, char *dn, GRSTgaclPerm perm, char *help_uri, c
   GRSThttpBody bp;
   char *cred_auri_1, *p;
 
+  if( verifypasscode()==0 ){
+      outputformactionerror(dn, perm, help_uri, dir_path, dir_uri, admin_file);
+      return;
+  }
   if (!GRSTgaclPermHasAdmin(perm)) GRSThttpError ("403 Forbidden");
 
   acl = GRSTgaclAclLoadFile(GRSTgaclFileFindAclname(dir_path));// Load the ACL
@@ -515,6 +537,10 @@ void del_cred(GRSTgaclUser *user, char *dn, GRSTgaclPerm perm, char *help_uri, c
   GRSTgaclCred *previous, *cred;
   GRSThttpBody bp;
 
+  if( verifypasscode()==0 ){
+      outputformactionerror(dn, perm, help_uri, dir_path, dir_uri, admin_file);
+      return;
+  }
   if (!GRSTgaclPermHasAdmin(perm)) GRSThttpError ("403 Forbidden");
 
   acl = GRSTgaclAclLoadFile(GRSTgaclFileFindAclname(dir_path));
@@ -773,9 +799,13 @@ void StartHTML(GRSThttpBody *bp, char *dir_uri, char* dir_path){
 void StartForm(GRSThttpBody *bp, char* dir_uri, char* dir_path, char* admin_file, int timestamp, char* target_function){
   // Starts an HTML form with gridsite admin as the target and target_function as the value of cmd.
   // Also inputs the dir_uri and the timestamp
-  GRSThttpPrintf (bp, "<form method=\"POST\" action=\"%s%s?diruri=%s\">\n", dir_uri, admin_file, dir_uri);
+  GRSThttpPrintf (bp, "\n%s\n", GRST_PASSCODE_JS);
+//  GRSThttpPrintf (bp, "\n%s\n", GRST_PASSCODE_JS1);
+//  GRSThttpPrintf (bp, "<form name=%s method=\"POST\" action=\"%s%s?diruri=%s\" onsubmit=\"return false;\">\n", target_function, dir_uri, admin_file, dir_uri);  //please note that we use targetfunction here to dentify the forms 
+  GRSThttpPrintf (bp, "<form name=%s method=\"POST\" action=\"%s%s?diruri=%s\" onsubmit=\"return changeValue('%s');\">\n", target_function, dir_uri, admin_file, dir_uri, target_function);  //please note that we use targetfunction here to dentify the forms 
   GRSThttpPrintf (bp, " <input type=\"hidden\" name=\"cmd\" value=\"%s\">\n", target_function);
   GRSThttpPrintf (bp, " <input type=\"hidden\" name=\"timestamp\" value=\"%d\">\n", timestamp);
+  GRSThttpPrintf (bp, " <input type=\"hidden\" name=\"passcode\" value=\"\">\n");
   return;
 }
 

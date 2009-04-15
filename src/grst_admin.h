@@ -55,3 +55,8 @@ void del_cred_sure(GRSTgaclUser *user, char *dn, GRSTgaclPerm perm, char *help_u
 //void error(char *dn, GRSTgaclPerm perm, char *help_uri, char *dir_path, char *file, char *dir_uri, char *admin_file);
 void admin_continue(char *dn, GRSTgaclPerm perm, char *help_uri, char *dir_path, char *file, char *dir_uri, char *admin_file, GRSThttpBody *bp);
 
+//functions for cgi program
+int verifypasscode();
+void outputformactionerror(char *dn, GRSTgaclPerm perm, char *help_uri,
+                      char *dir_path, char *dir_uri, char *admin_file);
+

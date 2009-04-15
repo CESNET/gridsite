@@ -16,22 +16,22 @@
 
    THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND
    CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES,
-   INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
-   MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
-   DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS
-   BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
-   EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED
-   TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
-   DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON
-   ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
-   OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
-   OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
-   POSSIBILITY OF SUCH DAMAGE.
+INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
+MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS
+BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
+EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED
+TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON
+ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
+OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+POSSIBILITY OF SUCH DAMAGE.
 */
 
 /*------------------------------------------------------------------*
- * This program is part of GridSite: http://www.gridsite.org/       *
- *------------------------------------------------------------------*/
+* This program is part of GridSite: http://www.gridsite.org/       *
+*------------------------------------------------------------------*/
 
 #ifndef VERSION
 #define VERSION "x.x.x"
@@ -56,6 +56,46 @@
 #include <gridsite.h>
 
 #include "grst_admin.h"
+
+//char *GRST_PASSCODE_JS = "<script type=\"text/javascript\" language=\"Javascript\"><!--\nfunction changeValue(formName){        if( document.formName.passcode.value==\"\" )        {                document.formName.passcode.value=getCookie(\"GRIDHTTP_PASSCODE\");                return true;        }        return false;} \nfunction getCookie(c_name){ if (document.cookie.length>0)  {  c_start=document.cookie.indexOf(c_name + \"=\");  if (c_start!=-1)    {    c_start=c_start + c_name.length+1;    c_end=document.cookie.indexOf(\";\",c_start);    if (c_end==-1) c_end=document.cookie.length;    return unescape(document.cookie.substring(c_start,c_end)); }} return \"\"; } \n-->\n</script>";
+
+
+int verifypasscode()
+{
+	char *issuedpc=NULL, *returnedpc=NULL;
+	issuedpc =  getenv("GRST_PASSCODE_COOKIE");
+	returnedpc = GRSThttpGetCGI("passcode");
+//	GRSThttpError(issuedpc);
+	if( issuedpc==NULL )return 0;
+	if( returnedpc==NULL )return 0;
+	if( strcmp( issuedpc, returnedpc )==0 )return 1;
+	else return 0;
+}
+
+void outputformactionerror(char *dn, GRSTgaclPerm perm, char *help_uri, 
+                      char *dir_path, char *dir_uri, char *admin_file)
+{
+  GRSThttpBody   bp; 
+  puts("Status: 500 Failed trying to upload\nContent-Type: text/html");
+          GRSThttpBodyInit(&bp);
+
+          GRSThttpPrintf(&bp,"<title>Forbidden operation</title>\n");
+          GRSThttpPrintHeader(&bp, dir_path);
+
+          GRSThttpPrintf(&bp, "<h1 align=center>Forbidden operation</h1>\n");
+
+          GRSThttpPrintf(&bp,"<p align=center>"
+                     "<a href=\"%s%s?cmd=managedir\">Return to "
+                     "directory listing</a>\n", dir_uri, admin_file);
+
+  if (GRSTgaclPermHasList(perm))
+       adminfooter(&bp, dn, help_uri, dir_uri, admin_file);
+  else adminfooter(&bp, dn, help_uri, dir_uri, NULL);
+          GRSThttpPrintFooter(&bp, dir_path);
+                                                                                
+          GRSThttpWriteOut(&bp);
+ return;
+}
 
 char *storeuploadfile(char *boundary, int *bufferused)
 {
@@ -112,6 +152,10 @@ void uploadfile(char *dn, GRSTgaclPerm perm, char *help_uri, char *dir_path,
 #define MIMESTUPLOAD   2
 #define MIMESTFILENM   3
 
+  if( verifypasscode()==0 ){
+      outputformactionerror(dn, perm, help_uri, dir_path, dir_uri, admin_file);	
+      return;
+  }
   if (!GRSTgaclPermHasWrite(perm)) GRSThttpError("403 Forbidden");
 
   p = getenv("CONTENT_TYPE");
@@ -264,6 +308,12 @@ void deletefileaction(char *dn, GRSTgaclPerm perm, char *help_uri,
   struct dirent *subdirfile_ent;
   DIR           *subDIR;
 
+
+  if( verifypasscode()==0 ){
+      outputformactionerror(dn, perm, help_uri, dir_path, dir_uri, admin_file);	
+      return;
+  }
+
   if ((file[0] == '\0') ||
       ((strcmp(file, GRST_ACL_FILE) != 0) && !GRSTgaclPermHasWrite(perm)) ||
       ((strcmp(file, GRST_ACL_FILE) == 0) && !GRSTgaclPermHasAdmin(perm)))
@@ -378,46 +428,50 @@ void deletefileform(char *dn, GRSTgaclPerm perm, char *help_uri, char *dir_path,
   GRSThttpPrintHeader(&bp, dir_path);
 
   GRSThttpPrintf(&bp, "<h1 align=center>Delete %s</h1>\n", file);
+  GRSThttpPrintf(&bp, "\n%s\n", GRST_PASSCODE_JS);
   
-  GRSThttpPrintf(&bp,"<form action=\"%s%s\" method=post>\n",dir_uri,admin_file);
+  GRSThttpPrintf(&bp,"<form name='DeleteForm' action=\"%s%s\" method=post>\n",dir_uri,admin_file);
   GRSThttpPrintf(&bp,"<h2 align=center>Do you really want to delete %s?", file);
-  GRSThttpPrintf(&bp,"<p align=center><input type=submit value=\"Yes, delete %s\"></h2>\n", file);
-  GRSThttpPrintf(&bp,"<input type=hidden name=file value=\"%s\">\n", file);
-  GRSThttpPrintf(&bp,"<input type=hidden name=cmd value=deleteaction>\n");
-  GRSThttpPrintf(&bp,"</form>\n");
+GRSThttpPrintf(&bp,"<p align=center><input type=submit value=\"Yes, delete %s\" onclick=\"return changeValue('DeleteForm');\"></h2>\n", file);
+GRSThttpPrintf(&bp,"<input type=hidden name=file value=\"%s\">\n", file);
+GRSThttpPrintf(&bp,"<input type=hidden name=passcode value=\"\">\n");
+GRSThttpPrintf(&bp,"<input type=hidden name=cmd value=deleteaction>\n");
+GRSThttpPrintf(&bp,"</form>\n");
 
-  GRSThttpPrintf(&bp,"<p align=center>Or "
-                     "<a href=\"%s%s?cmd=managedir\">return to "
-                     "directory listing</a>\n", dir_uri, admin_file);
-  
-  adminfooter(&bp, dn, help_uri, dir_uri, admin_file);
-  GRSThttpPrintFooter(&bp, dir_path);
+GRSThttpPrintf(&bp,"<p align=center>Or "
+	     "<a href=\"%s%s?cmd=managedir\">return to "
+	     "directory listing</a>\n", dir_uri, admin_file);
 
-  GRSThttpWriteOut(&bp);
+adminfooter(&bp, dn, help_uri, dir_uri, admin_file);
+GRSThttpPrintFooter(&bp, dir_path);
+
+GRSThttpWriteOut(&bp);
 }                    
 
 void renameform(char *dn, GRSTgaclPerm perm, char *help_uri, char *dir_path,
-                    char *file, char *dir_uri, char *admin_file)
+	    char *file, char *dir_uri, char *admin_file)
 {
-  GRSThttpBody bp; 
+GRSThttpBody bp; 
 
-  if (!GRSTgaclPermHasWrite(perm)) GRSThttpError("403 Forbidden");
+if (!GRSTgaclPermHasWrite(perm)) GRSThttpError("403 Forbidden");
 
-  puts("Status: 200 OK\nContent-Type: text/html");
-  
-  GRSThttpBodyInit(&bp);
+puts("Status: 200 OK\nContent-Type: text/html");
 
-  GRSThttpPrintf(&bp, "<title>Rename %s</title>\n", file);
+GRSThttpBodyInit(&bp);
 
-  GRSThttpPrintHeader(&bp, dir_path);
+GRSThttpPrintf(&bp, "<title>Rename %s</title>\n", file);
 
-  GRSThttpPrintf(&bp, "<h1 align=center>Rename %s%s</h1>\n", dir_uri, file);
-  
-  GRSThttpPrintf(&bp,"<form action=\"%s%s\" method=post>\n",dir_uri,admin_file);
+GRSThttpPrintHeader(&bp, dir_path);
+
+GRSThttpPrintf(&bp, "<h1 align=center>Rename %s%s</h1>\n", dir_uri, file);
+GRSThttpPrintf(&bp, "\n%s\n", GRST_PASSCODE_JS);
+
+GRSThttpPrintf(&bp,"<form name=RenameForm action=\"%s%s\" method=post>\n",dir_uri,admin_file);
   GRSThttpPrintf(&bp,"<h2 align=center>What do you want to rename %s to?</h2>", file);
   GRSThttpPrintf(&bp,"<input type=hidden name=file value=\"%s\">\n", file);
+  GRSThttpPrintf(&bp,"<input type=hidden name=passcode value=\"\">\n");
   GRSThttpPrintf(&bp,"<p align=center>New name: <input type=text name=newfile value=\"%s\">\n", file);
-  GRSThttpPrintf(&bp,"<input type=submit value=\"Rename\">\n");
+  GRSThttpPrintf(&bp,"<input type=submit value=\"Rename\" onclick=\"return changeValue('RenameForm');\"");
   GRSThttpPrintf(&bp,"<input type=hidden name=cmd value=renameaction>\n");
   GRSThttpPrintf(&bp,"</form>\n");
 
@@ -439,6 +493,11 @@ void editfileaction(char *dn, GRSTgaclPerm perm, char *help_uri, char *dir_path,
   FILE         *fp;
   GRSThttpBody  bp;
   
+
+  if( verifypasscode()==0 ){
+      outputformactionerror(dn, perm, help_uri, dir_path, dir_uri, admin_file);	
+      return;
+  }
   if ((file[0] == '\0') ||
       !GRSTgaclPermHasWrite(perm) || 
       (strcmp(file, GRST_ACL_FILE) == 0)) GRSThttpError("403 Forbidden");
@@ -516,6 +575,10 @@ void create_acl(char *dn, GRSTgaclPerm perm, char *help_uri, char *dir_path,
   FILE         *fp;
   GRSThttpBody  bp;
   
+  if( verifypasscode()==0 ){
+      outputformactionerror(dn, perm, help_uri, dir_path, dir_uri, admin_file);	
+      return;
+  }
   if (!GRSTgaclPermHasAdmin(perm)) GRSThttpError("403 Forbidden");
 
   asprintf(&tmpgacl, "%s/.tmp.XXXXXX", dir_path);
@@ -575,6 +638,10 @@ void renameaction(char *dn, GRSTgaclPerm perm, char *help_uri, char *dir_path,
   FILE         *fp;
   GRSThttpBody  bp;
   
+  if( verifypasscode()==0 ){
+      outputformactionerror(dn, perm, help_uri, dir_path, dir_uri, admin_file);	
+      return;
+  }
   if (!GRSTgaclPermHasWrite(perm) || (strcmp(file, GRST_ACL_FILE) == 0)) 
                                               GRSThttpError("403 Forbidden");
                                               
@@ -653,6 +720,10 @@ void newdirectory(char *dn, GRSTgaclPerm perm, char *help_uri, char *dir_path,
   FILE         *fp;
   GRSThttpBody  bp;
   
+  if( verifypasscode()==0 ){
+      outputformactionerror(dn, perm, help_uri, dir_path, dir_uri, admin_file);	
+      return;
+  }
   if ((file[0] == '\0') || 
       !GRSTgaclPermHasWrite(perm) || (strcmp(file, GRST_ACL_FILE) == 0))
                                                 GRSThttpError("403 Forbidden");
@@ -710,6 +781,10 @@ void editdnlistaction(char *dn, GRSTgaclPerm perm, char *help_uri, char *dir_pat
   struct stat   statbuf;
   GRSThttpBody  bp;
   
+  if( verifypasscode()==0 ){
+      outputformactionerror(dn, perm, help_uri, dir_path, dir_uri, admin_file);	
+      return;
+  }
   if (!GRSTgaclPermHasWrite(perm)) GRSThttpError("403 Forbidden");
   
   dnlistsuri = getenv("GRST_DN_LISTS_URI");
@@ -1022,15 +1097,18 @@ void ziplist(char *dn, GRSTgaclPerm perm, char *help_uri, char *dir_path,
       pclose(fp);
       GRSThttpPrintf(&bp, "</pre></td></tr></table></center>\n");
 
-      if (GRSTgaclPermHasWrite(perm))
+      if (GRSTgaclPermHasWrite(perm)){
+  	   GRSThttpPrintf(&bp, "\n%s\n", GRST_PASSCODE_JS);
            GRSThttpPrintf(&bp, 
-            "<p><center><form action=\"%s%s\" method=post>"
-            "<input type=submit value=\"Unzip this file\"> in %s"
+            "<p><center><form name=UnzipForm action=\"%s%s\" method=post>"
+            "<input type=submit value=\"Unzip this file\" onclick=\"return changeValue('UnzipForm');\"> in %s"
             "<input type=hidden name=cmd value=unzipfile>"
+            "<input type=hidden name=passcode value=\"\">"
             "<input type=hidden name=file value=\"%s\"></form>"
             "<p>(All files are placed in the same directory and files "
             "beginning with &quot;.&quot; are ignored.)</center>\n",
             dir_uri, admin_file, dir_uri, file);
+	}
     }
   else GRSThttpPrintf(&bp, "<p align=center>unzip path not defined!\n");
   
@@ -1129,10 +1207,12 @@ void editfileform(char *dn, GRSTgaclPerm perm, char *help_uri, char *dir_path,
   GRSThttpPrintHeader(&bp, dir_path);
 
   GRSThttpPrintf(&bp, "<h1>Edit file %s</h1>\n", file);
+  GRSThttpPrintf(&bp, "\n%s\n", GRST_PASSCODE_JS);
   
-  GRSThttpPrintf(&bp,"<form action=\"%s%s\" method=post>\n",dir_uri,admin_file);
-  GRSThttpPrintf(&bp,"<p><input type=submit value=\"Save changes\">\n");
+  GRSThttpPrintf(&bp,"<form name=EditForm action=\"%s%s\" method=post>\n",dir_uri,admin_file);
+  GRSThttpPrintf(&bp,"<p><input type=submit value=\"Save changes\" onclick=\"return changeValue('EditForm');\">\n");
   GRSThttpPrintf(&bp,"<p>File name: <input type=text name=file value=\"%s\">\n", file);
+  GRSThttpPrintf(&bp,"<input type=hidden name=passcode value=\"\">\n");
   GRSThttpPrintf(&bp,"<input type=hidden name=cmd value=editaction>\n");
   GRSThttpPrintf(&bp,"<p><textarea name=pagetext cols=80 rows=22>");
 
@@ -1169,7 +1249,8 @@ void editfileform(char *dn, GRSTgaclPerm perm, char *help_uri, char *dir_path,
     }
     
   GRSThttpPrintf(&bp, "</textarea>\n");  
-  GRSThttpPrintf(&bp, "<p><input type=submit value=\"Save changes\">\n");
+  GRSThttpPrintf(&bp, "<p><input type=submit value=\"Save changes\" onclick=\"return changeValue('EditForm');\">\n");
+
   GRSThttpPrintf(&bp, "</form>\n");
 
   if (fp != NULL) fclose(fp);
@@ -1226,11 +1307,13 @@ void editdnlistform(char *dn, GRSTgaclPerm perm, char *help_uri, char *dir_path,
   GRSThttpPrintHeader(&bp, dir_path);
 
   GRSThttpPrintf(&bp, "<h1>Edit DN List</h1>\n");
+  GRSThttpPrintf(&bp, "\n%s\n", GRST_PASSCODE_JS);
   
-  GRSThttpPrintf(&bp,"<form action=\"%s%s\" method=post>\n",dir_uri,admin_file);
-  GRSThttpPrintf(&bp,"<p><input type=submit value=\"Update\">\n");
+  GRSThttpPrintf(&bp,"<form name=UpdateForm action=\"%s%s\" method=post>\n",dir_uri,admin_file);
+  GRSThttpPrintf(&bp,"<p><input type=submit value=\"Update\" onclick=\"return changeValue('UpdateForm');\">\n");
   GRSThttpPrintf(&bp,"<p>List URL: <input type=text name=file value=\"%s\" "
                      "size=%d>\n", file, strlen(file));
+  GRSThttpPrintf(&bp,"<input type=hidden name=passcode value=\"\">\n");
   GRSThttpPrintf(&bp,"<input type=hidden name=cmd value=editdnlistaction>\n");
 
   if (fp != NULL)
@@ -1258,7 +1341,7 @@ void editdnlistform(char *dn, GRSTgaclPerm perm, char *help_uri, char *dir_path,
   GRSThttpPrintf(&bp, "<p>Add new DN: <input type=text name=add "
                       "size=60 maxlength=512>\n");
 
-  GRSThttpPrintf(&bp,"<p><input type=submit value=\"Update\">\n");
+  GRSThttpPrintf(&bp,"<p><input type=submit value=\"Update\" onclick=\"return changeValue('UpdateForm');\">\n");
   GRSThttpPrintf(&bp, "</form>\n");
 
   if (fp != NULL) fclose(fp);
@@ -1347,11 +1430,14 @@ void managedir(char *dn, GRSTgaclPerm perm, char *help_uri, char *dir_path,
 
           GRSThttpPrintf(&bp, "<td>&nbsp;</td></tr>\n");
         }
-      else if (GRSTgaclPermHasAdmin(perm))
-          GRSThttpPrintf(&bp, "<form method=post action=\"%s%s\">\n"
-        "<tr><td colspan=8><input type=submit value=\"Create .gacl\"></td>\n"
+      else if (GRSTgaclPermHasAdmin(perm)){
+  	  GRSThttpPrintf(&bp, "\n%s\n", GRST_PASSCODE_JS);
+          GRSThttpPrintf(&bp, "<form name=CreateAclForm method=post action=\"%s%s\">\n"
+        "<tr><td colspan=8><input type=submit value=\"Create .gacl\" onclick=\"return changeValue('CreateAclForm');\"></td>\n"
+        "<input type=hidden name=passcode value=\"\">"
         "<input type=hidden name=cmd value=\"create_acl\"></tr></form>\n",
         dir_uri, admin_file);
+      }
     }
 
   if (GRSTgaclPermHasList(perm))
@@ -1471,22 +1557,25 @@ void managedir(char *dn, GRSTgaclPerm perm, char *help_uri, char *dir_path,
 
   if (GRSTgaclPermHasWrite(perm))
     {
-      GRSThttpPrintf(&bp, "<form method=post action=\"%s%s\">\n"
+      GRSThttpPrintf(&bp, "\n%s\n", GRST_PASSCODE_JS);
+      GRSThttpPrintf(&bp, "<form name=NewfileForm method=post action=\"%s%s\">\n"
         "<tr><td colspan=8><hr width=\"75%\"></td></tr>\n"
         "<tr><td>New name:</td>"
         "<td colspan=3><input type=text name=file size=25>\n"
-        "<td colspan=2 align=center><input type=submit name=button value=\"New file\"></td>\n"
-        "<td colspan=2 align=center><input type=submit name=button value=\"New directory\"></td>\n"
+        "<td colspan=2 align=center><input type=submit name=button value=\"New file\" onclick=\"return changeValue('NewfileForm');\"></td>\n"
+        "<td colspan=2 align=center><input type=submit name=button value=\"New directory\" onclick=\"return changeValue('NewfileForm');\"></td>\n"
+        "<input type=hidden name=passcode value=\"\">"
         "<input type=hidden name=cmd value=edit></td></tr></form>\n",
         dir_uri, admin_file);
       
       GRSThttpPrintf(&bp,
-        "<form method=post action=\"%s%s\" enctype=\"multipart/form-data\">\n"
+        "<form name=UploadfileForm method=post action=\"%s%s\" enctype=\"multipart/form-data\">\n"
         "<tr><td colspan=8><hr width=\"75%\"></td></tr>\n"
         "<tr><td rowspan=2>Upload file:</td>"
         "<td colspan=2>New name:</td>"
         "<td colspan=6><input type=text name=file size=25> "
-        "<input type=submit value=Upload></td></tr>\n"
+        "<input type=hidden name=passcode value=\"\">"
+        "<input type=submit value=Upload onclick=\"return changeValue('UploadfileForm');\"></td></tr>\n"
         "<tr><td colspan=2>Local name:</td>"
         "<td colspan=6><input type=file name=uploadfile size=25></td></tr>\n"
         "</form>\n", dir_uri, admin_file);
@@ -1608,18 +1697,21 @@ void managednlists(GRSTgaclUser *user, char *dn, GRSTgaclPerm perm,
                                  unencuri, unencuri,
                                  statbuf.st_size, modified);
 
+  	     GRSThttpPrintf(&bp, "\n%s\n", GRST_PASSCODE_JS);
              GRSThttpPrintf(&bp, 
-                        "<form action=\"./%s\" method=post>"
-                        "<td><input type=submit value=Edit></td>"
+                        "<form EditdnlistForm action=\"./%s\" method=post>"
+                        "<td><input type=submit value=Edit onclick=\"return changeValue('EditdnlistForm');\"></td>"
                         "<input type=hidden name=cmd value=editdnlist>"
+                        "<input type=hidden name=passcode value=\"\">"
                         "<input type=hidden name=file value=\"%s\">"
                         "</form>\n",
                         admin_file, unencuri);
                    
              GRSThttpPrintf(&bp, 
-                        "<form action=\"./%s\" method=post>"
-                        "<td><input type=submit value=Delete></td>"
+                        "<form name=DeletednlistForm action=\"./%s\" method=post>"
+                        "<td><input type=submit value=Delete onclick=\"return changeValue('DeletednlistForm');\"></td>"
                         "<input type=hidden name=cmd value=delete>"
+                        "<input type=hidden name=passcode value=\"\">"
                         "<input type=hidden name=file value=\"%s\">"
                         "</form>\n",
                         admin_file, unencuri);
@@ -1635,11 +1727,13 @@ void managednlists(GRSTgaclUser *user, char *dn, GRSTgaclPerm perm,
 
   if (has_any_admin)
     {
-      GRSThttpPrintf(&bp, "<form method=post action=\"./%s\">\n"
+      GRSThttpPrintf(&bp, "\n%s\n", GRST_PASSCODE_JS);
+      GRSThttpPrintf(&bp, "<form name=NewdnForm method=post action=\"./%s\">\n"
         "<tr><td colspan=4>New DN list name: "
         "<input type=text name=file value=\"%s\" size=%d>\n"
+        "<input type=hidden name=passcode value=\"\">"
         "<input type=hidden name=cmd value=editdnlist></td>"
-        "<td colspan=2 align=center><input type=submit value=Create></td>\n"
+        "<td colspan=2 align=center><input type=submit value=Create onclick=\"return changeValue('NewdnForm');\"></td>\n"
         "</tr></form>\n",
         admin_file, dnlistsprefix, strlen(dnlistsprefix)+8);
     }

@@ -437,3 +437,9 @@ int    GRSThtcpNOPresponseMake(char **, int *, unsigned int);
 int    GRSThtcpTSTrequestMake(char **, int *, unsigned int, char *, char *, char *);
 int    GRSThtcpTSTresponseMake(char **, int *, unsigned int, char *, char *, char *);
 int    GRSThtcpMessageParse(GRSThtcpMessage *, char *, int);
+
+#ifndef GRST_PASSCODE_JS
+//#define __GRST_PASSCODE_JS__
+#define GRST_PASSCODE_JS "<script type=\"text/javascript\" language=\"Javascript\"><!--\nfunction changeValue(formName){        if( document.forms[formName].passcode.value==\"\" ) document.forms[formName].passcode.value=getCookie(\"GRIDHTTP_PASSCODE\");       return true;   } \nfunction getCookie(c_name){ if (document.cookie.length>0)  {  c_start=document.cookie.indexOf(c_name + \"=\");  if (c_start!=-1)    {    c_start=c_start + c_name.length+1;    c_end=document.cookie.indexOf(\";\",c_start);    if (c_end==-1) c_end=document.cookie.length;    return unescape(document.cookie.substring(c_start,c_end)); }} return \"\"; } \n -->\n</script>"
+#endif
+

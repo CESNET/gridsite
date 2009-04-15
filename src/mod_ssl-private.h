@@ -85,6 +85,24 @@ typedef enum {
     SSL_ENABLED_OPTIONAL = 3
 } ssl_enabled_t;
 
+#if AP_MODULE_MAGIC_AT_LEAST(20051115,0)
+typedef enum {
+    SSL_CVERIFY_UNSET           = -1,
+    SSL_CVERIFY_NONE            = 0,
+    SSL_CVERIFY_OPTIONAL        = 1,
+    SSL_CVERIFY_REQUIRE         = 2,
+    SSL_CVERIFY_OPTIONAL_NO_CA  = 3
+} ssl_verify_t;
+
+#define ssl_verify_error_is_optional(errnum) \
+   ((errnum == X509_V_ERR_DEPTH_ZERO_SELF_SIGNED_CERT) \
+    || (errnum == X509_V_ERR_SELF_SIGNED_CERT_IN_CHAIN) \
+    || (errnum == X509_V_ERR_UNABLE_TO_GET_ISSUER_CERT_LOCALLY) \
+    || (errnum == X509_V_ERR_CERT_UNTRUSTED) \
+    || (errnum == X509_V_ERR_UNABLE_TO_VERIFY_LEAF_SIGNATURE))
+
+#endif
+
 typedef struct {
   SSL *ssl;
   const char *client_dn;
@@ -98,9 +116,38 @@ typedef struct {
   int non_ssl_request;
 } SSLConnRec;
 
+#if AP_MODULE_MAGIC_AT_LEAST(20051115,0)
+typedef struct {
+    const char  *ca_cert_path;
+    const char  *ca_cert_file;
+
+    const char  *cipher_suite;
+
+    int          verify_depth;
+    ssl_verify_t verify_mode;
+} modssl_auth_ctx_t;
+#endif
+
 typedef struct {
   void    *sc; /* pointer back to server config */
   SSL_CTX *ssl_ctx;
+#if AP_MODULE_MAGIC_AT_LEAST(20051115,0)
+  void *pks;
+  void *pkp;
+
+  int  protocol;
+
+  int           pphrase_dialog_type;
+  const char   *pphrase_dialog_path;
+
+  const char  *cert_chain;
+
+  const char  *crl_path;
+  const char  *crl_file;
+  X509_STORE  *crl;
+
+  modssl_auth_ctx_t auth;
+#endif
 } modssl_ctx_t;
 
 typedef struct {
@@ -116,5 +163,22 @@ typedef struct {
   modssl_ctx_t    *server;
   modssl_ctx_t    *proxy;
 } SSLSrvConfigRec;
+
+#if AP_MODULE_MAGIC_AT_LEAST(20051115,0)
+typedef struct {
+    BOOL          bSSLRequired;
+    apr_array_header_t *aRequirement;
+    int		  nOptions;
+    int           nOptionsAdd;
+    int           nOptionsDel;
+    const char   *szCipherSuite;
+    ssl_verify_t  nVerifyClient;
+    int           nVerifyDepth;
+    const char   *szCACertificatePath;
+    const char   *szCACertificateFile;
+    const char   *szUserName;
+} SSLDirConfigRec;
+#endif
+
 
 extern module AP_MODULE_DECLARE_DATA ssl_module;

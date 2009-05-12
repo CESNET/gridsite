@@ -49,7 +49,7 @@ export libdir=lib
 endif
 
 ifndef MYCFLAGS
-export MYCFLAGS=-I. -I../interface $(HTTPD_FLAGS) -I/usr/include/httpd -I/usr/include/apr-0 -I/usr/include/apr-1 -I/opt/glite/include -fPIC
+export MYCFLAGS=-I. -I../interface -I/usr/include/httpd -I/usr/include/apache2 -I/usr/include/apr-0 -I/usr/include/apr-1 -I/usr/include/apr-1.0 -I/opt/glite/include -fPIC -DLINUX=2 -D_REENTRANT -D_GNU_SOURCE -D_LARGEFILE64_SOURCE $(HTTPD_FLAGS) 
 endif
 
 ifndef MYLDFLAGS
@@ -123,12 +123,12 @@ libgridsite_globus.so.$(VERSION): grst_err_globus.o \
 	gcc -shared -Wl,-soname,libgridsite_globus.so.$(MINOR_VERSION) \
          -o libgridsite_globus.so.$(PATCH_VERSION) \
          grst_err_globus.o grst_x509_globus.o grst_gacl_globus.o grst_xacml_globus.o \
-         grst_http_globus.o grst_asn1_globus.o grst_htcp_globus.o
+         grst_http_globus.o grst_asn1_globus.o
 	ln -sf libgridsite_globus.so.$(VERSION) libgridsite_globus.so
 
 libgridsite_globus.a: grst_err_globus.o grst_x509_globus.o grst_gacl_globus.o grst_http_globus.o grst_asn1_globus.o
 	ar src libgridsite_globus.a \
-               grst_err_globus.o grst_x509_globus.o grst_gacl_globus.o grst_http_globus.o grst_asn1_globus.o grst_htcp_globus.o
+               grst_err_globus.o grst_x509_globus.o grst_gacl_globus.o grst_http_globus.o grst_asn1_globus.o
 
 grst_err_globus.o: grst_err.c ../interface/gridsite.h
 	gcc -g $(MYCFLAGS) $(OPENSSL_GLOBUS_FLAGS) \
@@ -557,8 +557,9 @@ rpm: dist
 wtf: 
 	pwd
 	printenv
-	ls -l
-	ls -lR /usr/local/
-	ls -lR $(GSOAPDIR)
+	ls -lR ../../..
+#	ls -l
+#	ls -lR /usr/local/
+#	ls -lR $(GSOAPDIR)
 
 

@@ -1,5 +1,6 @@
 * Wed Jul 01 2009 Andrew McNab <Andrew.McNab@cern.ch>
 - Tidy up debugging messages
+- Fix URL encoding bug in DN lists (' ' vs '+')
 * Tue Jun 30 2009 Andrew McNab <Andrew.McNab@cern.ch>
 - ==== GridSite version 1.7.2 ====
 * Tue Jun 30 2009 Andrew McNab <Andrew.McNab@cern.ch>

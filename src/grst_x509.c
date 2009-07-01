@@ -322,7 +322,7 @@ static int GRSTx509VerifyVomsSig(time_t *time1_time, time_t *time2_time,
                             taglist[isig].length - 1,
                             cert) == GRST_RET_OK)
                     {
-                      GRSTerrorLog(GRST_LOG_DEBUG, " VOMS cert signature match");
+                      GRSTerrorLog(GRST_LOG_DEBUG, "Matched VOMS cert file %s", vomsdirent2->d_name);
                       X509_free(cert);
                       closedir(vomsDIR2);
                       closedir(vomsDIR);
@@ -353,6 +353,7 @@ static int GRSTx509VerifyVomsSig(time_t *time1_time, time_t *time2_time,
                             taglist[isig].length - 1,
                             cert) == GRST_RET_OK)
                 {
+                  GRSTerrorLog(GRST_LOG_DEBUG, "Matched VOMS cert file %s", vomsdirent->d_name);
                   X509_free(cert);
                   closedir(vomsDIR);
                   return GRST_RET_OK ; /* verified */              
@@ -402,14 +403,6 @@ static int GRSTx509VerifyVomsSigCert(time_t *time1_time, time_t *time2_time,
    if ((vomsdir == NULL) || (vomsdir[0] == '\0')) return GRST_RET_FAILED;
 
    q = &asn1string[taglist[ivomscert].start + 12];
-
-{
-int i;
-for (i=0; i < taglist[ivomscert].length - 8; ++i)
- fprintf(stderr, "%4d %.03d %.02x %c\n", i, q[i], q[i], (q[i] > ' ') ? q[i] : '.'); 
-
-fprintf(stderr, "voname=%s\n", voname);
-}
 
    vomscert = d2i_X509(NULL, (const unsigned char **) &q, 
                        taglist[ivomscert].length - 8);
@@ -513,7 +506,8 @@ fprintf(stderr, "voname=%s\n", voname);
           asprintf(&lscpath, "%s/%s", vodir, vodirent->d_name);
           stat(lscpath, &statbuf);
 
-          GRSTerrorLog(GRST_LOG_DEBUG, "Examine LSC file %s", lscpath);
+          GRSTerrorLog(GRST_LOG_DEBUG, "Check LSC file %s for %s,%s", 
+                       lscpath, acvomsdn, vomscert_cadn);
 
           if ((fp = fopen(lscpath, "r")) != NULL)
             {
@@ -523,9 +517,6 @@ fprintf(stderr, "voname=%s\n", voname);
               if ((fgets(lsc_vomsdn, vomsdn_len + 2, fp) != NULL)
                   && (fgets(lsc_cadn, cadn_len + 2, fp) != NULL))
                 {
-
-fprintf(stderr, "accadn=%s lsc_cadn=%s acvomsdn=%s lsc_vomsdn=%s\n", 
-vomscert_cadn, lsc_cadn, acvomsdn, lsc_vomsdn);
                   if ((p = index(lsc_cadn, '\n')) != NULL) *p = '\0';
 
                   if ((p = index(lsc_vomsdn, '\n')) != NULL) *p = '\0';
@@ -552,7 +543,7 @@ vomscert_cadn, lsc_cadn, acvomsdn, lsc_vomsdn);
    
    if (!lsc_found) chain_errors |= GRST_CERT_BAD_SIG;
    
-   return chain_errors;
+   return chain_errors ? GRST_RET_FAILED : GRST_RET_OK;
 }
 
 /// Get the VOMS attributes in the given extension

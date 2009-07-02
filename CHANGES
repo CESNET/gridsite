@@ -1,3 +1,6 @@
+* Thu Jul 02 2009 Andrew McNab <Andrew.McNab@cern.ch>
+- Use lib/lib64 for mod_gridsite.so location in 
+  Makefile and make-gridsite-spec
 * Wed Jul 01 2009 Andrew McNab <Andrew.McNab@cern.ch>
 - ==== GridSite version 1.7.3 ====
 * Wed Jul 01 2009 Andrew McNab <Andrew.McNab@cern.ch>

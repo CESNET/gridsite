@@ -203,7 +203,7 @@ fi
 
 %files apache
 %attr(-, root, root) %{prefix}/share/man/man8/mod_gridsite.8.gz
-%attr(-, root, root) %{prefix}/lib/httpd/modules/mod_gridsite.so
+%attr(-, root, root) %{prefix}/%{_lib}/httpd/modules/mod_gridsite.so
 %attr(-, root, root) %{prefix}/sbin/real-gridsite-admin.cgi
 %attr(-, root, root) %{prefix}/sbin/gridsite-copy.cgi
 %attr(-, root, root) %{prefix}/sbin/gridsite-storage.cgi

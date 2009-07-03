@@ -347,7 +347,7 @@ install: apidoc install-lib
                  $(prefix)/sbin \
                  $(prefix)/share/man/man1 \
                  $(prefix)/share/man/man8 \
-                 $(prefix)/lib/httpd/modules \
+                 $(prefix)/$(libdir)/httpd/modules \
                  $(prefix)/share/doc/gridsite-$(MINOR_VERSION)
 	echo '#define' GRST_VERSION $(DEFVERSION) > $(prefix)/include/gridsite.h
 	cat ../interface/gridsite.h >>$(prefix)/include/gridsite.h
@@ -382,7 +382,7 @@ install: apidoc install-lib
 	ln -sf htcp $(prefix)/bin/htping
 	ln -sf htcp $(prefix)/bin/htfind
 	cp -f gsexec $(prefix)/sbin
-	cp -f mod_gridsite.so $(prefix)/lib/httpd/modules
+	cp -f mod_gridsite.so $(prefix)/$(libdir)/httpd/modules
 
 install-lib:
 	mkdir -p $(prefix)/$(libdir)

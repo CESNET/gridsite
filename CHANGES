@@ -3,6 +3,8 @@
 - Use lib/lib64 for mod_gridsite.so in Makefile and 
   make-gridsite-spec
 - DN list URL encoding bug in grst_gacl.c
+- Don't export AURIs with errors
+- Add VOMS LSC file support
 * Fri Jul  3 2009 Andrew McNab <Andrew.McNab@cern.ch>
 - ==== GridSite version 1.5.11 ====
 * Mon Jun 23 2008 Andrew McNab <Andrew.McNab@man.ac.uk>

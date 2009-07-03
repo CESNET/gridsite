@@ -2413,6 +2413,8 @@ void GRST_save_ssl_creds(conn_rec *conn, GRSTx509Chain *grst_chain)
    for (grst_cert = grst_chain->firstcert;
         grst_cert != NULL; grst_cert = grst_cert->next)
       {
+        if (grst_cert->errors) continue;
+        
         if (grst_cert->type == GRST_CERT_TYPE_VOMS)
           {
             /* want to record the delegation level 
@@ -2458,6 +2460,8 @@ void GRST_save_ssl_creds(conn_rec *conn, GRSTx509Chain *grst_chain)
    for (grst_cert = grst_chain->firstcert; 
         grst_cert != NULL; grst_cert = grst_cert->next)
       {
+        if (grst_cert->errors) continue;
+        
         if ((grst_cert->type == GRST_CERT_TYPE_VOMS) &&
             (grst_cert->delegation == lowest_voms_delegation))
           {

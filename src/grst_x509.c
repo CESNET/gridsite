@@ -50,6 +50,7 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 
+#ifndef GRST_NO_OPENSSL
 #include <openssl/x509.h>
 #include <openssl/x509v3.h>
 #include <openssl/err.h>
@@ -62,6 +63,7 @@
 #include <openssl/bio.h>    
 #include <openssl/des.h>    
 #include <openssl/rand.h>
+#endif
 
 #include "gridsite.h"
 
@@ -294,7 +296,6 @@ static int GRSTx509VerifyVomsSig(time_t *time1_time, time_t *time2_time,
               free(certpath);
               
               if (vomsDIR2 == NULL) continue;
-                
 
               while ((vomsdirent2 = readdir(vomsDIR2)) != NULL)
                 {
@@ -321,7 +322,7 @@ static int GRSTx509VerifyVomsSig(time_t *time1_time, time_t *time2_time,
                             taglist[isig].length - 1,
                             cert) == GRST_RET_OK)
                     {
-                      GRSTerrorLog(GRST_LOG_DEBUG, " VOMS cert signature match");
+                      GRSTerrorLog(GRST_LOG_DEBUG, "Matched VOMS cert file %s", vomsdirent2->d_name);
                       X509_free(cert);
                       closedir(vomsDIR2);
                       closedir(vomsDIR);
@@ -352,6 +353,7 @@ static int GRSTx509VerifyVomsSig(time_t *time1_time, time_t *time2_time,
                             taglist[isig].length - 1,
                             cert) == GRST_RET_OK)
                 {
+                  GRSTerrorLog(GRST_LOG_DEBUG, "Matched VOMS cert file %s", vomsdirent->d_name);
                   X509_free(cert);
                   closedir(vomsDIR);
                   return GRST_RET_OK ; /* verified */              
@@ -365,27 +367,208 @@ static int GRSTx509VerifyVomsSig(time_t *time1_time, time_t *time2_time,
    return GRST_RET_FAILED;
 }
 
+/// Check the signature of the VOMS attributes using the LSC file cert
+static int GRSTx509VerifyVomsSigCert(time_t *time1_time, time_t *time2_time,
+                                     unsigned char *asn1string, 
+                                     struct GRSTasn1TagList taglist[], 
+                                     int lasttag,
+                                     char *vomsdir, int acnumber,
+                                     int ivomscert,
+                                     char *capath,
+                                     char *acvomsdn,
+                                     char *voname)
+///
+/// Returns GRST_RET_OK if signature is ok, other values if not.
+{
+#define GRST_ASN1_COORDS_VOMS_DN   "-1-1-%d-1-3-1-1-1-%%d-1-%%d"
+#define GRST_ASN1_COORDS_VOMS_INFO "-1-1-%d-1"
+#define GRST_ASN1_COORDS_VOMS_SIG  "-1-1-%d-3"
+   int            ret, isig, iinfo, chain_errors = GRST_RET_OK,
+                  cadn_len, vomsdn_len, lsc_found = 0;   
+   char          *lscpath, dn_coords[200],
+                  info_coords[200], sig_coords[200], *p, *cacertpath,
+                 *vodir, *vomscert_cadn, *vomscert_vomsdn, 
+                 *lsc_cadn, *lsc_vomsdn;
+   unsigned char *q;
+   unsigned long  issuerhash = 0;
+   DIR           *voDIR;
+   struct dirent *vodirent;
+   X509          *cacert, *vomscert;
+   EVP_PKEY      *prvkey;
+   FILE          *fp;
+   EVP_MD_CTX     ctx;
+   struct stat    statbuf;
+   time_t         tmp_time;
+
+   if ((vomsdir == NULL) || (vomsdir[0] == '\0')) return GRST_RET_FAILED;
+
+   q = &asn1string[taglist[ivomscert].start + 12];
+
+   vomscert = d2i_X509(NULL, (const unsigned char **) &q, 
+                       taglist[ivomscert].length - 8);
+
+   if (vomscert == NULL) 
+     {
+       GRSTerrorLog(GRST_LOG_DEBUG, "Failed to read included VOMS cert in GRSTx509VerifyVomsSigCert()");
+       return GRST_RET_FAILED;
+     }
+
+   GRSTerrorLog(GRST_LOG_DEBUG, "Found included VOMS cert in GRSTx509VerifyVomsSigCert()");
+
+   /* check issuer CA certificate */
+
+   issuerhash = X509_NAME_hash(X509_get_issuer_name(vomscert));
+   asprintf(&cacertpath, "%s/%.8x.0", capath, issuerhash);
+
+// need to check voms cert DN matches DN from AC
+// need to check voms cert CA DN matches DN from CA  file
+
+   vomscert_vomsdn = X509_NAME_oneline(X509_get_subject_name(vomscert),NULL,0);
+
+   if (strcmp(vomscert_vomsdn, acvomsdn) != 0)
+     {
+       free(vomscert_vomsdn);
+       
+       GRSTerrorLog(GRST_LOG_DEBUG, "Included VOMS cert DN does not match AC issuer DN!");
+       return GRST_RET_FAILED;     
+     }
+
+   free(vomscert_vomsdn);
+
+   GRSTerrorLog(GRST_LOG_DEBUG, "Look for CA root file %s", cacertpath);
+
+   fp = fopen(cacertpath, "r");
+   free(cacertpath);
+
+   if (fp == NULL) return GRST_RET_FAILED;
+   else
+     {
+       cacert = PEM_read_X509(fp, NULL, NULL, NULL);
+       fclose(fp);
+       if (cacert != NULL) 
+        GRSTerrorLog(GRST_LOG_DEBUG, " Loaded CA root cert from file");
+       else
+         {         
+           GRSTerrorLog(GRST_LOG_DEBUG, " Failed to load CA root cert file");
+           return GRST_RET_FAILED;
+         }
+     }
+
+   /* check times CA cert times, and reject if necessary */
+
+   tmp_time = GRSTasn1TimeToTimeT(
+                   ASN1_STRING_data(X509_get_notBefore(cacert)), 0);
+   if (tmp_time > *time1_time) chain_errors |= GRST_CERT_BAD_TIME;
+
+   tmp_time = GRSTasn1TimeToTimeT(
+                   ASN1_STRING_data(X509_get_notAfter(cacert)), 0);
+   if (tmp_time < *time2_time) chain_errors |= GRST_CERT_BAD_TIME;
+   
+   /* check times VOMS cert times, and tighten if necessary */
+
+   tmp_time = GRSTasn1TimeToTimeT(
+                   ASN1_STRING_data(X509_get_notBefore(vomscert)), 0);
+   if (tmp_time > *time1_time) chain_errors |= GRST_CERT_BAD_TIME;
+
+   tmp_time = GRSTasn1TimeToTimeT(
+                   ASN1_STRING_data(X509_get_notAfter(vomscert)), 0);
+   if (tmp_time < *time2_time) chain_errors |= GRST_CERT_BAD_TIME;
+   
+   ret = X509_check_issued(cacert, vomscert);
+   GRSTerrorLog(GRST_LOG_DEBUG, "X509_check_issued returns %d", ret);
+
+   vomscert_cadn = X509_NAME_oneline(X509_get_issuer_name(vomscert),NULL,0);
+
+   X509_free(cacert);
+   X509_free(vomscert);
+
+   if (ret != X509_V_OK) return chain_errors | GRST_CERT_BAD_SIG;
+
+   asprintf(&vodir, "%s/%s", vomsdir, voname);
+   
+   voDIR = opendir(vodir);
+   if (voDIR == NULL) return GRST_RET_FAILED;
+   
+   cadn_len   = strlen(vomscert_cadn);
+   vomsdn_len = strlen(acvomsdn);
+   
+   lsc_cadn   = malloc(cadn_len   + 2);
+   lsc_vomsdn = malloc(vomsdn_len + 2);
+   
+   while (((vodirent = readdir(voDIR)) != NULL) && !lsc_found)
+        {        
+          if (vodirent->d_name[0] == '.') continue;
+          
+          if (strlen(vodirent->d_name) < 5) continue;
+          
+          if (strcmp(&(vodirent->d_name[strlen(vodirent->d_name)-4]), ".lsc") != 0) continue;
+        
+          asprintf(&lscpath, "%s/%s", vodir, vodirent->d_name);
+          stat(lscpath, &statbuf);
+
+          GRSTerrorLog(GRST_LOG_DEBUG, "Check LSC file %s for %s,%s", 
+                       lscpath, acvomsdn, vomscert_cadn);
+
+          if ((fp = fopen(lscpath, "r")) != NULL)
+            {
+              lsc_cadn[0]   = '\0';
+              lsc_vomsdn[0] = '\0';
+            
+              if ((fgets(lsc_vomsdn, vomsdn_len + 2, fp) != NULL)
+                  && (fgets(lsc_cadn, cadn_len + 2, fp) != NULL))
+                {
+                  if ((p = index(lsc_cadn, '\n')) != NULL) *p = '\0';
+
+                  if ((p = index(lsc_vomsdn, '\n')) != NULL) *p = '\0';
+                  
+                  if ((strcmp(lsc_cadn, vomscert_cadn) == 0) &&
+                      (strcmp(lsc_vomsdn, acvomsdn) == 0)) 
+                    {
+                      GRSTerrorLog(GRST_LOG_DEBUG, "Matched LSC file %s", lscpath);
+                      lsc_found = 1;
+                    }                      
+                }
+              
+              fclose(fp);
+            }
+
+          free(lscpath);
+        }
+
+   closedir(voDIR);   
+   free(vodir);
+   free(vomscert_cadn);
+   free(lsc_cadn);
+   free(lsc_vomsdn);   
+   
+   if (!lsc_found) chain_errors |= GRST_CERT_BAD_SIG;
+   
+   return chain_errors ? GRST_RET_FAILED : GRST_RET_OK;
+}
+
 /// Get the VOMS attributes in the given extension
 static int GRSTx509ChainVomsAdd(GRSTx509Cert **grst_cert, 
                          time_t time1_time, time_t time2_time,
                          X509_EXTENSION *ex, 
-                         char *ucuserdn, char *vomsdir)
+                         char *ucuserdn, char *vomsdir, char *capath)
 ///
 /// Add any VOMS credentials found into the chain. Always returns GRST_RET_OK
 /// - even for invalid credentials, which are flagged in errors field
 {
 #define MAXTAG 500
-#define GRST_ASN1_COORDS_FQAN    "-1-1-%d-1-7-1-2-1-2-%d"
-#define GRST_ASN1_COORDS_USER_DN "-1-1-%d-1-2-1-1-1-1-%%d-1-%%d"
-#define GRST_ASN1_COORDS_VOMS_DN "-1-1-%d-1-3-1-1-1-%%d-1-%%d"
-#define GRST_ASN1_COORDS_TIME1   "-1-1-%d-1-6-1"
-#define GRST_ASN1_COORDS_TIME2   "-1-1-%d-1-6-2"
+#define GRST_ASN1_COORDS_FQAN     "-1-1-%d-1-7-1-2-1-2-%d"
+#define GRST_ASN1_COORDS_USER_DN  "-1-1-%d-1-2-1-1-1-1-%%d-1-%%d"
+#define GRST_ASN1_COORDS_VOMS_DN  "-1-1-%d-1-3-1-1-1-%%d-1-%%d"
+#define GRST_ASN1_COORDS_TIME1    "-1-1-%d-1-6-1"
+#define GRST_ASN1_COORDS_TIME2    "-1-1-%d-1-6-2"
+#define GRST_ASN1_COORDS_VOMSCERT "-1-1-%d-1-8-4-2"
    ASN1_OCTET_STRING *asn1data;
-   char              *asn1string, acuserdn[200], accadn[200], acvomsdn[200],
+   char              *asn1string, acuserdn[200], acvomsdn[200],
                       dn_coords[200], fqan_coords[200], time1_coords[200],
-                      time2_coords[200];
+                      time2_coords[200], vomscert_coords[200], *voname = NULL;
    long               asn1length;
-   int                lasttag=-1, itag, i, acnumber = 1, chain_errors = 0;
+   int                lasttag=-1, itag, i, j, acnumber = 1, chain_errors = 0,
+                      ivomscert, tmp_chain_errors;
    struct GRSTasn1TagList taglist[MAXTAG+1];
    time_t             actime1 = 0, actime2 = 0, time_now;
 
@@ -412,11 +595,6 @@ static int GRSTx509ChainVomsAdd(GRSTx509Cert **grst_cert,
         if (GRSTx509NameCmp(ucuserdn, acuserdn) != 0)
                              chain_errors |= GRST_CERT_BAD_CHAIN;
 
-        if (GRSTx509VerifyVomsSig(&time1_time, &time2_time,
-                              asn1string, taglist, lasttag, vomsdir, acnumber)
-                              != GRST_RET_OK)
-                             chain_errors |= GRST_CERT_BAD_SIG; 
-
         snprintf(time1_coords, sizeof(time1_coords), GRST_ASN1_COORDS_TIME1, acnumber);
         itag = GRSTasn1SearchTaglist(taglist, lasttag, time1_coords);
         
@@ -441,6 +619,48 @@ static int GRSTx509ChainVomsAdd(GRSTx509Cert **grst_cert,
         time(&time_now);
         if ((time1_time > time_now + 300) || (time2_time < time_now))
                chain_errors |= GRST_CERT_BAD_TIME;
+
+        /* get first FQAN and use to get VO name */
+
+        snprintf(fqan_coords, sizeof(fqan_coords), GRST_ASN1_COORDS_FQAN, acnumber, 1);
+        itag = GRSTasn1SearchTaglist(taglist, lasttag, fqan_coords);
+
+        if ((itag > -1) && 
+            (asn1string[taglist[itag].start+taglist[itag].headerlength] == '/'))
+          {
+            for (j=1; 
+                 (asn1string[taglist[itag].start+taglist[itag].headerlength+j] != '/') && 
+                 (j < taglist[itag].length);
+                 ++j) ;
+                               
+            asprintf(&voname, "%.*s", j-1, 
+                     &(asn1string[taglist[itag].start+taglist[itag].headerlength+1]));
+          }
+
+        snprintf(vomscert_coords, sizeof(vomscert_coords), 
+                 GRST_ASN1_COORDS_VOMSCERT, acnumber);
+        ivomscert = GRSTasn1SearchTaglist(taglist, lasttag, vomscert_coords);
+        
+        /* try using internal VOMS issuer cert */
+        tmp_chain_errors = GRST_CERT_BAD_SIG;
+        if ((ivomscert > -1) &&
+            (voname != NULL) &&
+            (GRSTx509VerifyVomsSigCert(&time1_time, &time2_time,
+                      asn1string, taglist, lasttag, vomsdir, acnumber,
+                      ivomscert, capath, acvomsdn, 
+                      voname) == GRST_RET_OK)) tmp_chain_errors = 0;
+
+        if (voname != NULL)
+          {
+            free(voname);
+            voname = NULL;
+          }
+
+        if ((tmp_chain_errors != 0) &&
+            (GRSTx509VerifyVomsSig(&time1_time, &time2_time,
+                        asn1string, taglist, lasttag, vomsdir, acnumber)
+                        != GRST_RET_OK))
+                     chain_errors |= GRST_CERT_BAD_SIG;
 
         for (i=1; ; ++i) /* now go through FQANs */
            {
@@ -753,11 +973,11 @@ int GRSTx509ChainLoadCheck(GRSTx509Chain **chain,
                                               new_grst_cert->notafter,                                              
                                               ex,
                                               ucuserdn, 
-                                              vomsdir);
+                                              vomsdir,
+                                              capath);
                          grst_cert->delegation = (lastcert == NULL) ? i : i+1;
                        }
-                   }
-                        
+                   }                     
               } 
           }
           

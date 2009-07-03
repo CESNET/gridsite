@@ -1,4 +1,6 @@
 * Fri Jul  3 2009 Andrew McNab <Andrew.McNab@cern.ch>
+- ==== GridSite version 1.5.12 ====
+* Fri Jul  3 2009 Andrew McNab <Andrew.McNab@cern.ch>
 - New version for various fixes imported from 1.7.3
 - Use lib/lib64 for mod_gridsite.so in Makefile and 
   make-gridsite-spec

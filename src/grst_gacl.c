@@ -1,5 +1,5 @@
 /*
-   Copyright (c) 2002-6, Andrew McNab, University of Manchester
+   Copyright (c) 2002-9, Andrew McNab, University of Manchester
    All rights reserved.
 
    Redistribution and use in source and binary forms, with or
@@ -1089,7 +1089,7 @@ static void recurse4dnlists(GRSTgaclUser *user, char *dir,
    return full path to first found version or NULL on failure */
 {
   int            fd, linestart, i;
-  char          *fullfilename, *mapped, *q, *s;
+  char          *fullfilename, *mapped, *q, *s, *dn_decoded;
   size_t         dn_len;
   struct stat    statbuf;
   DIR           *dirDIR;
@@ -1098,14 +1098,15 @@ static void recurse4dnlists(GRSTgaclUser *user, char *dir,
 
   if (recurse_level >= GRST_RECURS_LIMIT) return;
 
-  dn_len = strlen(dn_cred->auri) - 3;
-
   /* search this directory */
   
   dirDIR = opendir(dir);
   
   if (dirDIR == NULL) return;
   
+  dn_decoded = GRSThttpUrlDecode(&(dn_cred->auri[3]));
+  dn_len = strlen(dn_decoded);
+
   while ((file_ent = readdir(dirDIR)) != NULL)
        {
          if (file_ent->d_name[0] == '.') continue;
@@ -1134,7 +1135,7 @@ static void recurse4dnlists(GRSTgaclUser *user, char *dir,
                     for (i=0; 
                          (linestart + i < statbuf.st_size) && (i < dn_len);
                          ++i)
-                       if (mapped[linestart + i] != dn_cred->auri[3+i]) break;
+                       if (mapped[linestart + i] != dn_decoded[i]) break;
 
                     GRSTerrorLog(GRST_LOG_DEBUG, "recurse4dnlists at %d %d %d %d", 
                           linestart, i, dn_len, statbuf.st_size);
@@ -1177,6 +1178,7 @@ static void recurse4dnlists(GRSTgaclUser *user, char *dir,
          free(fullfilename);
        }
   
+  free(dn_decoded);
   closedir(dirDIR);  
 }
 

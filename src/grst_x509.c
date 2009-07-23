@@ -46,6 +46,7 @@
 #include <pwd.h>
 #include <errno.h>
 #include <getopt.h>
+#include <stdint.h>
 
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -258,7 +259,8 @@ static int GRSTx509VerifyVomsSig(time_t *time1_time, time_t *time2_time,
    FILE          *fp;
    EVP_MD_CTX     ctx;
    struct stat    statbuf;
-   time_t         voms_service_time1, voms_service_time2;
+   time_t         voms_service_time1 = INT32_MAX, voms_service_time2 = 0,
+                  tmp_time1, tmp_time2;
 
    if ((vomsdir == NULL) || (vomsdir[0] == '\0')) return GRST_RET_FAILED;
 
@@ -314,7 +316,10 @@ static int GRSTx509VerifyVomsSig(time_t *time1_time, time_t *time2_time,
                   fclose(fp);
                   if (cert == NULL) continue;
 
-                  if (GRSTx509VerifySig(time1_time, time2_time,
+                  tmp_time1 = 0;
+                  tmp_time2 = INT32_MAX;
+
+                  if (GRSTx509VerifySig(&tmp_time1, &tmp_time2,
                             &asn1string[taglist[iinfo].start], 
                             taglist[iinfo].length+taglist[iinfo].headerlength,
                             &asn1string[taglist[isig].start+
@@ -323,10 +328,14 @@ static int GRSTx509VerifyVomsSig(time_t *time1_time, time_t *time2_time,
                             cert) == GRST_RET_OK)
                     {
                       GRSTerrorLog(GRST_LOG_DEBUG, "Matched VOMS cert file %s", vomsdirent2->d_name);
-                      X509_free(cert);
-                      closedir(vomsDIR2);
-                      closedir(vomsDIR);
-                      return GRST_RET_OK ; /* verified */              
+
+                      /* Store more permissive time ranges for now */
+
+                      if (tmp_time1 < voms_service_time1) 
+                                         voms_service_time1 = tmp_time1;
+                        
+                      if (tmp_time2 > voms_service_time2)
+                                         voms_service_time2 = tmp_time2;                        
                     }
             
                   X509_free(cert);
@@ -345,7 +354,10 @@ static int GRSTx509VerifyVomsSig(time_t *time1_time, time_t *time2_time,
               fclose(fp);
               if (cert == NULL) continue;
 
-              if (GRSTx509VerifySig(time1_time, time2_time,
+              tmp_time1 = 0;
+              tmp_time2 = INT32_MAX;
+
+              if (GRSTx509VerifySig(&tmp_time1, &tmp_time2,
                             &asn1string[taglist[iinfo].start], 
                             taglist[iinfo].length+taglist[iinfo].headerlength,
                             &asn1string[taglist[isig].start+
@@ -354,9 +366,14 @@ static int GRSTx509VerifyVomsSig(time_t *time1_time, time_t *time2_time,
                             cert) == GRST_RET_OK)
                 {
                   GRSTerrorLog(GRST_LOG_DEBUG, "Matched VOMS cert file %s", vomsdirent->d_name);
-                  X509_free(cert);
-                  closedir(vomsDIR);
-                  return GRST_RET_OK ; /* verified */              
+
+                  /* Store more permissive time ranges for now */
+
+                  if (tmp_time1 < voms_service_time1) 
+                                         voms_service_time1 = tmp_time1;
+                        
+                  if (tmp_time2 > voms_service_time2)
+                                         voms_service_time2 = tmp_time2;
                 }
             
               X509_free(cert);
@@ -364,7 +381,19 @@ static int GRSTx509VerifyVomsSig(time_t *time1_time, time_t *time2_time,
         }
 
    closedir(vomsDIR);   
-   return GRST_RET_FAILED;
+   
+   if ((voms_service_time1 == INT32_MAX) || (voms_service_time2 == 0))
+     return GRST_RET_FAILED;
+
+   /* now we tighten up the VOMS AC time range using the most permissive
+      pair of VOMS certificate ranges (in case of multiple, possibly 
+      overlapping, matching certificates in the VOMS certs store) */
+     
+   if (voms_service_time1 > *time1_time) *time1_time = voms_service_time1;
+     
+   if (voms_service_time2 < *time2_time) *time2_time = voms_service_time2;
+     
+   return GRST_RET_OK;
 }
 
 /// Check the signature of the VOMS attributes using the LSC file cert
@@ -420,8 +449,7 @@ static int GRSTx509VerifyVomsSigCert(time_t *time1_time, time_t *time2_time,
    issuerhash = X509_NAME_hash(X509_get_issuer_name(vomscert));
    asprintf(&cacertpath, "%s/%.8x.0", capath, issuerhash);
 
-// need to check voms cert DN matches DN from AC
-// need to check voms cert CA DN matches DN from CA  file
+   /* check voms cert DN matches DN from AC */
 
    vomscert_vomsdn = X509_NAME_oneline(X509_get_subject_name(vomscert),NULL,0);
 
@@ -570,7 +598,8 @@ static int GRSTx509ChainVomsAdd(GRSTx509Cert **grst_cert,
    int                lasttag=-1, itag, i, j, acnumber = 1, chain_errors = 0,
                       ivomscert, tmp_chain_errors;
    struct GRSTasn1TagList taglist[MAXTAG+1];
-   time_t             actime1 = 0, actime2 = 0, time_now;
+   time_t             actime1 = 0, actime2 = 0, time_now,
+                      tmp_time1, tmp_time2;
 
    asn1data   = X509_EXTENSION_get_data(ex);
    asn1string = ASN1_STRING_data(asn1data);
@@ -643,12 +672,19 @@ static int GRSTx509ChainVomsAdd(GRSTx509Cert **grst_cert,
         
         /* try using internal VOMS issuer cert */
         tmp_chain_errors = GRST_CERT_BAD_SIG;
+        tmp_time1 = time1_time;
+        tmp_time2 = time2_time;
         if ((ivomscert > -1) &&
             (voname != NULL) &&
-            (GRSTx509VerifyVomsSigCert(&time1_time, &time2_time,
+            (GRSTx509VerifyVomsSigCert(&tmp_time1, &tmp_time2,
                       asn1string, taglist, lasttag, vomsdir, acnumber,
                       ivomscert, capath, acvomsdn, 
-                      voname) == GRST_RET_OK)) tmp_chain_errors = 0;
+                      voname) == GRST_RET_OK)) 
+          {          
+            tmp_chain_errors = 0;
+            time1_time = tmp_time1;
+            time2_time = tmp_time2;
+          }
 
         if (voname != NULL)
           {

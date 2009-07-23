@@ -426,7 +426,7 @@ install: apidoc install-lib
 	ln -sf htcp $(prefix)/bin/htping
 	ln -sf htcp $(prefix)/bin/htfind
 	cp -f gsexec $(prefix)/sbin
-	cp -f mod_gridsite.so $(prefix)/($libdir)/httpd/modules
+	cp -f mod_gridsite.so $(prefix)/$(libdir)/httpd/modules
 
 install-lib:
 	mkdir -p $(prefix)/$(libdir)

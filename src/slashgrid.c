@@ -2604,7 +2604,7 @@ static struct fuse_operations slashgrid_oper = {
   .destroy	= slashgrid_destroy
 };
 
-void slashgrid_logfunc(char *file, int line, int level, char *fmt, ...)
+int slashgrid_logfunc(char *file, int line, int level, char *fmt, ...)
 {
   char *mesg;
   va_list ap;
@@ -2616,6 +2616,7 @@ void slashgrid_logfunc(char *file, int line, int level, char *fmt, ...)
   syslog(level, "%s(%d) %s", file, line, mesg);
   
   free(mesg);
+  return 0;
 }
 
 int main(int argc, char *argv[])

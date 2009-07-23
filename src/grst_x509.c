@@ -46,7 +46,6 @@
 #include <pwd.h>
 #include <errno.h>
 #include <getopt.h>
-#include <stdint.h>
 
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -259,7 +258,7 @@ static int GRSTx509VerifyVomsSig(time_t *time1_time, time_t *time2_time,
    FILE          *fp;
    EVP_MD_CTX     ctx;
    struct stat    statbuf;
-   time_t         voms_service_time1 = INT32_MAX, voms_service_time2 = 0,
+   time_t         voms_service_time1 = GRST_MAX_TIME_T, voms_service_time2 = 0,
                   tmp_time1, tmp_time2;
 
    if ((vomsdir == NULL) || (vomsdir[0] == '\0')) return GRST_RET_FAILED;
@@ -317,7 +316,7 @@ static int GRSTx509VerifyVomsSig(time_t *time1_time, time_t *time2_time,
                   if (cert == NULL) continue;
 
                   tmp_time1 = 0;
-                  tmp_time2 = INT32_MAX;
+                  tmp_time2 = GRST_MAX_TIME_T;
 
                   if (GRSTx509VerifySig(&tmp_time1, &tmp_time2,
                             &asn1string[taglist[iinfo].start], 
@@ -355,7 +354,7 @@ static int GRSTx509VerifyVomsSig(time_t *time1_time, time_t *time2_time,
               if (cert == NULL) continue;
 
               tmp_time1 = 0;
-              tmp_time2 = INT32_MAX;
+              tmp_time2 = GRST_MAX_TIME_T;
 
               if (GRSTx509VerifySig(&tmp_time1, &tmp_time2,
                             &asn1string[taglist[iinfo].start], 
@@ -382,7 +381,7 @@ static int GRSTx509VerifyVomsSig(time_t *time1_time, time_t *time2_time,
 
    closedir(vomsDIR);   
    
-   if ((voms_service_time1 == INT32_MAX) || (voms_service_time2 == 0))
+   if ((voms_service_time1 == GRST_MAX_TIME_T) || (voms_service_time2 == 0))
      return GRST_RET_FAILED;
 
    /* now we tighten up the VOMS AC time range using the most permissive
@@ -474,14 +473,16 @@ static int GRSTx509VerifyVomsSigCert(time_t *time1_time, time_t *time2_time,
        cacert = PEM_read_X509(fp, NULL, NULL, NULL);
        fclose(fp);
        if (cacert != NULL) 
-        GRSTerrorLog(GRST_LOG_DEBUG, " Loaded CA root cert from file");
+         {
+           GRSTerrorLog(GRST_LOG_DEBUG, " Loaded CA root cert from file");
+         }
        else
          {         
            GRSTerrorLog(GRST_LOG_DEBUG, " Failed to load CA root cert file");
            return GRST_RET_FAILED;
          }
      }
-
+   
    /* check times CA cert times, and reject if necessary */
 
    tmp_time = GRSTasn1TimeToTimeT(
@@ -510,7 +511,7 @@ static int GRSTx509VerifyVomsSigCert(time_t *time1_time, time_t *time2_time,
    X509_free(cacert);
    X509_free(vomscert);
 
-   if (ret != X509_V_OK) return chain_errors | GRST_CERT_BAD_SIG;
+   if (ret != X509_V_OK) return (chain_errors | GRST_CERT_BAD_SIG);
 
    asprintf(&vodir, "%s/%s", vomsdir, voname);
    
@@ -534,7 +535,7 @@ static int GRSTx509VerifyVomsSigCert(time_t *time1_time, time_t *time2_time,
           asprintf(&lscpath, "%s/%s", vodir, vodirent->d_name);
           stat(lscpath, &statbuf);
 
-          GRSTerrorLog(GRST_LOG_DEBUG, "Check LSC file %s for %s,%s", 
+          GRSTerrorLog(GRST_LOG_DEBUG, "Check LSC file %s for %s,%s",
                        lscpath, acvomsdn, vomscert_cadn);
 
           if ((fp = fopen(lscpath, "r")) != NULL)
@@ -570,8 +571,8 @@ static int GRSTx509VerifyVomsSigCert(time_t *time1_time, time_t *time2_time,
    free(lsc_vomsdn);   
    
    if (!lsc_found) chain_errors |= GRST_CERT_BAD_SIG;
-   
-   return chain_errors ? GRST_RET_FAILED : GRST_RET_OK;
+
+   return (chain_errors ? GRST_RET_FAILED : GRST_RET_OK);
 }
 
 /// Get the VOMS attributes in the given extension

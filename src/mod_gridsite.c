@@ -4333,7 +4333,7 @@ static int mod_gridsite_server_post_config(apr_pool_t *pPool,
 }
 
 static server_rec *mod_gridsite_log_func_server;
-static void mod_gridsite_log_func(char *file, int line, int level,
+static int mod_gridsite_log_func(char *file, int line, int level,
                                                     char *fmt, ...)
 {
    char *mesg;
@@ -4347,6 +4347,7 @@ static void mod_gridsite_log_func(char *file, int line, int level,
                 0, mod_gridsite_log_func_server, "%s", mesg);
    
    free(mesg);
+   return 0;
 }
       
 static void mod_gridsite_child_init(apr_pool_t *pPool, server_rec *pServer)

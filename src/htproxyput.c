@@ -87,7 +87,7 @@ void printsyntax(char *argv0)
           "(Version: %s)\n", p, VERSION);
 }
 
-void htproxy_logfunc(char *file, int line, int level, char *fmt, ...)
+int htproxy_logfunc(char *file, int line, int level, char *fmt, ...)
 {
   char *mesg;
   va_list ap;
@@ -99,6 +99,8 @@ void htproxy_logfunc(char *file, int line, int level, char *fmt, ...)
   fprintf(stderr, "%s(%d) %s\n", file, line, mesg);
 
   free(mesg);
+  
+  return 0;
 }
   
 int main(int argc, char *argv[])

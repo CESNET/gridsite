@@ -1,3 +1,8 @@
+* Thu Jul 23 2009 Andrew McNab <Andrew.McNab@cern.ch>
+- Check multiple VOMS issuer certs if present, and
+  use most permissive time range they provide
+- Change (GRSTerrorLogFunc) to return int, to allow 
+  if-less C macro using && instead.
 * Fri Jul 03 2009 Andrew McNab <Andrew.McNab@cern.ch>
 - ==== GridSite version 1.7.4 ====
 * Thu Jul 02 2009 Andrew McNab <Andrew.McNab@cern.ch>

@@ -57,6 +57,10 @@
 #include <stdio.h>
 #endif
 
+#ifndef _STDINT_H
+#include <stdint.h>
+#endif
+
 #ifndef FALSE
 #define FALSE (0)
 #endif
@@ -79,12 +83,11 @@
 // No such file or directory
 #define GRST_RET_NO_SUCH_FILE	1003
 
-// #define GRSTerrorLog(GRSTerrorLevel, GRSTerrorFmt, ...) if (GRSTerrorLogFunc != NULL) (GRSTerrorLogFunc)(__FILE__, __LINE__, GRSTerrorLevel, GRSTerrorFmt, __VA_ARGS__)
-// void (*GRSTerrorLogFunc)(char *, int, int, char *, ...);
+/* We use && now rather than if so this macro can be used inside if...else
+   but that means the function must return an int rather than be void */
+#define GRSTerrorLog(GRSTerrorLevel, ...) ((GRSTerrorLogFunc != NULL) && ((GRSTerrorLogFunc)(__FILE__, __LINE__, GRSTerrorLevel, __VA_ARGS__)))
 
-#define GRSTerrorLog(GRSTerrorLevel, ...) if (GRSTerrorLogFunc != NULL) (GRSTerrorLogFunc)(__FILE__, __LINE__, GRSTerrorLevel, __VA_ARGS__)
-
-extern void (*GRSTerrorLogFunc)(char *, int, int, char *, ...);
+extern int (*GRSTerrorLogFunc)(char *, int, int, char *, ...);
 
 /* these levels are the same as Unix syslog() and Apache ap_log_error() */
 

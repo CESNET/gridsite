@@ -1,5 +1,5 @@
 /*
-   Copyright (c) 2002-6, Andrew McNab, University of Manchester
+   Copyright (c) 2002-9, Andrew McNab, University of Manchester
    All rights reserved.
 
    Redistribution and use in source and binary forms, with or
@@ -43,6 +43,10 @@
 
 #ifndef HEADER_CRYPTO_H
 #include <openssl/crypto.h>
+#endif
+
+#ifndef _STDINT_H
+#include <stdint.h>
 #endif
 
 #ifndef FALSE

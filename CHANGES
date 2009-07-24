@@ -1,3 +1,5 @@
+* Fri Jul 23 2009 Andrew McNab <Andrew.McNab@cern.ch>
+- ==== GridSite version 1.7.5 ====
 * Thu Jul 23 2009 Andrew McNab <Andrew.McNab@cern.ch>
 - Check multiple VOMS issuer certs if present, and
   use most permissive time range they provide to

@@ -4,6 +4,11 @@
    grst_admin_file.c
 -  Change (GRSTerrorLogFunc) to return int, to allow 
    if-less C macro using && instead.
+-  Fix Bug #53314 due to change in VOMS (user cert DN 
+   vs user cert issuer's DN)
+-  Check multiple VOMS issuer certs if present, and
+   use most permissive time range they provide to
+   resolve Bug #53497
 * Fri Jul  3 2009 Andrew McNab <Andrew.McNab@cern.ch>
 - ==== GridSite version 1.5.12 ====
 * Fri Jul  3 2009 Andrew McNab <Andrew.McNab@cern.ch>

@@ -579,25 +579,27 @@ static int GRSTx509VerifyVomsSigCert(time_t *time1_time, time_t *time2_time,
 static int GRSTx509ChainVomsAdd(GRSTx509Cert **grst_cert, 
                          time_t time1_time, time_t time2_time,
                          X509_EXTENSION *ex, 
-                         char *ucuserdn, char *vomsdir, char *capath)
+                         GRSTx509Cert *user_cert, char *vomsdir, char *capath)
 ///
 /// Add any VOMS credentials found into the chain. Always returns GRST_RET_OK
 /// - even for invalid credentials, which are flagged in errors field
 {
 #define MAXTAG 500
-#define GRST_ASN1_COORDS_FQAN     "-1-1-%d-1-7-1-2-1-2-%d"
-#define GRST_ASN1_COORDS_USER_DN  "-1-1-%d-1-2-1-1-1-1-%%d-1-%%d"
-#define GRST_ASN1_COORDS_VOMS_DN  "-1-1-%d-1-3-1-1-1-%%d-1-%%d"
-#define GRST_ASN1_COORDS_TIME1    "-1-1-%d-1-6-1"
-#define GRST_ASN1_COORDS_TIME2    "-1-1-%d-1-6-2"
-#define GRST_ASN1_COORDS_VOMSCERT "-1-1-%d-1-8-4-2"
+#define GRST_ASN1_COORDS_FQAN          "-1-1-%d-1-7-1-2-1-2-%d"
+#define GRST_ASN1_COORDS_ISSUER_DN     "-1-1-%d-1-2-1-1-1-1-%%d-1-%%d"
+#define GRST_ASN1_COORDS_ISSUER_SERIAL "-1-1-%d-1-2-1-2"
+#define GRST_ASN1_COORDS_VOMS_DN       "-1-1-%d-1-3-1-1-1-%%d-1-%%d"
+#define GRST_ASN1_COORDS_TIME1         "-1-1-%d-1-6-1"
+#define GRST_ASN1_COORDS_TIME2         "-1-1-%d-1-6-2"
+#define GRST_ASN1_COORDS_VOMSCERT      "-1-1-%d-1-8-4-2"
    ASN1_OCTET_STRING *asn1data;
-   char              *asn1string, acuserdn[200], acvomsdn[200],
+   char              *asn1string, acissuerdn[200], acvomsdn[200],
                       dn_coords[200], fqan_coords[200], time1_coords[200],
-                      time2_coords[200], vomscert_coords[200], *voname = NULL;
+                      time2_coords[200], vomscert_coords[200], *voname = NULL,
+                      serial_coords[200];
    long               asn1length;
    int                lasttag=-1, itag, i, j, acnumber = 1, chain_errors = 0,
-                      ivomscert, tmp_chain_errors;
+                      ivomscert, tmp_chain_errors, acissuerserial = -1;
    struct GRSTasn1TagList taglist[MAXTAG+1];
    time_t             actime1 = 0, actime2 = 0, time_now,
                       tmp_time1, tmp_time2;
@@ -612,8 +614,8 @@ static int GRSTx509ChainVomsAdd(GRSTx509Cert **grst_cert,
       {
         chain_errors = 0;
       
-        snprintf(dn_coords, sizeof(dn_coords), GRST_ASN1_COORDS_USER_DN, acnumber);
-        if (GRSTasn1GetX509Name(acuserdn, sizeof(acuserdn), dn_coords,
+        snprintf(dn_coords, sizeof(dn_coords), GRST_ASN1_COORDS_ISSUER_DN, acnumber);
+        if (GRSTasn1GetX509Name(acissuerdn, sizeof(acissuerdn), dn_coords,
                                 asn1string, taglist, lasttag) != GRST_RET_OK)
                              break;
 
@@ -622,8 +624,40 @@ static int GRSTx509ChainVomsAdd(GRSTx509Cert **grst_cert,
                                 asn1string, taglist, lasttag) != GRST_RET_OK)
                              break;
 
-        if (GRSTx509NameCmp(ucuserdn, acuserdn) != 0)
+        if ((GRSTx509NameCmp(user_cert->dn, acissuerdn) != 0) &&   /* old */
+            (GRSTx509NameCmp(user_cert->issuer, acissuerdn) != 0)) /* new */
                              chain_errors |= GRST_CERT_BAD_CHAIN;
+
+        /* check serial numbers */
+
+        snprintf(serial_coords, sizeof(serial_coords), 
+                 GRST_ASN1_COORDS_ISSUER_SERIAL, acnumber);
+
+        itag = GRSTasn1SearchTaglist(taglist, lasttag, serial_coords);
+
+        if (itag > -1) 
+          {
+            if (taglist[itag].length == 2)
+             acissuerserial = 
+              asn1string[taglist[itag].start+taglist[itag].headerlength+1]  +
+              asn1string[taglist[itag].start+taglist[itag].headerlength+0] * 0x100;
+            else if (taglist[itag].length == 3)
+             acissuerserial = 
+              asn1string[taglist[itag].start+taglist[itag].headerlength+2]  +
+              asn1string[taglist[itag].start+taglist[itag].headerlength+1] * 0x100 +
+              asn1string[taglist[itag].start+taglist[itag].headerlength+0] * 0x10000;
+            else if (taglist[itag].length == 4)
+             acissuerserial = 
+              asn1string[taglist[itag].start+taglist[itag].headerlength+3]  +
+              asn1string[taglist[itag].start+taglist[itag].headerlength+2] * 0x100 +
+              asn1string[taglist[itag].start+taglist[itag].headerlength+1] * 0x10000 +
+              asn1string[taglist[itag].start+taglist[itag].headerlength+0] * 0x1000000;
+          }
+
+        if (acissuerserial != user_cert->serial) 
+                               chain_errors |= GRST_CERT_BAD_CHAIN;
+
+        /* get times */
 
         snprintf(time1_coords, sizeof(time1_coords), GRST_ASN1_COORDS_TIME1, acnumber);
         itag = GRSTasn1SearchTaglist(taglist, lasttag, time1_coords);
@@ -720,7 +754,7 @@ static int GRSTx509ChainVomsAdd(GRSTx509Cert **grst_cert,
                  (*grst_cert)->errors = chain_errors; /* ie may be invalid */
                  (*grst_cert)->type = GRST_CERT_TYPE_VOMS;
                  (*grst_cert)->issuer = strdup(acvomsdn);
-                 (*grst_cert)->dn = strdup(acuserdn);
+                 (*grst_cert)->dn = strdup(user_cert->dn);
                }
              else break;
            }
@@ -748,7 +782,9 @@ int GRSTx509ChainLoadCheck(GRSTx509Chain **chain,
    int depth = 0;               /* Depth of cert chain */
    int chain_errors = 0;	/* records previous errors */
    int first_non_ca;		/* number of the EEC issued to user by CA */
-   char *ucuserdn = NULL;	/* DN of EEC issued to user by CA */
+//   char *ucuserdn = NULL;	/* DN of EEC issued to user by CA */
+//   char *ucissuerdn = NULL;	/* DN of CA that issued EEC issued to user */
+//   int  ucserial = 0;           /* Serial number of EEC issued to user */
    size_t len,len2;             /* Lengths of issuer and cert DN */
    int IsCA;                    /* Holds whether cert is allowed to sign */
    int prevIsCA;                /* Holds whether previous cert in chain is 
@@ -764,7 +800,7 @@ int GRSTx509ChainLoadCheck(GRSTx509Chain **chain,
    FILE *fp;
    X509_EXTENSION *ex;
    time_t now;
-   GRSTx509Cert *grst_cert, *new_grst_cert;
+   GRSTx509Cert *grst_cert, *new_grst_cert, *user_cert = NULL;
    
    GRSTerrorLog(GRST_LOG_DEBUG, "GRSTx509ChainLoadCheck() starts");
 
@@ -943,7 +979,7 @@ int GRSTx509ChainLoadCheck(GRSTx509Chain **chain,
                   {
                     new_grst_cert->type = GRST_CERT_TYPE_EEC;
                     first_non_ca = i;
-                    ucuserdn = new_grst_cert->dn;
+                    user_cert = new_grst_cert;
                     new_grst_cert->delegation 
                        = (lastcert == NULL) ? i : i + 1;
                   }
@@ -1009,7 +1045,7 @@ int GRSTx509ChainLoadCheck(GRSTx509Chain **chain,
                                               new_grst_cert->notbefore,
                                               new_grst_cert->notafter,                                              
                                               ex,
-                                              ucuserdn, 
+                                              user_cert,
                                               vomsdir,
                                               capath);
                          grst_cert->delegation = (lastcert == NULL) ? i : i+1;
@@ -1228,7 +1264,9 @@ int GRSTx509VerifyCallback (int ok, X509_STORE_CTX *ctx)
 /// Get the VOMS attributes in the given extension
 int GRSTx509ParseVomsExt(int *lastcred, int maxcreds, size_t credlen, 
                          char *creds, time_t time1_time, time_t time2_time,
-                         X509_EXTENSION *ex, char *ucuserdn, char *vomsdir)
+                         X509_EXTENSION *ex, 
+                         char *ucuserdn, char *ucissuerdn, int ucserial, 
+                         char *vomsdir)
 ///
 /// Puts any VOMS credentials found into the Compact Creds string array
 /// starting at *creds. Always returns GRST_RET_OK - even for invalid
@@ -1236,15 +1274,15 @@ int GRSTx509ParseVomsExt(int *lastcred, int maxcreds, size_t credlen,
 {
 #define MAXTAG 500
 #define GRST_ASN1_COORDS_FQAN    "-1-1-%d-1-7-1-2-1-2-%d"
-#define GRST_ASN1_COORDS_USER_DN "-1-1-%d-1-2-1-1-1-1-%%d-1-%%d"
+#define GRST_ASN1_COORDS_ISSUER_DN "-1-1-%d-1-2-1-1-1-1-%%d-1-%%d"
 #define GRST_ASN1_COORDS_TIME1   "-1-1-%d-1-6-1"
 #define GRST_ASN1_COORDS_TIME2   "-1-1-%d-1-6-2"
    ASN1_OCTET_STRING *asn1data;
-   char              *asn1string, acuserdn[200], acvomsdn[200],
+   char              *asn1string, acissuerdn[200], acvomsdn[200],
                       dn_coords[200], fqan_coords[200], time1_coords[200],
-                      time2_coords[200];
+                      time2_coords[200], serial_coords[200];
    long               asn1length;
-   int                lasttag=-1, itag, i, acnumber = 1;
+   int                lasttag=-1, itag, i, acnumber = 1, acissuerserial = -1;
    struct GRSTasn1TagList taglist[MAXTAG+1];
    time_t             actime1, actime2, time_now;
 
@@ -1256,11 +1294,43 @@ int GRSTx509ParseVomsExt(int *lastcred, int maxcreds, size_t credlen,
 
    for (acnumber = 1; ; ++acnumber) /* go through ACs one by one */
       {
-        snprintf(dn_coords, sizeof(dn_coords), GRST_ASN1_COORDS_USER_DN, acnumber);
-        if (GRSTasn1GetX509Name(acuserdn, sizeof(acuserdn), dn_coords,
+        /* check names */
+      
+        snprintf(dn_coords, sizeof(dn_coords), GRST_ASN1_COORDS_ISSUER_DN, acnumber);
+        if (GRSTasn1GetX509Name(acissuerdn, sizeof(acissuerdn), dn_coords,
                        asn1string, taglist, lasttag) != GRST_RET_OK) break;
 
-        if (GRSTx509NameCmp(ucuserdn, acuserdn) != 0) continue;
+        if ((GRSTx509NameCmp(ucuserdn, acissuerdn) != 0) && /* old */
+            (GRSTx509NameCmp(ucissuerdn, acissuerdn) != 0)) /* new */
+             continue;
+
+        /* check serial numbers */
+
+        snprintf(serial_coords, sizeof(serial_coords), 
+                 GRST_ASN1_COORDS_ISSUER_SERIAL, acnumber);
+
+        itag = GRSTasn1SearchTaglist(taglist, lasttag, serial_coords);
+        
+        if (itag > -1) 
+          {
+            if (taglist[itag].length == 2)
+             acissuerserial = 
+              asn1string[taglist[itag].start+taglist[itag].headerlength+1]  +
+              asn1string[taglist[itag].start+taglist[itag].headerlength+0] * 0x100;
+            else if (taglist[itag].length == 3)
+             acissuerserial = 
+              asn1string[taglist[itag].start+taglist[itag].headerlength+2]  +
+              asn1string[taglist[itag].start+taglist[itag].headerlength+1] * 0x100 +
+              asn1string[taglist[itag].start+taglist[itag].headerlength+0] * 0x10000;
+            else if (taglist[itag].length == 4)
+             acissuerserial = 
+              asn1string[taglist[itag].start+taglist[itag].headerlength+3]  +
+              asn1string[taglist[itag].start+taglist[itag].headerlength+2] * 0x100 +
+              asn1string[taglist[itag].start+taglist[itag].headerlength+1] * 0x10000 +
+              asn1string[taglist[itag].start+taglist[itag].headerlength+0] * 0x1000000;
+          }
+        
+        if (acissuerserial != ucserial) continue;
 
         if (GRSTx509VerifyVomsSig(&time1_time, &time2_time,
                              asn1string, taglist, lasttag, vomsdir, acnumber)
@@ -1317,9 +1387,9 @@ int GRSTx509GetVomsCreds(int *lastcred, int maxcreds, size_t credlen,
 /// Puts any VOMS credentials found into the Compact Creds string array
 /// starting at *creds. Always returns GRST_RET_OK.
 {
-   int  i, j;
+   int  i, j, ucserial;
    char s[80];
-   unsigned char  *ucuser;
+   unsigned char  *ucuser, *ucissuer;
    X509_EXTENSION *ex;
    ASN1_STRING    *asn1str;
    X509           *cert;
@@ -1331,6 +1401,9 @@ int GRSTx509GetVomsCreds(int *lastcred, int maxcreds, size_t credlen,
         GRSTasn1TimeToTimeT(ASN1_STRING_data(X509_get_notAfter(usercert)),0);
    ucuser =
         X509_NAME_oneline(X509_get_subject_name(usercert), NULL, 0);
+   ucissuer =
+        X509_NAME_oneline(X509_get_issuer_name(usercert), NULL, 0);
+   ucserial = (int) ASN1_INTEGER_get(X509_get_serialNumber(usercert));
 
    for (j=sk_X509_num(certstack)-1; j >= 0; --j)
     {
@@ -1353,7 +1426,8 @@ int GRSTx509GetVomsCreds(int *lastcred, int maxcreds, size_t credlen,
              {
                GRSTx509ParseVomsExt(lastcred, maxcreds, credlen, creds,
                                  uctime1_time, uctime2_time,
-                                 ex, ucuser, vomsdir);
+                                 ex, ucuser, ucissuer, ucserial,
+                                 vomsdir);
              }
          }
     }

@@ -3,6 +3,8 @@
   use most permissive time range they provide
 - Change (GRSTerrorLogFunc) to return int, to allow 
   if-less C macro using && instead.
+- Remove 2 argument open(...O_CREAT...) instance in
+  grst_admin_file.c
 * Fri Jul 03 2009 Andrew McNab <Andrew.McNab@cern.ch>
 - ==== GridSite version 1.7.4 ====
 * Thu Jul 02 2009 Andrew McNab <Andrew.McNab@cern.ch>

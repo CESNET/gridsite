@@ -300,13 +300,14 @@ void deletefileaction(char *dn, GRSTgaclPerm perm, char *help_uri,
                       char *dir_path, char *file, char *dir_uri, 
                       char *admin_file)
 {
-  int            fd, numfiles;
+  int            numfiles;
   char          *dir_path_file, *dir_path_vfile, *p, *vfile, *dnlistsuri, 
                 *fulluri, *server_name, *realfile;
   struct stat    statbuf;
   GRSThttpBody   bp; 
   struct dirent *subdirfile_ent;
   DIR           *subDIR;
+  FILE          *fp;
 
 
   if( verifypasscode()==0 ){
@@ -375,8 +376,8 @@ void deletefileaction(char *dn, GRSTgaclPerm perm, char *help_uri,
           strcat(dir_path_file, "/");
           strcat(dir_path_file, vfile);
 
-          fd = open(dir_path_file, O_WRONLY | O_CREAT);
-          if (fd != -1) close(fd);           
+          fp = fopen(dir_path_file, "w");
+          if (fp != NULL) fclose(fp);
         }
 
       printf("Status: 302 Moved Temporarily\nContent-Length: 0\n"

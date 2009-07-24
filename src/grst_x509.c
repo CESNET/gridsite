@@ -597,6 +597,7 @@ static int GRSTx509ChainVomsAdd(GRSTx509Cert **grst_cert,
                       dn_coords[200], fqan_coords[200], time1_coords[200],
                       time2_coords[200], vomscert_coords[200], *voname = NULL,
                       serial_coords[200];
+   unsigned char     *p;
    long               asn1length;
    int                lasttag=-1, itag, i, j, acnumber = 1, chain_errors = 0,
                       ivomscert, tmp_chain_errors, acissuerserial = -1;
@@ -637,21 +638,15 @@ static int GRSTx509ChainVomsAdd(GRSTx509Cert **grst_cert,
 
         if (itag > -1) 
           {
+            p = &asn1string[taglist[itag].start+taglist[itag].headerlength];
+          
             if (taglist[itag].length == 2)
-             acissuerserial = 
-              asn1string[taglist[itag].start+taglist[itag].headerlength+1]  +
-              asn1string[taglist[itag].start+taglist[itag].headerlength+0] * 0x100;
+             acissuerserial = p[1] + p[0] * 0x100;
             else if (taglist[itag].length == 3)
-             acissuerserial = 
-              asn1string[taglist[itag].start+taglist[itag].headerlength+2]  +
-              asn1string[taglist[itag].start+taglist[itag].headerlength+1] * 0x100 +
-              asn1string[taglist[itag].start+taglist[itag].headerlength+0] * 0x10000;
+             acissuerserial = p[2] + p[1] * 0x100 + p[0] * 0x10000;
             else if (taglist[itag].length == 4)
-             acissuerserial = 
-              asn1string[taglist[itag].start+taglist[itag].headerlength+3]  +
-              asn1string[taglist[itag].start+taglist[itag].headerlength+2] * 0x100 +
-              asn1string[taglist[itag].start+taglist[itag].headerlength+1] * 0x10000 +
-              asn1string[taglist[itag].start+taglist[itag].headerlength+0] * 0x1000000;
+             acissuerserial = p[3] + p[2] * 0x100 + p[1] * 0x10000 +
+                              p[0] * 0x1000000;
           }
 
         if (acissuerserial != user_cert->serial) 
@@ -1281,6 +1276,7 @@ int GRSTx509ParseVomsExt(int *lastcred, int maxcreds, size_t credlen,
    char              *asn1string, acissuerdn[200], acvomsdn[200],
                       dn_coords[200], fqan_coords[200], time1_coords[200],
                       time2_coords[200], serial_coords[200];
+   unsigned char     *p;
    long               asn1length;
    int                lasttag=-1, itag, i, acnumber = 1, acissuerserial = -1;
    struct GRSTasn1TagList taglist[MAXTAG+1];
@@ -1313,21 +1309,15 @@ int GRSTx509ParseVomsExt(int *lastcred, int maxcreds, size_t credlen,
         
         if (itag > -1) 
           {
+            p = &asn1string[taglist[itag].start+taglist[itag].headerlength];
+          
             if (taglist[itag].length == 2)
-             acissuerserial = 
-              asn1string[taglist[itag].start+taglist[itag].headerlength+1]  +
-              asn1string[taglist[itag].start+taglist[itag].headerlength+0] * 0x100;
+             acissuerserial = p[1] + p[0] * 0x100;
             else if (taglist[itag].length == 3)
-             acissuerserial = 
-              asn1string[taglist[itag].start+taglist[itag].headerlength+2]  +
-              asn1string[taglist[itag].start+taglist[itag].headerlength+1] * 0x100 +
-              asn1string[taglist[itag].start+taglist[itag].headerlength+0] * 0x10000;
+             acissuerserial = p[2] + p[1] * 0x100 + p[0] * 0x10000;
             else if (taglist[itag].length == 4)
-             acissuerserial = 
-              asn1string[taglist[itag].start+taglist[itag].headerlength+3]  +
-              asn1string[taglist[itag].start+taglist[itag].headerlength+2] * 0x100 +
-              asn1string[taglist[itag].start+taglist[itag].headerlength+1] * 0x10000 +
-              asn1string[taglist[itag].start+taglist[itag].headerlength+0] * 0x1000000;
+             acissuerserial = p[3] + p[2] * 0x100 + p[1] * 0x10000 +
+                              p[0] * 0x1000000;
           }
         
         if (acissuerserial != ucserial) continue;

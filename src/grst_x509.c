@@ -1719,8 +1719,11 @@ int GRSTx509MakeProxyCert(char **proxychain, FILE *debugfp,
     }    
 
   /* set version number for the certificate (X509v3) and the serial number   
-     need 3 = v4 for GSI proxy?? */
-  if (X509_set_version(certs[0], 3L) != 1)
+     
+     We now use 2 = v3 for the GSI proxy, rather than the old Globus 
+     behaviour of 3 = v4. See Savannah Bug #53721 */
+     
+  if (X509_set_version(certs[0], 2L) != 1)
     {
       mpcerror(debugfp,
             "GRSTx509MakeProxyCert(): error setting certificate version\n");

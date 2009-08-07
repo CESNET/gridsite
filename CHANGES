@@ -1,3 +1,5 @@
+* Fri Aug 7 2009 Andrew McNab <Andrew.McNab@cern.ch>
+- ==== GridSite version 1.7.6 ====
 * Wed Jul 29 2009 Andrew McNab <Andrew.McNab@cern.ch>
 - When creating proxies with GRSTx509MakeProxyCert,
   use 2=v3 rather than the old 3=v4 Globus behaviour.

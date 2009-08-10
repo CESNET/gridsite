@@ -1,3 +1,5 @@
+* Mon Aug 10 2009 Andrew McNab <Andrew.McNab@cern.ch>
+- Fix %016lx specification when creating passcodes.
 * Fri Aug 7 2009 Andrew McNab <Andrew.McNab@cern.ch>
 - ==== GridSite version 1.7.6 ====
 * Wed Jul 29 2009 Andrew McNab <Andrew.McNab@cern.ch>

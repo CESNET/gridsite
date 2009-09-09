@@ -1,6 +1,8 @@
 * Wed Sep 9 2009 Andrew McNab <Andrew.McNab@cern.ch>
 - Import fix of %016lx specification when creating 
   passcodes from 1.7.x branch.
+- Add gridsite-all RPM which includes the files from
+  all subpackages.
 * Fri Jul 24 2009 Andrew McNab <Andrew.McNab@cern.ch>
 - ==== GridSite version 1.5.13 ====
 * Fri Jul 24 2009 Andrew McNab <Andrew.McNab@cern.ch>

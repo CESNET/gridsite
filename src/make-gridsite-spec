@@ -105,6 +105,17 @@ with GridSite and Grid Security credentials.
 
 See http://www.gridsite.org/ for details.
 
+%package all
+Group: Applications/Internet
+Summary: All gridsite components in one RPM
+
+%description all
+All components from gridsite-shared, gridsite-apache, gridsite-devel,
+gridsite-commands, gridsite-gsexec plus gridsite-services and 
+gridsite-service-clients if built.
+
+See http://www.gridsite.org/ for details.
+
 %prep
 
 %setup
@@ -179,6 +190,20 @@ if [ "\$UID" = "0" ] ; then
  /sbin/ldconfig
 fi
 
+%post all
+if [ "\$UID" = "0" ] ; then
+ /sbin/ldconfig
+fi
+EOF
+
+if [ $have_fuse ] ; then
+echo 'mkdir -p /grid'
+
+echo '%preun'
+echo '/sbin/service slashgrid stop ; :'
+fi
+
+cat <<EOF >>gridsite.spec
 %files shared
 %attr(-, root, root) %{prefix}/%{_lib}/libgridsite.so.%{version}
 %attr(-, root, root) %{prefix}/%{_lib}/libgridsite.so.${MINOR_VERSION:-1.x}
@@ -283,6 +308,96 @@ GridSite WS delegation client, htproxyput
 See http://www.gridsite.org/ for details.
 
 %files service-clients
+%attr(-, root, root) %{prefix}/bin/htproxyput
+%attr(-, root, root) %{prefix}/bin/htproxydestroy
+%attr(-, root, root) %{prefix}/bin/htproxytime
+%attr(-, root, root) %{prefix}/bin/htproxyunixtime
+%attr(-, root, root) %{prefix}/bin/htproxyrenew
+%attr(-, root, root) %{prefix}/bin/htproxyinfo
+%attr(-, root, root) %{prefix}/share/man/man1/htproxyput.1.gz
+%attr(-, root, root) %{prefix}/share/man/man1/htproxydestroy.1.gz
+%attr(-, root, root) %{prefix}/share/man/man1/htproxytime.1.gz
+%attr(-, root, root) %{prefix}/share/man/man1/htproxyunixtime.1.gz
+%attr(-, root, root) %{prefix}/share/man/man1/htproxyrenew.1.gz
+%attr(-, root, root) %{prefix}/share/man/man1/htproxyinfo.1.gz
+%attr(-, root, root) %{prefix}/share/doc/gridsite-${MINOR_VERSION:-1.x}/htproxyput.1
+%attr(-, root, root) %{prefix}/share/doc/gridsite-${MINOR_VERSION:-1.x}/htproxydestroy.1
+%attr(-, root, root) %{prefix}/share/doc/gridsite-${MINOR_VERSION:-1.x}/htproxytime.1
+%attr(-, root, root) %{prefix}/share/doc/gridsite-${MINOR_VERSION:-1.x}/htproxyunixtime.1
+%attr(-, root, root) %{prefix}/share/doc/gridsite-${MINOR_VERSION:-1.x}/htproxyrenew.1
+%attr(-, root, root) %{prefix}/share/doc/gridsite-${MINOR_VERSION:-1.x}/htproxyinfo.1
+EOF
+
+fi
+
+cat <<EOF >>gridsite.spec
+
+%files all
+%attr(-, root, root) %{prefix}/%{_lib}/libgridsite.so.%{version}
+%attr(-, root, root) %{prefix}/%{_lib}/libgridsite.so.${MINOR_VERSION:-1.x}
+%attr(-, root, root) %{prefix}/%{_lib}/libgridsite.so.${MAJOR_VERSION:-1}
+%attr(-, root, root) %{prefix}/%{_lib}/libgridsite.so
+%attr(-, root, root) %{prefix}/%{_lib}/libgridsite_globus.so.%{version}
+%attr(-, root, root) %{prefix}/%{_lib}/libgridsite_globus.so.${MINOR_VERSION:-1.x}
+%attr(-, root, root) %{prefix}/%{_lib}/libgridsite_globus.so.${MAJOR_VERSION:-1}
+%attr(-, root, root) %{prefix}/%{_lib}/libgridsite_globus.so
+%attr(-, root, root) %{prefix}/share/doc/gridsite-${MINOR_VERSION:-1.x}
+
+%attr(-, root, root) %{prefix}/include/gridsite.h
+%attr(-, root, root) %{prefix}/include/gridsite-gacl.h
+%attr(-, root, root) %{prefix}/%{_lib}/libgridsite.a
+%attr(-, root, root) %{prefix}/%{_lib}/libgridsite_globus.a
+
+%attr(-, root, root) %{prefix}/share/man/man8/mod_gridsite.8.gz
+%attr(-, root, root) %{prefix}/%{_lib}/httpd/modules/mod_gridsite.so
+%attr(-, root, root) %{prefix}/sbin/real-gridsite-admin.cgi
+%attr(-, root, root) %{prefix}/sbin/gridsite-copy.cgi
+%attr(-, root, root) %{prefix}/sbin/gridsite-storage.cgi
+
+%attr(-, root, root) %{prefix}/bin/htcp
+%attr(-, root, root) %{prefix}/bin/htls
+%attr(-, root, root) %{prefix}/bin/htll
+%attr(-, root, root) %{prefix}/bin/htrm
+%attr(-, root, root) %{prefix}/bin/htmkdir
+%attr(-, root, root) %{prefix}/bin/htmv
+%attr(-, root, root) %{prefix}/bin/htping
+%attr(-, root, root) %{prefix}/bin/htfind
+%attr(-, root, root) %{prefix}/bin/urlencode
+%attr(-, root, root) %{prefix}/bin/findproxyfile
+%attr(-, root, root) %{prefix}/share/man/man1/htcp.1.gz
+%attr(-, root, root) %{prefix}/share/man/man1/htrm.1.gz
+%attr(-, root, root) %{prefix}/share/man/man1/htls.1.gz
+%attr(-, root, root) %{prefix}/share/man/man1/htll.1.gz
+%attr(-, root, root) %{prefix}/share/man/man1/htmkdir.1.gz
+%attr(-, root, root) %{prefix}/share/man/man1/htmv.1.gz
+%attr(-, root, root) %{prefix}/share/man/man1/htping.1.gz
+%attr(-, root, root) %{prefix}/share/man/man1/htfind.1.gz
+%attr(-, root, root) %{prefix}/share/man/man1/urlencode.1.gz
+%attr(-, root, root) %{prefix}/share/man/man1/findproxyfile.1.gz
+
+%attr(4510, root, apache) %{prefix}/sbin/gsexec
+%attr(-, root, root) %{prefix}/share/man/man8/gsexec.8.gz
+EOF
+
+if [ $have_fuse ] ; then
+
+cat <<EOF >>gridsite.spec
+%attr(0744, root, root) %{prefix}/sbin/slashgrid
+%attr(0744, root, root) /etc/rc.d/init.d/slashgrid
+%attr(0700, root, root) /var/spool/slashgrid
+%attr(-, root, root) %{prefix}/share/man/man8/slashgrid.8.gz
+EOF
+
+fi
+
+if [ $have_gsoap ] ; then
+
+cat <<EOF >>gridsite.spec
+%attr(-, root, root) %{prefix}/sbin/gridsite-delegation.cgi
+%attr(-, root, root) %{prefix}/share/man/man8/gridsite-delegation.8.gz
+%attr(-, root, root) %{prefix}/share/doc/gridsite-${MINOR_VERSION:-1.x}/delegation-1.1.0.wsdl
+%attr(-, root, root) %{prefix}/share/doc/gridsite-${MINOR_VERSION:-1.x}/gridsite-delegation.8
+
 %attr(-, root, root) %{prefix}/bin/htproxyput
 %attr(-, root, root) %{prefix}/bin/htproxydestroy
 %attr(-, root, root) %{prefix}/bin/htproxytime

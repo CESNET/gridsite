@@ -830,7 +830,7 @@ char *make_passcode_file(request_rec *r, mod_gridsite_dir_cfg *conf,
                                   sizeof(gridauthcookie))
          != APR_SUCCESS) return NULL;
     
-    filetemplate = apr_psprintf(r->pool, "%s/passcode-%016llxXXXXXX", 
+    filetemplate = apr_psprintf(r->pool, "%s/passcode-%016lxXXXXXX", 
      ap_server_root_relative(r->pool,
      sessionsdir),
      gridauthcookie);

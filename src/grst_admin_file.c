@@ -62,21 +62,34 @@ POSSIBILITY OF SUCH DAMAGE.
 
 int verifypasscode()
 {
-	char *issuedpc=NULL, *returnedpc=NULL;
+	char *issuedpc=NULL, *returnedpc=NULL, *requirepasscode=NULL;
+
+	requirepasscode = getenv("GRST_REQUIRE_PASSCODE");
 	issuedpc =  getenv("GRST_PASSCODE_COOKIE");
 	returnedpc = GRSThttpGetCGI("passcode");
-//	GRSThttpError(issuedpc);
-	if( issuedpc==NULL )return 0;
-	if( returnedpc==NULL )return 0;
-	if( strcmp( issuedpc, returnedpc )==0 )return 1;
-	else return 0;
+
+        /* if GRST_REQUIRE_PASSCODE != on then always OK */
+	
+	if (requirepasscode == NULL) return 1;
+	
+	if (strcmp(requirepasscode, "on") != 0) return 1;
+	
+	/* otherwise, require passcode and that it matches */
+
+	if (issuedpc == NULL) return 0;
+
+	if (returnedpc == NULL) return 0;
+
+	if (strcmp(issuedpc, returnedpc)==0 )return 1;
+	
+	return 0;
 }
 
 void outputformactionerror(char *dn, GRSTgaclPerm perm, char *help_uri, 
                       char *dir_path, char *dir_uri, char *admin_file)
 {
   GRSThttpBody   bp; 
-  puts("Status: 500 Failed trying to upload\nContent-Type: text/html");
+  puts("Status: 500 Failed due to forbidden operation\nContent-Type: text/html");
           GRSThttpBodyInit(&bp);
 
           GRSThttpPrintf(&bp,"<title>Forbidden operation</title>\n");
@@ -151,11 +164,12 @@ void uploadfile(char *dn, GRSTgaclPerm perm, char *help_uri, char *dir_path,
 #define MIMESTUNKNOWN  1
 #define MIMESTUPLOAD   2
 #define MIMESTFILENM   3
-
+/*
   if( verifypasscode()==0 ){
       outputformactionerror(dn, perm, help_uri, dir_path, dir_uri, admin_file);	
       return;
   }
+*/
   if (!GRSTgaclPermHasWrite(perm)) GRSThttpError("403 Forbidden");
 
   p = getenv("CONTENT_TYPE");
@@ -640,7 +654,7 @@ void renameaction(char *dn, GRSTgaclPerm perm, char *help_uri, char *dir_path,
   GRSThttpBody  bp;
   
   if( verifypasscode()==0 ){
-      outputformactionerror(dn, perm, help_uri, dir_path, dir_uri, admin_file);	
+      outputformactionerror(dn, perm, help_uri, dir_path, dir_uri, admin_file);
       return;
   }
   if (!GRSTgaclPermHasWrite(perm) || (strcmp(file, GRST_ACL_FILE) == 0)) 

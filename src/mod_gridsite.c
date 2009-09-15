@@ -3431,6 +3431,8 @@ static int mod_gridsite_perm_handler(request_rec *r)
              ) retcode = HTTP_FORBIDDEN;
       }
 
+    if (user != NULL) GRSTgaclUserFree(user);
+
     return retcode;
 }
 

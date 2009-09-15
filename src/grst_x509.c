@@ -2068,9 +2068,16 @@ int GRSTx509MakeProxyRequest(char **reqtxt, char *proxydir,
     }
         
   if ((keypair = RSA_generate_key(GRST_KEYSIZE, 65537, NULL, NULL)) == NULL)
-                                                               return 1;
+    {
+      free(prvkeyfile);
+      return 1;
+    }
           
-  if ((fp = fopen(prvkeyfile, "w")) == NULL) return 2;
+  if ((fp = fopen(prvkeyfile, "w")) == NULL) 
+    {
+      free(prvkeyfile);
+      return 2;
+    }
   
   chmod(prvkeyfile, S_IRUSR | S_IWUSR);
   free(prvkeyfile);

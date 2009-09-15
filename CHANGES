@@ -1,3 +1,6 @@
+* Fri Sep 15 2009 Andrew McNab <Andrew.McNab@cern.ch>
+- Include GRSTgaclUserFree() memory leak fix in 
+  mod_gridsite_perm_handler() in mod_gridsite.c
 * Mon Aug 10 2009 Andrew McNab <Andrew.McNab@cern.ch>
 - Fix %016lx specification when creating passcodes.
 * Fri Aug 7 2009 Andrew McNab <Andrew.McNab@cern.ch>

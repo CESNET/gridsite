@@ -714,7 +714,7 @@ int html_dir_list(request_rec *r, mod_gridsite_dir_cfg *conf)
               "<td align=right>%R</td><td align=right>%e&nbsp;%b&nbsp;%y</td>",
                         &mtime_tm);    
 
-               encoded = GRSThttpUrlMildencode(namelist[n]->d_name);
+               encoded = GRSThttpUrlEncode(namelist[n]->d_name);
                escaped = html_escape(r->pool, namelist[n]->d_name);
 
                if (S_ISDIR(statbuf.st_mode))

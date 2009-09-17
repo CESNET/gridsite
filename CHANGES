@@ -1,6 +1,11 @@
-* Tue Sep 25 2009 Andrew McNab <Andrew.McNab@cern.ch>
+* Thu Sep 17 2009 Andrew McNab <Andrew.McNab@cern.ch>
+- GRSThttpUrlEncode rather than GRSThttpUrlMildencode
+  in mod_gridsite directory listings.
+* Tue Sep 17 2009 Andrew McNab <Andrew.McNab@cern.ch>
+- ==== GridSite version 1.5.15 ====
+* Tue Sep 15 2009 Andrew McNab <Andrew.McNab@cern.ch>
 - Import GRSTgaclUserFree() fix from 1.7.x branch
-* Tue Sep 25 2009 Andrew McNab <Andrew.McNab@cern.ch>
+* Tue Sep 15 2009 Andrew McNab <Andrew.McNab@cern.ch>
 - ==== GridSite version 1.5.14 ====
 * Wed Sep 9 2009 Andrew McNab <Andrew.McNab@cern.ch>
 - Import fix of %016lx specification when creating 

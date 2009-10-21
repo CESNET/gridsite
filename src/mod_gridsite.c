@@ -725,7 +725,7 @@ int html_dir_list(request_rec *r, mod_gridsite_dir_cfg *conf)
               "<td align=right>%R</td><td align=right>%e&nbsp;%b&nbsp;%y</td>",
                         &mtime_tm);    
 
-               encoded = GRSThttpUrlMildencode(namelist[n]->d_name);
+               encoded = GRSThttpUrlEncode(namelist[n]->d_name);
                escaped = html_escape(r->pool, namelist[n]->d_name);
 
                if (S_ISDIR(statbuf.st_mode))
@@ -3824,6 +3824,21 @@ int GRST_callback_SSLVerify_wrapper(int ok, X509_STORE_CTX *ctx)
      {
         ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
                     "Skip Invalid CA error in case a GSI Proxy");
+
+        sslconn->verify_error = NULL;
+        ok = TRUE;
+        errnum = X509_V_OK;
+        X509_STORE_CTX_set_error(ctx, errnum);
+     }
+
+   /*
+    * Skip X509_V_ERR_INVALID_PURPOSE at this stage, since we will check 
+    * the full chain using GRSTx509ChainLoadCheck at errdepth=0
+    */
+   if (errnum == X509_V_ERR_INVALID_PURPOSE)
+     {
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                    "Skip Invalid Purpose error");
 
         sslconn->verify_error = NULL;
         ok = TRUE;

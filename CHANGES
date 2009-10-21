@@ -1,4 +1,11 @@
-* Fri Sep 15 2009 Andrew McNab <Andrew.McNab@cern.ch>
+* Mon Oct 19 2009 Andrew McNab <Andrew.McNab@cern.ch>
+- Discard X509_V_ERR_INVALID_PURPOSE errors in 
+  GRST_callback_SSLVerify_wrapper(), needed by 
+  OpenSSL 0.9.8e
+* Thu Sep 17 2009 Andrew McNab <Andrew.McNab@cern.ch>
+- GRSThttpUrlEncode rather than GRSThttpUrlMildencode
+  in mod_gridsite directory listings.
+* Fri Sep 11 2009 Andrew McNab <Andrew.McNab@cern.ch>
 - Include GRSTgaclUserFree() memory leak fix in 
   mod_gridsite_perm_handler() in mod_gridsite.c
 * Mon Aug 10 2009 Andrew McNab <Andrew.McNab@cern.ch>

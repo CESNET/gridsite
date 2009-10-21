@@ -3783,6 +3783,21 @@ int GRST_callback_SSLVerify_wrapper(int ok, X509_STORE_CTX *ctx)
      }
 
    /*
+    * Skip X509_V_ERR_INVALID_PURPOSE at this stage, since we will check 
+    * the full chain using GRSTx509ChainLoadCheck at errdepth=0
+    */
+   if (errnum == X509_V_ERR_INVALID_PURPOSE)
+     {
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                    "Skip Invalid Purpose error");
+
+        sslconn->verify_error = NULL;
+        ok = TRUE;
+        errnum = X509_V_OK;
+        X509_STORE_CTX_set_error(ctx, errnum);
+     }
+
+   /*
     * New style GSI Proxy handling, with critical ProxyCertInfo
     * extension: we use GRSTx509KnownCriticalExts() to check this
     */

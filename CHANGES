@@ -1,3 +1,9 @@
+* Mon Oct 19 2009 Andrew McNab <Andrew.McNab@cern.ch>
+- Discard X509_V_ERR_INVALID_PURPOSE errors in 
+  GRST_callback_SSLVerify_wrapper(), needed by 
+  OpenSSL 0.9.8e (Imported from 1.7.6)
+* Mon Oct 19 2009 Andrew McNab <Andrew.McNab@cern.ch>
+- ==== GridSite version 1.5.16 ====
 * Thu Sep 17 2009 Andrew McNab <Andrew.McNab@cern.ch>
 - GRSThttpUrlEncode rather than GRSThttpUrlMildencode
   in mod_gridsite directory listings.

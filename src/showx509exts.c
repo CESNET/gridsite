@@ -91,7 +91,8 @@ main()
                          
 //        dn = X509_NAME_oneline(xname,NULL,0);
         
-        printf("n=%d dn=%s obj2txt=%s\n", n, dn, OBJ_obj2txt(NULL,0,obj,1));
+        if (obj != NULL) printf("n=%d dn=%s obj2txt=%s\n", n, dn, OBJ_obj2txt(NULL,0,obj,1));
+        else  printf("n=%d dn=%s obj2txt=NULL\n", n, dn);
 
         GRSTasn1GetX509Name(buf, 99, "-1-1-1-1-2-1-1-1-1-%d-1-%d", 
                             p1, taglist, lasttag);

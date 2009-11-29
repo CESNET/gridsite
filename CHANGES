@@ -1,3 +1,10 @@
+* Fri Nov 27 2009 Andrew McNab <Andrew.McNab@cern.ch>
+- GRSTx509MakeProxyCert() now creates RFC 3280 
+  proxies if any earlier proxies are RFC style
+* Tue Nov 10 2009 Andrew McNab <Andrew.McNab@cern.ch>
+- Discard X509_V_ERR_PROXY_CERTIFICATES_NOT_ALLOWED
+  errors in GRST_callback_SSLVerify_wrapper(), needed
+  for newer OpenSSL
 * Mon Oct 19 2009 Andrew McNab <Andrew.McNab@cern.ch>
 - Discard X509_V_ERR_INVALID_PURPOSE errors in 
   GRST_callback_SSLVerify_wrapper(), needed by 

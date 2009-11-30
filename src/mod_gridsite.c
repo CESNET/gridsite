@@ -3797,6 +3797,22 @@ int GRST_callback_SSLVerify_wrapper(int ok, X509_STORE_CTX *ctx)
         X509_STORE_CTX_set_error(ctx, errnum);
      }
 
+#ifdef X509_V_ERR_PROXY_CERTIFICATES_NOT_ALLOWED
+   /*
+    * Skip X509_V_ERR_PROXY_CERTIFICATES_NOT_ALLOWED, since they are!
+    */
+   if (errnum == X509_V_ERR_PROXY_CERTIFICATES_NOT_ALLOWED)
+     {
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                    "Skip Proxy Certificates Not Allowed error");
+
+        sslconn->verify_error = NULL;
+        ok = TRUE;
+        errnum = X509_V_OK;
+        X509_STORE_CTX_set_error(ctx, errnum);
+     }
+#endif
+
    /*
     * New style GSI Proxy handling, with critical ProxyCertInfo
     * extension: we use GRSTx509KnownCriticalExts() to check this

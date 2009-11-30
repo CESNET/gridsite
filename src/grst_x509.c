@@ -135,7 +135,9 @@ int GRSTx509KnownCriticalExts(X509 *cert)
           {
             OBJ_obj2txt(s, sizeof(s), X509_EXTENSION_get_object(ex), 1);
 
-            if (strcmp(s, GRST_PROXYCERTINFO_OID) != 0) return GRST_RET_FAILED;
+            if ((strcmp(s, GRST_PROXYCERTINFO_OID)     != 0) &&
+                (strcmp(s, GRST_PROXYCERTINFO_OLD_OID) != 0))
+              return GRST_RET_FAILED;
           }
       }
 
@@ -1606,7 +1608,7 @@ int GRSTx509MakeProxyCert(char **proxychain, FILE *debugfp,
 /// the given number of minutes starting from the current time.
 {
   char *ptr, *certchain;
-  int i, ncerts;
+  int i, ncerts, any_rfc_proxies = 0;
   long serial = 1234, ptrlen;
   EVP_PKEY *pkey, *CApkey;
   const EVP_MD *digest;
@@ -1614,6 +1616,8 @@ int GRSTx509MakeProxyCert(char **proxychain, FILE *debugfp,
   X509_REQ *req;
   X509_NAME *name, *CAsubject, *newsubject;
   X509_NAME_ENTRY *ent;
+  ASN1_OBJECT *pcinfo_obj = NULL;
+  X509_EXTENSION *ex;
   FILE *fp;
   BIO *reqmem, *certmem;
   time_t notAfter;
@@ -1719,8 +1723,11 @@ int GRSTx509MakeProxyCert(char **proxychain, FILE *debugfp,
     }    
 
   /* set version number for the certificate (X509v3) and the serial number   
-     need 3 = v4 for GSI proxy?? */
-  if (X509_set_version(certs[0], 3L) != 1)
+     
+     We now use 2 = v3 for the GSI proxy, rather than the old Globus 
+     behaviour of 3 = v4. See Savannah Bug #53721 */
+     
+  if (X509_set_version(certs[0], 2L) != 1)
     {
       mpcerror(debugfp,
             "GRSTx509MakeProxyCert(): error setting certificate version\n");
@@ -1800,10 +1807,13 @@ int GRSTx509MakeProxyCert(char **proxychain, FILE *debugfp,
     
   /* go through chain making sure this proxy is not longer lived */
 
+  pcinfo_obj = OBJ_txt2obj(GRST_PROXYCERTINFO_OID, 0);
+
   notAfter = 
      GRSTasn1TimeToTimeT(ASN1_STRING_data(X509_get_notAfter(certs[0])), 0);
-
+     
   for (i=1; i < ncerts; ++i)
+     {
        if (notAfter > 
            GRSTasn1TimeToTimeT(ASN1_STRING_data(X509_get_notAfter(certs[i])),
                                0))
@@ -1814,6 +1824,23 @@ int GRSTx509MakeProxyCert(char **proxychain, FILE *debugfp,
             
            ASN1_UTCTIME_set(X509_get_notAfter(certs[0]), notAfter);
          }
+         
+       if (X509_get_ext_by_OBJ(certs[i], pcinfo_obj, -1) > 0) 
+         any_rfc_proxies = 1;
+     }
+
+   /* if any earlier proxies are RFC 3820, then new proxy must be 
+      an RFC 3820 proxy too with the required extension */ 
+   if (any_rfc_proxies)
+    {
+      ex = X509_EXTENSION_new();
+
+      X509_EXTENSION_set_object(ex, pcinfo_obj);
+      X509_EXTENSION_set_critical(ex, 1);
+      
+      X509_add_ext(certs[0], ex, -1);
+    }
+  else free(pcinfo_obj);
 
   /* sign the certificate with the signing private key */
   if (EVP_PKEY_type(CApkey->type) == EVP_PKEY_RSA)
@@ -2065,9 +2092,16 @@ int GRSTx509MakeProxyRequest(char **reqtxt, char *proxydir,
     }
         
   if ((keypair = RSA_generate_key(GRST_KEYSIZE, 65537, NULL, NULL)) == NULL)
-                                                               return 1;
+    {
+      free(prvkeyfile);
+      return 1;
+    }
           
-  if ((fp = fopen(prvkeyfile, "w")) == NULL) return 2;
+  if ((fp = fopen(prvkeyfile, "w")) == NULL) 
+    {
+      free(prvkeyfile);
+      return 2;
+    }
   
   chmod(prvkeyfile, S_IRUSR | S_IWUSR);
   free(prvkeyfile);

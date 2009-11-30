@@ -1607,7 +1607,14 @@ int GRSTx509MakeProxyCert(char **proxychain, FILE *debugfp,
 /// errors are output to that file pointer. The proxy will expired in
 /// the given number of minutes starting from the current time.
 {
-  char *ptr, *certchain;
+  char *ptr, *certchain, s[41];
+  static unsigned char pci_str[] = { 0x30, 0x0c, 0x30, 0x0a, 0x06, 0x08,
+    0x2b, 0x06, 0x01, 0x05, 0x05, 0x07, 0x15, 0x01, 0 },
+    kyu_str[] = { 0x03, 0x02, 0x03, 
+                  X509v3_KU_DIGITAL_SIGNATURE | 
+                  X509v3_KU_KEY_ENCIPHERMENT  | 
+                  X509v3_KU_KEY_AGREEMENT, 
+                  0 };
   int i, ncerts, any_rfc_proxies = 0;
   long serial = 1234, ptrlen;
   EVP_PKEY *pkey, *CApkey;
@@ -1616,8 +1623,9 @@ int GRSTx509MakeProxyCert(char **proxychain, FILE *debugfp,
   X509_REQ *req;
   X509_NAME *name, *CAsubject, *newsubject;
   X509_NAME_ENTRY *ent;
-  ASN1_OBJECT *pcinfo_obj = NULL;
-  X509_EXTENSION *ex;
+  ASN1_OBJECT *pci_obj = NULL, *kyu_obj;
+  ASN1_OCTET_STRING *pci_oct, *kyu_oct;
+  X509_EXTENSION *pci_ex, *kyu_ex;
   FILE *fp;
   BIO *reqmem, *certmem;
   time_t notAfter;
@@ -1736,7 +1744,7 @@ int GRSTx509MakeProxyCert(char **proxychain, FILE *debugfp,
       return GRST_RET_FAILED;
     }    
 
-  ASN1_INTEGER_set(X509_get_serialNumber(certs[0]), serial++);
+  ASN1_INTEGER_set(X509_get_serialNumber(certs[0]), (long) time(NULL));
 
   if (!(name = X509_get_subject_name(certs[1])))
     {
@@ -1755,26 +1763,6 @@ int GRSTx509MakeProxyCert(char **proxychain, FILE *debugfp,
       X509_REQ_free(req);
       return GRST_RET_FAILED;
     }    
-
-  /* set issuer and subject name of the cert from the req and the CA */
-  ent = X509_NAME_ENTRY_create_by_NID(NULL, OBJ_txt2nid("commonName"), 
-                                      MBSTRING_ASC, "proxy", -1);
-
-  newsubject = X509_NAME_dup(CAsubject);
-
-  X509_NAME_add_entry(newsubject, ent, -1, 0);
-
-  if (X509_set_subject_name(certs[0], newsubject) != 1)
-    {
-      mpcerror(debugfp,
-      "GRSTx509MakeProxyCert(): error setting subject name of certificate\n");
-
-      X509_REQ_free(req);
-      return GRST_RET_FAILED;
-    }    
-    
-  X509_NAME_free(newsubject);
-  X509_NAME_ENTRY_free(ent);
 
   /* set public key in the certificate */
   if (X509_set_pubkey(certs[0], pkey) != 1)
@@ -1807,7 +1795,7 @@ int GRSTx509MakeProxyCert(char **proxychain, FILE *debugfp,
     
   /* go through chain making sure this proxy is not longer lived */
 
-  pcinfo_obj = OBJ_txt2obj(GRST_PROXYCERTINFO_OID, 0);
+  pci_obj = OBJ_txt2obj(GRST_PROXYCERTINFO_OID, 0);
 
   notAfter = 
      GRSTasn1TimeToTimeT(ASN1_STRING_data(X509_get_notAfter(certs[0])), 0);
@@ -1825,22 +1813,67 @@ int GRSTx509MakeProxyCert(char **proxychain, FILE *debugfp,
            ASN1_UTCTIME_set(X509_get_notAfter(certs[0]), notAfter);
          }
          
-       if (X509_get_ext_by_OBJ(certs[i], pcinfo_obj, -1) > 0) 
+       if (X509_get_ext_by_OBJ(certs[i], pci_obj, -1) > 0) 
          any_rfc_proxies = 1;
      }
 
    /* if any earlier proxies are RFC 3820, then new proxy must be 
-      an RFC 3820 proxy too with the required extension */ 
+      an RFC 3820 proxy too with the required extensions */ 
    if (any_rfc_proxies)
     {
-      ex = X509_EXTENSION_new();
-
-      X509_EXTENSION_set_object(ex, pcinfo_obj);
-      X509_EXTENSION_set_critical(ex, 1);
+      /* key usage */
+      kyu_obj = OBJ_txt2obj(GRST_KEYUSAGE_OID, 0);
+      kyu_ex = X509_EXTENSION_new();
       
-      X509_add_ext(certs[0], ex, -1);
+      X509_EXTENSION_set_object(kyu_ex, kyu_obj);
+      X509_EXTENSION_set_critical(kyu_ex, 1);
+
+      kyu_oct = ASN1_OCTET_STRING_new();
+      ASN1_OCTET_STRING_set(kyu_oct, kyu_str, strlen(kyu_str));
+      X509_EXTENSION_set_data(kyu_ex, kyu_oct);
+      
+      X509_add_ext(certs[0], kyu_ex, -1);
+
+      /* proxy certificate info */
+      pci_ex = X509_EXTENSION_new();
+      
+      X509_EXTENSION_set_object(pci_ex, pci_obj);
+      X509_EXTENSION_set_critical(pci_ex, 1);
+
+      pci_oct = ASN1_OCTET_STRING_new();
+      ASN1_OCTET_STRING_set(pci_oct, pci_str, strlen(pci_str));
+      X509_EXTENSION_set_data(pci_ex, pci_oct);
+      
+      X509_add_ext(certs[0], pci_ex, -1);
     }
-  else free(pcinfo_obj);
+  else free(pci_obj);
+
+  /* set issuer and subject name of the cert from the req and the CA */
+
+  if (any_rfc_proxies) /* user CN=number rather than CN=proxy */
+    {
+       snprintf(s, sizeof(s), "%ld", (long) time(NULL));
+       ent = X509_NAME_ENTRY_create_by_NID(NULL, OBJ_txt2nid("commonName"), 
+                                      MBSTRING_ASC, s, -1);
+    }    
+  else ent = X509_NAME_ENTRY_create_by_NID(NULL, OBJ_txt2nid("commonName"), 
+                                      MBSTRING_ASC, "proxy", -1);
+
+  newsubject = X509_NAME_dup(CAsubject);
+
+  X509_NAME_add_entry(newsubject, ent, -1, 0);
+
+  if (X509_set_subject_name(certs[0], newsubject) != 1)
+    {
+      mpcerror(debugfp,
+      "GRSTx509MakeProxyCert(): error setting subject name of certificate\n");
+
+      X509_REQ_free(req);
+      return GRST_RET_FAILED;
+    }    
+    
+  X509_NAME_free(newsubject);
+  X509_NAME_ENTRY_free(ent);
 
   /* sign the certificate with the signing private key */
   if (EVP_PKEY_type(CApkey->type) == EVP_PKEY_RSA)

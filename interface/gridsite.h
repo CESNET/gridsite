@@ -145,7 +145,8 @@ typedef struct { GRSTgaclCred *firstcred; char *dnlists; } GRSTgaclUser;
 #define GRST_PROXYCERTINFO_OID		"1.3.6.1.5.5.7.1.14"
 #define GRST_VOMS_OID		"1.3.6.1.4.1.8005.100.100.5"
 #define GRST_VOMS_DIR		"/etc/grid-security/vomsdir"
-
+#define GRST_KEYUSAGE_OID       "2.5.29.15"
+ 
 #define GRST_ASN1_MAXCOORDLEN	50
 #define GRST_ASN1_MAXTAGS	500
 

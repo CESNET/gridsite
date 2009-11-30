@@ -1808,7 +1808,6 @@ int GRSTx509MakeProxyCert(char **proxychain, FILE *debugfp,
   /* go through chain making sure this proxy is not longer lived */
 
   pcinfo_obj = OBJ_txt2obj(GRST_PROXYCERTINFO_OID, 0);
-fprintf(stderr, "Make pcinfo_obj\n");
 
   notAfter = 
      GRSTasn1TimeToTimeT(ASN1_STRING_data(X509_get_notAfter(certs[0])), 0);

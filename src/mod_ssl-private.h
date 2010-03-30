@@ -181,4 +181,16 @@ typedef struct {
 #endif
 
 
+typedef struct {
+  void            *mc;
+  unsigned int     enabled;
+  unsigned int     proxy_enabled;
+  const char      *vhost_id;
+  int              vhost_id_len;
+  int              session_cache_timeout;
+  int              insecure_reneg;
+  modssl_ctx_t    *server;
+  modssl_ctx_t    *proxy;
+} SSLSrvConfigRec2;
+
 extern module AP_MODULE_DECLARE_DATA ssl_module;

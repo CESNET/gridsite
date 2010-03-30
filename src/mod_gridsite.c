@@ -1627,7 +1627,7 @@ static void *create_gridsite_srv_config(apr_pool_t *p, server_rec *s)
              sitecastgroups[i].port = 0; /* GridSiteCastGroup mcast-list */
            }
 
-        for (i=1; i <= GRST_SITECAST_ALIASES; ++i)
+        for (i=0; i <= GRST_SITECAST_ALIASES; ++i)
            {
              sitecastaliases[i].sitecast_url   = NULL;
              sitecastaliases[i].port           = 0;
@@ -4261,16 +4261,50 @@ void sitecast_responder(server_rec *main_server)
        } /* **** end of main listening loop **** */
 }
 
+SSL_CTX *mod_gridsite_get_ssl_context( server_rec *this_server)
+{
+   SSLSrvConfigRec  *sc;
+   SSL_CTX          *ctx = NULL;
+
+   sc = ap_get_module_config(this_server->module_config, &ssl_module);
+
+   if ((sc                  != NULL)  &&
+       (sc->enabled)                  &&
+       (sc->server          != NULL)  &&
+       (sc->server->ssl_ctx != NULL))
+      ctx = sc->server->ssl_ctx;
+
+   return ctx;
+}
+
+SSL_CTX *mod_gridsite_get_ssl_context2(server_rec *this_server)
+{
+   SSLSrvConfigRec2 *sc;
+   SSL_CTX          *ctx = NULL;
+
+   sc = ap_get_module_config(this_server->module_config, &ssl_module);
+
+   if ((sc                  != NULL)  &&
+       (sc->enabled)                  &&
+       (sc->server          != NULL)  &&
+       (sc->server->ssl_ctx != NULL))
+      ctx = sc->server->ssl_ctx;
+
+   return ctx;
+}
+
 static int mod_gridsite_server_post_config(apr_pool_t *pPool,
                   apr_pool_t *pLog, apr_pool_t *pTemp, server_rec *main_server)
 {
    SSL_CTX         *ctx;
-   SSLSrvConfigRec *sc;
+   int              i =0;
+   int              mod_ssl_with_insecure_reneg = 0;
    server_rec      *this_server;
    apr_proc_t      *procnew = NULL;
    apr_status_t     status;
    char            *path;
    const char *userdata_key = "sitecast_init";
+   const char *insecure_reneg = "SSLInsecureRenegotiation";
 
    apr_pool_userdata_get((void **) &procnew, userdata_key, 
                          main_server->process->pool);
@@ -4323,20 +4357,33 @@ static int mod_gridsite_server_post_config(apr_pool_t *pPool,
               GRST_SSL_app_data2_idx);
 #endif
 
+  
+   /* look for a SSLInsecureRenegotiation flag - if it exists then the mod_ssl
+      internal variable 'SSLSrvConfigRec' is different */
+   while ( ssl_module.cmds[i].name && !mod_ssl_with_insecure_reneg)
+   {
+       mod_ssl_with_insecure_reneg = (strncmp( ssl_module.cmds[i].name, 
+                                      insecure_reneg, sizeof(insecure_reneg) ) == 0);
+       i++;
+   }
+
+   
+   ap_log_error(APLOG_MARK, APLOG_NOTICE, status, main_server,
+              "mod_gridsite: mod_ssl_with_insecure_reneg = %d", mod_ssl_with_insecure_reneg);
+
    for (this_server = main_server; 
         this_server != NULL; 
         this_server = this_server->next)
       {
         /* we do some GridSite OpenSSL magic for HTTPS servers */
-      
-        sc = ap_get_module_config(this_server->module_config, &ssl_module);
+     
+        if (mod_ssl_with_insecure_reneg)
+            ctx = mod_gridsite_get_ssl_context2(this_server);
+        else 
+            ctx = mod_gridsite_get_ssl_context(this_server);
 
-        if ((sc                  != NULL)  &&
-            (sc->enabled)                  &&
-            (sc->server          != NULL)  &&
-            (sc->server->ssl_ctx != NULL))
-          {
-            ctx = sc->server->ssl_ctx;
+        if (ctx)
+        {
 
             /* in 0.9.7 we could set the issuer-checking callback directly */
 //          ctx->cert_store->check_issued = GRST_X509_check_issued_wrapper;
@@ -4353,7 +4400,7 @@ static int mod_gridsite_server_post_config(apr_pool_t *pPool,
             if (main_server->loglevel >= APLOG_DEBUG)
                  ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, main_server,
                       "Set mod_ssl verify callbacks to GridSite wrappers");
-          }
+        }
       }
 
    /* create sessions directory if necessary */

@@ -1,3 +1,7 @@
+* Tue Mar 30 2010 Andrew McNab <Andrew.McNab@cern.ch>
+- Apply patch to mod_gridsite.c from Jan Just Keijser 
+  <janjust@nikhef.nl> to detect change to 
+  SSLSrvConfigRec etc in "sslireneg" patch to mod_ssl
 * Fri Nov 27 2009 Andrew McNab <Andrew.McNab@cern.ch>
 - GRSTx509MakeProxyCert() now creates RFC 3280 
   proxies if any earlier proxies are RFC style

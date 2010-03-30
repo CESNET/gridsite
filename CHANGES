@@ -1,6 +1,14 @@
+* Tue Mar 30 2010 Andrew McNab <Andrew.McNab@man.ac.uk>
+- Apply patch to mod_gridsite.c from Jan Just Keijser 
+  <janjust@nikhef.nl> to detect change to 
+  SSLSrvConfigRec etc in "sslireneg" patch to mod_ssl
+* Tue Mar 30 2010 Andrew McNab <Andrew.McNab@man.ac.uk>
+- ==== GridSite version 1.1.20 ====
 * Thu Sep 18 2008 <Eamonn.Kenny@cs.tcd.ie>
 - Changed makefile and spec file to include platform
   independent use of lib/lib64.
+* Thu Sep 18 2008
+- ==== GridSite version 1.1.19 ====
 * Mon Apr 24 2006 Andrew McNab <Andrew.McNab@man.ac.uk>
 - Merge delegation functions from before 1.1.18 with
   fixes and mod_gridsite improvements from 1.1.18

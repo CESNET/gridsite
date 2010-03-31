@@ -1,3 +1,6 @@
+* Wed Mar 31 2010 Andrew McNab <Andrew.McNab@cern.ch>
+- Introduce SSLSrvConfigRec_server macro to take
+  this into account when accessing the *server member
 * Tue Mar 30 2010 Andrew McNab <Andrew.McNab@cern.ch>
 - Apply patch to mod_gridsite.c from Jan Just Keijser 
   <janjust@nikhef.nl> to detect change to 

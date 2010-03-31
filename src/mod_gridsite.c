@@ -46,6 +46,9 @@
    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
    See the License for the specific language governing permissions and
    limitations under the License.
+
+   This work has been partially funded by the EU Commission (contract 
+   INFSO-RI-222667) under the EGEE-III collaboration.
 */
 
 /*------------------------------------------------------------------*
@@ -132,6 +135,10 @@ char			*sitecastdnlists = NULL;
 char 			*ocspmodes = NULL;
 struct sitecast_group	sitecastgroups[GRST_SITECAST_GROUPS+1];
 struct sitecast_alias	sitecastaliases[GRST_SITECAST_ALIASES];
+
+ /* This global records whether the SSLSrvConfigRec struct will have 
+    the extra  BOOL insecure_reneg  member */
+int                     mod_ssl_with_insecure_reneg = 0;
 
 #if AP_MODULE_MAGIC_AT_LEAST(20051115,0)
 /* SSL_app_data2_idx is private in Apache 2.2 mod_ssl but can be
@@ -3488,7 +3495,7 @@ int GRST_ssl_callback_SSLVerify_CRL(int ok, X509_STORE_CTX *ctx, conn_rec *c)
     server_rec *s       = c->base_server;
     SSLSrvConfigRec *sc = (SSLSrvConfigRec *) ap_get_module_config(s->module_config, &ssl_module);
     SSLConnRec *sslconn = (SSLConnRec *) ap_get_module_config(c->conn_config, &ssl_module);
-    modssl_ctx_t *mctx  = sslconn->is_proxy ? sc->proxy : sc->server;
+    modssl_ctx_t *mctx  = sslconn->is_proxy ? SSLSrvConfigRec_proxy(sc) : SSLSrvConfigRec_server(sc);
     X509_OBJECT obj;
     X509_NAME *subject, *issuer;
     X509 *cert;
@@ -3698,7 +3705,7 @@ int GRST_callback_SSLVerify_wrapper(int ok, X509_STORE_CTX *ctx)
    request_rec *r      = (request_rec *) SSL_get_ex_data(ssl, GRST_SSL_app_data2_idx);
    SSLSrvConfigRec *sc = (SSLSrvConfigRec *) ap_get_module_config(s->module_config, &ssl_module);
    SSLDirConfigRec *dc = r ? (SSLDirConfigRec *) ap_get_module_config(r->per_dir_config, &ssl_module) : NULL;
-   modssl_ctx_t *mctx  = sslconn->is_proxy ? sc->proxy : sc->server;
+   modssl_ctx_t *mctx  = sslconn->is_proxy ? SSLSrvConfigRec_proxy(sc) : SSLSrvConfigRec_server(sc);
    int verify, depth;
 #endif
    STACK_OF(X509) *certstack;
@@ -4261,49 +4268,17 @@ void sitecast_responder(server_rec *main_server)
        } /* **** end of main listening loop **** */
 }
 
-SSL_CTX *mod_gridsite_get_ssl_context( server_rec *this_server)
-{
-   SSLSrvConfigRec  *sc;
-   SSL_CTX          *ctx = NULL;
-
-   sc = ap_get_module_config(this_server->module_config, &ssl_module);
-
-   if ((sc                  != NULL)  &&
-       (sc->enabled)                  &&
-       (sc->server          != NULL)  &&
-       (sc->server->ssl_ctx != NULL))
-      ctx = sc->server->ssl_ctx;
-
-   return ctx;
-}
-
-SSL_CTX *mod_gridsite_get_ssl_context2(server_rec *this_server)
-{
-   SSLSrvConfigRec2 *sc;
-   SSL_CTX          *ctx = NULL;
-
-   sc = ap_get_module_config(this_server->module_config, &ssl_module);
-
-   if ((sc                  != NULL)  &&
-       (sc->enabled)                  &&
-       (sc->server          != NULL)  &&
-       (sc->server->ssl_ctx != NULL))
-      ctx = sc->server->ssl_ctx;
-
-   return ctx;
-}
-
 static int mod_gridsite_server_post_config(apr_pool_t *pPool,
                   apr_pool_t *pLog, apr_pool_t *pTemp, server_rec *main_server)
 {
    SSL_CTX         *ctx;
-   int              i =0;
-   int              mod_ssl_with_insecure_reneg = 0;
+   SSLSrvConfigRec *sc;
+   int              i = 0;
    server_rec      *this_server;
    apr_proc_t      *procnew = NULL;
    apr_status_t     status;
-   char            *path;
-   const char *userdata_key = "sitecast_init";
+   char            *path;   
+   const char *userdata_key   = "sitecast_init";
    const char *insecure_reneg = "SSLInsecureRenegotiation";
 
    apr_pool_userdata_get((void **) &procnew, userdata_key, 
@@ -4367,7 +4342,6 @@ static int mod_gridsite_server_post_config(apr_pool_t *pPool,
        i++;
    }
 
-   
    ap_log_error(APLOG_MARK, APLOG_NOTICE, status, main_server,
               "mod_gridsite: mod_ssl_with_insecure_reneg = %d", mod_ssl_with_insecure_reneg);
 
@@ -4377,13 +4351,14 @@ static int mod_gridsite_server_post_config(apr_pool_t *pPool,
       {
         /* we do some GridSite OpenSSL magic for HTTPS servers */
      
-        if (mod_ssl_with_insecure_reneg)
-            ctx = mod_gridsite_get_ssl_context2(this_server);
-        else 
-            ctx = mod_gridsite_get_ssl_context(this_server);
-
-        if (ctx)
-        {
+        sc = ap_get_module_config(this_server->module_config, &ssl_module);
+        
+        if ((sc                                  != NULL)  &&
+            (sc->enabled)                                  &&
+            (SSLSrvConfigRec_server(sc)          != NULL)  &&
+            (SSLSrvConfigRec_server(sc)->ssl_ctx != NULL))
+          {
+            ctx = SSLSrvConfigRec_server(sc)->ssl_ctx;
 
             /* in 0.9.7 we could set the issuer-checking callback directly */
 //          ctx->cert_store->check_issued = GRST_X509_check_issued_wrapper;
@@ -4400,7 +4375,7 @@ static int mod_gridsite_server_post_config(apr_pool_t *pPool,
             if (main_server->loglevel >= APLOG_DEBUG)
                  ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, main_server,
                       "Set mod_ssl verify callbacks to GridSite wrappers");
-        }
+          }
       }
 
    /* create sessions directory if necessary */
@@ -4436,8 +4411,8 @@ static void mod_gridsite_child_init(apr_pool_t *pPool, server_rec *pServer)
    apr_dir_t *dir;
    char *filename;
    apr_finfo_t finfo;
-   SSLSrvConfigRec *sc = ap_get_module_config(pServer->module_config, 
-                                                        &ssl_module);          
+   SSLSrvConfigRec *sc = ap_get_module_config(pServer->module_config,
+                                                        &ssl_module);
    GRSTgaclInit();
    mod_gridsite_log_func_server = pServer;
    GRSTerrorLogFunc = mod_gridsite_log_func;

@@ -49,6 +49,11 @@
  * limitations under the License.
  */
 
+/*
+   This work has been partially funded by the EU Commission (contract 
+   INFSO-RI-222667) under the EGEE-III collaboration.
+*/
+
 /*------------------------------------------------------------------*
  * This program is part of GridSite: http://www.gridsite.org/       *
  *------------------------------------------------------------------*/
@@ -150,6 +155,7 @@ typedef struct {
 #endif
 } modssl_ctx_t;
 
+/* original SSLSrvConfigRec */
 typedef struct {
   void            *mc;
   BOOL		   enabled;
@@ -163,6 +169,28 @@ typedef struct {
   modssl_ctx_t    *server;
   modssl_ctx_t    *proxy;
 } SSLSrvConfigRec;
+
+/* SSLSrvConfigRec after mod_ssl patch for CVE-2009-3555 */
+typedef struct {
+  void            *mc;
+  unsigned int     enabled;
+  unsigned int     proxy_enabled;
+  const char      *vhost_id;
+  int              vhost_id_len;
+  int              session_cache_timeout;
+#if AP_MODULE_MAGIC_AT_LEAST(20051115,0)
+  BOOL             cipher_server_pref;
+#endif
+  /* this is the member that was added */
+  int              insecure_reneg;
+  modssl_ctx_t    *server;
+  modssl_ctx_t    *proxy;
+} SSLSrvConfigRec2;
+
+/* The server and proxy members of SSLSrvConfigRec must only be accessed
+   using these macros: */
+#define SSLSrvConfigRec_server(sc) (mod_ssl_with_insecure_reneg ? (((SSLSrvConfigRec2) sc)->server) : (((SSLSrvConfigRec) sc)->server))
+#define SSLSrvConfigRec_proxy(sc) (mod_ssl_with_insecure_reneg ? (((SSLSrvConfigRec2) sc)->proxy) : (((SSLSrvConfigRec) sc)->proxy))
 
 #if AP_MODULE_MAGIC_AT_LEAST(20051115,0)
 typedef struct {
@@ -179,18 +207,5 @@ typedef struct {
     const char   *szUserName;
 } SSLDirConfigRec;
 #endif
-
-
-typedef struct {
-  void            *mc;
-  unsigned int     enabled;
-  unsigned int     proxy_enabled;
-  const char      *vhost_id;
-  int              vhost_id_len;
-  int              session_cache_timeout;
-  int              insecure_reneg;
-  modssl_ctx_t    *server;
-  modssl_ctx_t    *proxy;
-} SSLSrvConfigRec2;
 
 extern module AP_MODULE_DECLARE_DATA ssl_module;

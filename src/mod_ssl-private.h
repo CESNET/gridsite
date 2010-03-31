@@ -189,8 +189,8 @@ typedef struct {
 
 /* The server and proxy members of SSLSrvConfigRec must only be accessed
    using these macros: */
-#define SSLSrvConfigRec_server(sc) (mod_ssl_with_insecure_reneg ? (((SSLSrvConfigRec2) sc)->server) : (((SSLSrvConfigRec) sc)->server))
-#define SSLSrvConfigRec_proxy(sc) (mod_ssl_with_insecure_reneg ? (((SSLSrvConfigRec2) sc)->proxy) : (((SSLSrvConfigRec) sc)->proxy))
+#define SSLSrvConfigRec_server(sc) (mod_ssl_with_insecure_reneg ? (((SSLSrvConfigRec2 *) sc)->server) : (((SSLSrvConfigRec *) sc)->server))
+#define SSLSrvConfigRec_proxy(sc) (mod_ssl_with_insecure_reneg ? (((SSLSrvConfigRec2 *) sc)->proxy) : (((SSLSrvConfigRec *) sc)->proxy))
 
 #if AP_MODULE_MAGIC_AT_LEAST(20051115,0)
 typedef struct {

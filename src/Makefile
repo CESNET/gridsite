@@ -490,6 +490,7 @@ htcp-bin: htcp
 # RPM targets: build and RPMs go into subdirectories of ../RPMTMP/
 rpm: dist
 	export PATCH_VERSION=$(PATCH_VERSION) ; \
+	 export RELEASE_VERSION=$(RELEASE_VERSION) ; \
 	 export MINOR_VERSION=$(MINOR_VERSION) ; \
 	 export MYPREFIX=/usr ; \
 	 ./make-gridsite-spec

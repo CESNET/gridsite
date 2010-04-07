@@ -1,3 +1,5 @@
+* Wed Apr 7 2010 Andrew McNab <Andrew.McNab@cern.ch>
+- ==== GridSite version 1.7.7 ====
 * Wed Mar 31 2010 Andrew McNab <Andrew.McNab@cern.ch>
 - Introduce SSLSrvConfigRec_server macro to take
   this into account when accessing the *server member

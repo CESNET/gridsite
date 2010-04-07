@@ -1,3 +1,9 @@
+* Thu Apr 7 2010 Andrew McNab <Andrew.McNab@cern.ch>
+- Introduce SSLSrvConfigRec_server macro to take
+  into account change to SSLSrvConfigRec etc in 
+  "sslireneg" patch to mod_ssl
+* Thu Apr 7 2010 Andrew McNab <Andrew.McNab@cern.ch>
+- ==== GridSite version 1.5.18 ====
 * Sun Nov 29 2009 Andrew McNab <Andrew.McNab@cern.ch>
 - Back port fixes from 1.7.x branch:
 -  GRSTx509MakeProxyCert() now creates RFC 3280 

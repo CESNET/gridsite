@@ -488,11 +488,14 @@ htcp-bin: htcp
 	rm -Rf ../htcp-bin-$(PATCH_VERSION)
 
 # RPM targets: build and RPMs go into subdirectories of ../RPMTMP/
+RELEASE_VERSION ?= 1
+MYRPMPREFIX ?= /usr
+
 rpm: dist
 	export PATCH_VERSION=$(PATCH_VERSION) ; \
 	 export RELEASE_VERSION=$(RELEASE_VERSION) ; \
 	 export MINOR_VERSION=$(MINOR_VERSION) ; \
-	 export MYPREFIX=/usr ; \
+	 export MYRPMPREFIX=$(MYRPMPREFIX) ; \
 	 ./make-gridsite-spec
 	rm -Rf $(MYRPMDIR)/BUILDROOT $(MYRPMDIR)/BUILD
 	mkdir -p $(MYRPMDIR)/SOURCES $(MYRPMDIR)/SPECS $(MYRPMDIR)/BUILD \

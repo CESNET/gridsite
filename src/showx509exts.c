@@ -39,7 +39,7 @@ main()
 //   seed_prng();
    
 //   fp = fopen("proxy-with-voms", "r");
-   fp = fopen("/tmp/x509up_u300", "r");
+   fp = fopen("/tmp/x509up_u13090", "r");
    
    cert = PEM_read_X509(fp, NULL, NULL, NULL);
       

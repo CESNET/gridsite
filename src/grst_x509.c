@@ -193,7 +193,7 @@ int GRSTx509ChainFree(GRSTx509Chain *chain)
 static int GRSTx509VerifySig(time_t *time1_time, time_t *time2_time,
                              unsigned char *txt, int txt_len,
                              unsigned char *sig, int sig_len, 
-                             X509 *cert)
+                             X509 *cert, EVP_MD *md_type)
 ///
 /// Returns GRST_RET_OK if signature is ok, other values if not.
 {   
@@ -208,9 +208,9 @@ static int GRSTx509VerifySig(time_t *time1_time, time_t *time2_time,
    OpenSSL_add_all_digests();
 #if OPENSSL_VERSION_NUMBER >= 0x0090701fL
    EVP_MD_CTX_init(&ctx);
-   EVP_VerifyInit_ex(&ctx, EVP_md5(), NULL);
+   EVP_VerifyInit_ex(&ctx, md_type, NULL);
 #else
-   EVP_VerifyInit(&ctx, EVP_md5());
+   EVP_VerifyInit(&ctx, md_type);
 #endif
           
    EVP_VerifyUpdate(&ctx, txt, txt_len);
@@ -248,10 +248,11 @@ static int GRSTx509VerifyVomsSig(time_t *time1_time, time_t *time2_time,
 {   
 #define GRST_ASN1_COORDS_VOMS_DN   "-1-1-%d-1-3-1-1-1-%%d-1-%%d"
 #define GRST_ASN1_COORDS_VOMS_INFO "-1-1-%d-1"
+#define GRST_ASN1_COORDS_VOMS_HASH "-1-1-%d-2"
 #define GRST_ASN1_COORDS_VOMS_SIG  "-1-1-%d-3"
-   int            ret, isig, iinfo;
+   int            ret, ihash, isig, iinfo;
    char          *certpath, *certpath2, acvomsdn[200], dn_coords[200],
-                  info_coords[200], sig_coords[200];
+                  info_coords[200], sig_coords[200], hash_coords[200];
    unsigned char *q;
    DIR           *vomsDIR, *vomsDIR2;
    struct dirent *vomsdirent, *vomsdirent2;
@@ -259,9 +260,11 @@ static int GRSTx509VerifyVomsSig(time_t *time1_time, time_t *time2_time,
    EVP_PKEY      *prvkey;
    FILE          *fp;
    EVP_MD_CTX     ctx;
+   EVP_MD	 *md_type = NULL;
    struct stat    statbuf;
    time_t         voms_service_time1 = GRST_MAX_TIME_T, voms_service_time2 = 0,
                   tmp_time1, tmp_time2;
+   ASN1_OBJECT    hash_obj = NULL;
 
    if ((vomsdir == NULL) || (vomsdir[0] == '\0')) return GRST_RET_FAILED;
 
@@ -275,12 +278,26 @@ static int GRSTx509VerifyVomsSig(time_t *time1_time, time_t *time2_time,
             GRST_ASN1_COORDS_VOMS_INFO, acnumber);
    iinfo = GRSTasn1SearchTaglist(taglist, lasttag, info_coords);
 
+   snprintf(hash_coords, sizeof(hash_coords), 
+            GRST_ASN1_COORDS_VOMS_HASH, acnumber);
+   ihash  = GRSTasn1SearchTaglist(taglist, lasttag, hash_coords);
+
    snprintf(sig_coords, sizeof(sig_coords), 
             GRST_ASN1_COORDS_VOMS_SIG, acnumber);
    isig  = GRSTasn1SearchTaglist(taglist, lasttag, sig_coords);
 
-   if ((iinfo < 0) || (isig < 0)) return GRST_RET_FAILED;
+   if ((iinfo < 0) || (ihash < 0) || (isig < 0)) return GRST_RET_FAILED;
+   
+   /* determine hash algorithm's type */
+   
+   d2i_ASN1_OBJECT(&hash_obj, &asn1string[taglist[ihash].start], 
+                   taglist[ihash].length+taglist[ihash].headerlength);
 
+   md_type = EVP_get_digestbyname(OBJ_nid2sn(OBJ_obj2nid(hash_obj)));
+   
+   if (md_type == NULL) return GRST_RET_FAILED;
+   
+   
    vomsDIR = opendir(vomsdir);
    if (vomsDIR == NULL) return GRST_RET_FAILED;
    
@@ -326,7 +343,7 @@ static int GRSTx509VerifyVomsSig(time_t *time1_time, time_t *time2_time,
                             &asn1string[taglist[isig].start+
                                                 taglist[isig].headerlength+1],
                             taglist[isig].length - 1,
-                            cert) == GRST_RET_OK)
+                            cert, md_type) == GRST_RET_OK)
                     {
                       GRSTerrorLog(GRST_LOG_DEBUG, "Matched VOMS cert file %s", vomsdirent2->d_name);
 
@@ -364,7 +381,7 @@ static int GRSTx509VerifyVomsSig(time_t *time1_time, time_t *time2_time,
                             &asn1string[taglist[isig].start+
                                                 taglist[isig].headerlength+1],
                             taglist[isig].length - 1,
-                            cert) == GRST_RET_OK)
+                            cert, md_type) == GRST_RET_OK)
                 {
                   GRSTerrorLog(GRST_LOG_DEBUG, "Matched VOMS cert file %s", vomsdirent->d_name);
 

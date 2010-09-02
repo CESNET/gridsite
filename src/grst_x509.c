@@ -252,7 +252,8 @@ static int GRSTx509VerifyVomsSig(time_t *time1_time, time_t *time2_time,
 #define GRST_ASN1_COORDS_VOMS_SIG  "-1-1-%d-3"
    int            ret, ihash, isig, iinfo;
    char          *certpath, *certpath2, acvomsdn[200], dn_coords[200],
-                  info_coords[200], sig_coords[200], hash_coords[200];
+                  info_coords[200], sig_coords[200], hash_coords[200],
+                 *p;
    unsigned char *q;
    DIR           *vomsDIR, *vomsDIR2;
    struct dirent *vomsdirent, *vomsdirent2;
@@ -264,7 +265,7 @@ static int GRSTx509VerifyVomsSig(time_t *time1_time, time_t *time2_time,
    struct stat    statbuf;
    time_t         voms_service_time1 = GRST_MAX_TIME_T, voms_service_time2 = 0,
                   tmp_time1, tmp_time2;
-   ASN1_OBJECT    hash_obj = NULL;
+   ASN1_OBJECT   *hash_obj = NULL;
 
    if ((vomsdir == NULL) || (vomsdir[0] == '\0')) return GRST_RET_FAILED;
 
@@ -289,8 +290,10 @@ static int GRSTx509VerifyVomsSig(time_t *time1_time, time_t *time2_time,
    if ((iinfo < 0) || (ihash < 0) || (isig < 0)) return GRST_RET_FAILED;
    
    /* determine hash algorithm's type */
+
+   p = &asn1string[taglist[ihash].start];
    
-   d2i_ASN1_OBJECT(&hash_obj, &asn1string[taglist[ihash].start], 
+   d2i_ASN1_OBJECT(&hash_obj, &p, 
                    taglist[ihash].length+taglist[ihash].headerlength);
 
    md_type = EVP_get_digestbyname(OBJ_nid2sn(OBJ_obj2nid(hash_obj)));

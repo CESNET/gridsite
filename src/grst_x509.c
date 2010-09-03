@@ -1,5 +1,5 @@
 /*
-   Copyright (c) 2002-7, Andrew McNab, University of Manchester
+   Copyright (c) 2002-10, Andrew McNab, University of Manchester
    All rights reserved.
 
    Redistribution and use in source and binary forms, with or
@@ -63,6 +63,8 @@
 #include <openssl/bio.h>    
 #include <openssl/des.h>    
 #include <openssl/rand.h>
+#include <openssl/objects.h>
+#include <openssl/asn1.h>
 #endif
 
 #include "gridsite.h"
@@ -248,13 +250,12 @@ static int GRSTx509VerifyVomsSig(time_t *time1_time, time_t *time2_time,
 {   
 #define GRST_ASN1_COORDS_VOMS_DN   "-1-1-%d-1-3-1-1-1-%%d-1-%%d"
 #define GRST_ASN1_COORDS_VOMS_INFO "-1-1-%d-1"
-#define GRST_ASN1_COORDS_VOMS_HASH "-1-1-%d-2"
+#define GRST_ASN1_COORDS_VOMS_HASH "-1-1-%d-2-1"
 #define GRST_ASN1_COORDS_VOMS_SIG  "-1-1-%d-3"
    int            ret, ihash, isig, iinfo;
    char          *certpath, *certpath2, acvomsdn[200], dn_coords[200],
-                  info_coords[200], sig_coords[200], hash_coords[200],
-                 *p;
-   unsigned char *q;
+                  info_coords[200], sig_coords[200], hash_coords[200];
+   unsigned char *q, *p;
    DIR           *vomsDIR, *vomsDIR2;
    struct dirent *vomsdirent, *vomsdirent2;
    X509          *cert;
@@ -293,13 +294,15 @@ static int GRSTx509VerifyVomsSig(time_t *time1_time, time_t *time2_time,
 
    p = &asn1string[taglist[ihash].start];
    
-   d2i_ASN1_OBJECT(&hash_obj, &p, 
-                   taglist[ihash].length+taglist[ihash].headerlength);
+   d2i_ASN1_OBJECT(&hash_obj, (const unsigned char **) &p, 
+                   (long) (taglist[ihash].length+taglist[ihash].headerlength));
 
-   md_type = EVP_get_digestbyname(OBJ_nid2sn(OBJ_obj2nid(hash_obj)));
+   if (hash_obj == NULL) return GRST_RET_FAILED;
+
+   md_type = (EVP_MD *) EVP_get_digestbyname(OBJ_nid2sn(OBJ_obj2nid(hash_obj)));
    
    if (md_type == NULL) return GRST_RET_FAILED;
-   
+
    
    vomsDIR = opendir(vomsdir);
    if (vomsDIR == NULL) return GRST_RET_FAILED;

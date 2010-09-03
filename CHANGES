@@ -1,3 +1,6 @@
+* Fri Sep 3 2010 Andrew McNab <Andrew.McNab@cern.ch>
+- Support hashes other than MD5 for VOMS ACs to
+  address Bug #72185
 * Fri Jun 27 2008 Andrew McNab <Andrew.McNab@cern.ch>
 - ==== GridSite version 1.5.10 ====
 * Mon Jun 23 2008 Andrew McNab <Andrew.McNab@man.ac.uk>

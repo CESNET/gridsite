@@ -1,3 +1,8 @@
+* Thu Sep 16 2010 Andrew McNab <Andrew.McNab@cern.ch>
+- Support hashes other than MD5 for VOMS ACs to
+  address Bug #72185
+* Thu Sep 16 2010 Andrew McNab <Andrew.McNab@cern.ch>
+- ==== GridSite version 1.5.19 ====
 * Thu Apr 7 2010 Andrew McNab <Andrew.McNab@cern.ch>
 - Introduce SSLSrvConfigRec_server macro to take
   into account change to SSLSrvConfigRec etc in 

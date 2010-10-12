@@ -176,6 +176,7 @@ int GRSTx509ChainFree(GRSTx509Chain *chain)
         grst_cert = next_grst_cert;
         
         if (grst_cert->issuer != NULL) free(grst_cert->issuer);
+        if (grst_cert->serial != NULL) free(grst_cert->serial);
         if (grst_cert->dn     != NULL) free(grst_cert->dn);
         if (grst_cert->value  != NULL) free(grst_cert->value);
         if (grst_cert->ocsp   != NULL) free(grst_cert->ocsp);
@@ -666,7 +667,7 @@ static int GRSTx509ChainVomsAdd(GRSTx509Cert **grst_cert,
             acissuerserialASN1.type   = V_ASN1_INTEGER;
             acissuerserialASN1.data   = &asn1string[taglist[itag].start+taglist[itag].headerlength];
 
-            acissuerserial = i2s_ASN1_INTEGER(NULL, acissuerserialASN1);
+            acissuerserial = i2s_ASN1_INTEGER(NULL, &acissuerserialASN1);
 /*
             p = &asn1string[taglist[itag].start+taglist[itag].headerlength];
           
@@ -816,7 +817,7 @@ int GRSTx509ChainLoadCheck(GRSTx509Chain **chain,
    int i,j,ret;                 /* Iteration/temp variables */
    char *proxy_part_DN;         /* Pointer to end part of current-cert-in-chain
                                    maybe eg "/CN=proxy" */
-   char s[80];
+   char s[80], *p;
    char *cacertpath;
    unsigned long subjecthash = 0;	/* hash of the name of first cert */
    unsigned long issuerhash = 0;	/* hash of issuer name of first cert */
@@ -963,8 +964,11 @@ int GRSTx509ChainLoadCheck(GRSTx509Chain **chain,
                 /* NO_CERTSIGN can still be ok due to Proxy Certificates */
               }
 
-            new_grst_cert->serial = i2s_ASN1_INTEGER(NULL, 
-                               X509_get_serialNumber(cert));
+            p = i2s_ASN1_INTEGER(NULL, X509_get_serialNumber(cert));
+            strncpy(new_grst_cert->serial, p, GRST_X509_SERIAL_DIGITS);
+            new_grst_cert->serial[GRST_X509_SERIAL_DIGITS] = '\0';
+            free(p);
+            
             new_grst_cert->notbefore = GRSTasn1TimeToTimeT(
                                ASN1_STRING_data(X509_get_notBefore(cert)), 0);
             new_grst_cert->notafter  = GRSTasn1TimeToTimeT(
@@ -1306,7 +1310,7 @@ int GRSTx509ParseVomsExt(int *lastcred, int maxcreds, size_t credlen,
                       time2_coords[200], serial_coords[200];
    unsigned char     *p;
    long               asn1length;
-   int                lasttag=-1, itag, i, acnumber = 1, 
+   int                lasttag=-1, itag, i, acnumber = 1;
    char              *acissuerserial = NULL;
    struct GRSTasn1TagList taglist[MAXTAG+1];
    time_t             actime1, actime2, time_now;
@@ -1343,7 +1347,7 @@ int GRSTx509ParseVomsExt(int *lastcred, int maxcreds, size_t credlen,
             acissuerserialASN1.type   = V_ASN1_INTEGER;
             acissuerserialASN1.data   = &asn1string[taglist[itag].start+taglist[itag].headerlength];
 
-            acissuerserial = i2s_ASN1_INTEGER(NULL, acissuerserialASN1);
+            acissuerserial = i2s_ASN1_INTEGER(NULL, &acissuerserialASN1);
 /*          
             p = &asn1string[taglist[itag].start+taglist[itag].headerlength];
             
@@ -1430,7 +1434,7 @@ int GRSTx509GetVomsCreds(int *lastcred, int maxcreds, size_t credlen,
         X509_NAME_oneline(X509_get_subject_name(usercert), NULL, 0);
    ucissuer =
         X509_NAME_oneline(X509_get_issuer_name(usercert), NULL, 0);
-   ucserial = i2s_ASN1_INTEGER(X509_get_serialNumber(usercert)));
+   ucserial = i2s_ASN1_INTEGER(NULL, X509_get_serialNumber(usercert));
 
    for (j=sk_X509_num(certstack)-1; j >= 0; --j)
     {

@@ -662,11 +662,11 @@ static int GRSTx509ChainVomsAdd(GRSTx509Cert **grst_cert,
 
         if (itag > -1) 
           {
-            acissuserserialASN1.length = taglist[itag].length;
-            acissuserserialASN1.type   = V_ASN1_INTEGER;
-            acissuserserialASN1.data   = &asn1string[taglist[itag].start+taglist[itag].headerlength];
+            acissuerserialASN1.length = taglist[itag].length;
+            acissuerserialASN1.type   = V_ASN1_INTEGER;
+            acissuerserialASN1.data   = &asn1string[taglist[itag].start+taglist[itag].headerlength];
 
-            acissuserserial = i2s_ASN1_INTEGER(NULL, acissuerserialASN1);
+            acissuerserial = i2s_ASN1_INTEGER(NULL, acissuerserialASN1);
 /*
             p = &asn1string[taglist[itag].start+taglist[itag].headerlength];
           
@@ -1339,11 +1339,11 @@ int GRSTx509ParseVomsExt(int *lastcred, int maxcreds, size_t credlen,
         
         if (itag > -1) 
           {
-            acissuserserialASN1.length = taglist[itag].length;
-            acissuserserialASN1.type   = V_ASN1_INTEGER;
-            acissuserserialASN1.data   = &asn1string[taglist[itag].start+taglist[itag].headerlength];
+            acissuerserialASN1.length = taglist[itag].length;
+            acissuerserialASN1.type   = V_ASN1_INTEGER;
+            acissuerserialASN1.data   = &asn1string[taglist[itag].start+taglist[itag].headerlength];
 
-            acissuserserial = i2s_ASN1_INTEGER(NULL, acissuerserialASN1);
+            acissuerserial = i2s_ASN1_INTEGER(NULL, acissuerserialASN1);
 /*          
             p = &asn1string[taglist[itag].start+taglist[itag].headerlength];
             

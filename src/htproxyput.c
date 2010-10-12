@@ -666,7 +666,7 @@ int main(int argc, char *argv[])
              }
            else
              {
-               printf(" Serial     : %d\n", grst_cert->serial);
+               printf(" Serial     : %s\n", grst_cert->serial);
                printf(" Issuer     : %s\n\n", grst_cert->issuer);              
              }
          }

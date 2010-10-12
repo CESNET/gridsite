@@ -168,6 +168,8 @@ struct GRSTasn1TagList { char treecoords[GRST_ASN1_MAXCOORDLEN+1];
                          int  length;
                          int  tag; } ;
 
+#define GRST_X509_SERIAL_DIGITS 49
+
 typedef struct { int    type;		/* CA, user, proxy, VOMS, ... */
                  int    errors;		/* unchecked, bad sig, bad time */
                  char   *issuer;	/* Cert CA DN, EEC of PC, or VOMS DN */
@@ -176,7 +178,7 @@ typedef struct { int    type;		/* CA, user, proxy, VOMS, ... */
                  time_t notbefore;
                  time_t notafter;
                  int    delegation;	/* relative to END of any chain */
-                 int    serial;
+                 char   serial[GRST_X509_SERIAL_DIGITS+1];
                  char   *ocsp;		/* accessLocation field */
                  void   *raw;		/* X509 or VOMS Extension object */
                  void   *next; } GRSTx509Cert;

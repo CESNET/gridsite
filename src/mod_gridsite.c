@@ -1,5 +1,5 @@
 /*
-   Copyright (c) 2003-9, Andrew McNab, Shiv Kaushal, Joseph Dada,
+   Copyright (c) 2003-10, Andrew McNab, Shiv Kaushal, Joseph Dada,
    and Yibiao Li, University of Manchester. All rights reserved.
 
    Redistribution and use in source and binary forms, with or
@@ -3667,13 +3667,14 @@ int GRST_ssl_callback_SSLVerify_CRL(int ok, X509_STORE_CTX *ctx, conn_rec *c)
             if (!ASN1_INTEGER_cmp(sn, X509_get_serialNumber(cert))) {
                 if (s->loglevel >= APLOG_DEBUG) {
                     char *cp = X509_NAME_oneline(issuer, NULL, 0);
-                    long serial = ASN1_INTEGER_get(sn);
+                    char *serial = i2s_ASN1_INTEGER(NULL,ASN1_INTEGER_get(sn));
 
                     ap_log_error(APLOG_MARK, APLOG_INFO, 0, s,
-                                 "Certificate with serial %ld (0x%lX) "
+                                 "Certificate with serial %s "
                                  "revoked per CRL from issuer %s",
-                                 serial, serial, cp);
+                                 serial, cp);
                     OPENSSL_free(cp);
+                    free(serial);
                 }
 
                 X509_STORE_CTX_set_error(ctx, X509_V_ERR_CERT_REVOKED);

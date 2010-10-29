@@ -1,3 +1,8 @@
+* Fri Oct 29 2010 Andrew McNab <Andrew.McNab@cern.ch>
+- Include patch from Daniel Kouril <kouril@ics.muni.cz>
+  to support single-byte certificate serial numbers
+* Fri Oct 29 2010 Andrew McNab <Andrew.McNab@cern.ch>
+- ==== GridSite version 1.5.20 ====
 * Thu Sep 16 2010 Andrew McNab <Andrew.McNab@cern.ch>
 - Support hashes other than MD5 for VOMS ACs to
   address Bug #72185

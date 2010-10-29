@@ -665,7 +665,9 @@ static int GRSTx509ChainVomsAdd(GRSTx509Cert **grst_cert,
           {
             p = &asn1string[taglist[itag].start+taglist[itag].headerlength];
           
-            if (taglist[itag].length == 2)
+            if (taglist[itag].length == 1)
+             acissuerserial = p[0];
+            else if (taglist[itag].length == 2)
              acissuerserial = p[1] + p[0] * 0x100;
             else if (taglist[itag].length == 3)
              acissuerserial = p[2] + p[1] * 0x100 + p[0] * 0x10000;

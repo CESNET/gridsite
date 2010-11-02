@@ -176,7 +176,6 @@ int GRSTx509ChainFree(GRSTx509Chain *chain)
         grst_cert = next_grst_cert;
         
         if (grst_cert->issuer != NULL) free(grst_cert->issuer);
-        if (grst_cert->serial != NULL) free(grst_cert->serial);
         if (grst_cert->dn     != NULL) free(grst_cert->dn);
         if (grst_cert->value  != NULL) free(grst_cert->value);
         if (grst_cert->ocsp   != NULL) free(grst_cert->ocsp);

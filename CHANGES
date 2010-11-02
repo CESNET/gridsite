@@ -1,3 +1,5 @@
+* Tue Nov 2 2010 Andrew McNab <Andrew.McNab@cern.ch>
+- Fix free of grst->serial string in grst_x509.c
 * Wed Oct 29 2010 Andrew McNab <Andrew.McNab@cern.ch>
 - ==== GridSite version 1.7.8 ====
 * Tue Oct 12 2010 Andrew McNab <Andrew.McNab@cern.ch>

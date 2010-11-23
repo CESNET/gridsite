@@ -1,3 +1,5 @@
+* Tue Nov 23 2010 Andrew McNab <Andrew.McNab@cern.ch>
+- ==== GridSite version 1.7.10 ====
 * Mon Nov 22 2010 Andrew McNab <Andrew.McNab@cern.ch>
 - Patch to grst_x509.c VOMS verification from 
   Daniel Kouril <kouril@ics.muni.cz>

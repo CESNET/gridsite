@@ -248,7 +248,7 @@ static int GRSTx509VerifyVomsSig(time_t *time1_time, time_t *time2_time,
 {   
 #define GRST_ASN1_COORDS_VOMS_DN   "-1-1-%d-1-3-1-1-1-%%d-1-%%d"
 #define GRST_ASN1_COORDS_VOMS_INFO "-1-1-%d-1"
-#define GRST_ASN1_COORDS_VOMS_HASH "-1-1-%d-2"
+#define GRST_ASN1_COORDS_VOMS_HASH "-1-1-%d-2-1"
 #define GRST_ASN1_COORDS_VOMS_SIG  "-1-1-%d-3"
    int            ret, ihash, isig, iinfo;
    char          *certpath, *certpath2, acvomsdn[200], dn_coords[200],
@@ -434,7 +434,7 @@ static int GRSTx509VerifyVomsSigCert(time_t *time1_time, time_t *time2_time,
 #define GRST_ASN1_COORDS_VOMS_INFO "-1-1-%d-1"
 #define GRST_ASN1_COORDS_VOMS_SIG  "-1-1-%d-3"
    int            ret, isig, iinfo, chain_errors = GRST_RET_OK,
-                  cadn_len, vomsdn_len, lsc_found = 0;   
+                  cadn_len, vomsdn_len, lsc_found = 0, ihash;
    char          *lscpath, dn_coords[200],
                   info_coords[200], sig_coords[200], *p, *cacertpath,
                  *vodir, *vomscert_cadn, *vomscert_vomsdn, 
@@ -443,12 +443,16 @@ static int GRSTx509VerifyVomsSigCert(time_t *time1_time, time_t *time2_time,
    unsigned long  issuerhash = 0;
    DIR           *voDIR;
    struct dirent *vodirent;
-   X509          *cacert, *vomscert;
+   X509          *cacert = NULL, *vomscert = NULL;
    EVP_PKEY      *prvkey;
    FILE          *fp;
    EVP_MD_CTX     ctx;
    struct stat    statbuf;
    time_t         tmp_time;
+   ASN1_OBJECT   *hash_obj = NULL;
+   char		  coords[200];
+   EVP_MD        *md_type = NULL;
+   time_t	  voms_service_time1, voms_service_time2;
 
    if ((vomsdir == NULL) || (vomsdir[0] == '\0')) return GRST_RET_FAILED;
 
@@ -464,6 +468,24 @@ static int GRSTx509VerifyVomsSigCert(time_t *time1_time, time_t *time2_time,
      }
 
    GRSTerrorLog(GRST_LOG_DEBUG, "Found included VOMS cert in GRSTx509VerifyVomsSigCert()");
+
+   snprintf(coords, sizeof(coords), GRST_ASN1_COORDS_VOMS_INFO, acnumber);
+   iinfo = GRSTasn1SearchTaglist(taglist, lasttag, coords);
+
+   snprintf(coords, sizeof(coords), GRST_ASN1_COORDS_VOMS_HASH, acnumber);
+   ihash  = GRSTasn1SearchTaglist(taglist, lasttag, coords);
+
+   snprintf(coords, sizeof(coords), GRST_ASN1_COORDS_VOMS_SIG, acnumber);
+   isig  = GRSTasn1SearchTaglist(taglist, lasttag, coords);
+
+   if ((iinfo < 0) || (ihash < 0) || (isig < 0)) return GRST_RET_FAILED;
+
+   q = &asn1string[taglist[ihash].start];
+   d2i_ASN1_OBJECT(&hash_obj, &q,
+		   taglist[ihash].length+taglist[ihash].headerlength);
+
+   md_type = EVP_get_digestbyname(OBJ_nid2sn(OBJ_obj2nid(hash_obj)));
+   if (md_type == NULL) return GRST_RET_FAILED;
 
    /* check issuer CA certificate */
 
@@ -530,8 +552,6 @@ static int GRSTx509VerifyVomsSigCert(time_t *time1_time, time_t *time2_time,
 
    vomscert_cadn = X509_NAME_oneline(X509_get_issuer_name(vomscert),NULL,0);
 
-   X509_free(cacert);
-   X509_free(vomscert);
 
    if (ret != X509_V_OK) return (chain_errors | GRST_CERT_BAD_SIG);
 
@@ -592,7 +612,31 @@ static int GRSTx509VerifyVomsSigCert(time_t *time1_time, time_t *time2_time,
    free(lsc_cadn);
    free(lsc_vomsdn);   
    
-   if (!lsc_found) chain_errors |= GRST_CERT_BAD_SIG;
+   if (!lsc_found) {
+	chain_errors |= GRST_CERT_BAD_SIG;
+	goto end;
+   }
+
+   ret = GRSTx509VerifySig(&voms_service_time1, &voms_service_time2,
+		&asn1string[taglist[iinfo].start],
+		taglist[iinfo].length+taglist[iinfo].headerlength,
+		&asn1string[taglist[isig].start+
+					taglist[isig].headerlength+1],
+		taglist[isig].length - 1,
+		vomscert, md_type);
+   if (ret != GRST_RET_OK) {
+	chain_errors |= GRST_CERT_BAD_SIG;
+	goto end;
+   }
+
+   if (voms_service_time1 > *time1_time) *time1_time = voms_service_time1;
+   if (voms_service_time2 < *time2_time) *time2_time = voms_service_time2;
+
+end:
+   if (cacert)
+	X509_free(cacert);
+   if (vomscert)
+	X509_free(vomscert);
 
    return (chain_errors ? GRST_RET_FAILED : GRST_RET_OK);
 }

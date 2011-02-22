@@ -1,3 +1,6 @@
+* Tue Feb 22 2011 Zdenek Sustr <sustr4@cesnet.cz>
+ - Extended formulation of dependencies btw. packages
+   to fix conflicts when upgrading from EPEL.
 * Tue Nov 23 2010 Andrew McNab <Andrew.McNab@cern.ch>
 - ==== GridSite version 1.7.10 ====
 * Mon Nov 22 2010 Andrew McNab <Andrew.McNab@cern.ch>

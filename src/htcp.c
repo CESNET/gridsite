@@ -55,6 +55,8 @@
 #include <fcntl.h>
 #include <sys/types.h>
 #include <curl/curl.h>
+#include <errno.h>
+#include <netdb.h>
 
 #include "gridsite.h"
 
@@ -126,9 +128,8 @@ struct grst_header_data { int    retcode;
                           int    modified_set;
                           struct grst_stream_data *common_data; } ;
 
-struct grst_sitecast_group { unsigned char quad1; unsigned char quad2; 
-                             unsigned char quad3; unsigned char quad4;
-                             int port; int timewait; int ttl; };
+struct grst_sitecast_group { struct addrinfo *ai;
+                             int timewait; int ttl; };
 
 size_t headers_callback(void *ptr, size_t size, size_t nmemb, void *p)
 /* Find the values of the return code, Content-Length, Last-Modified
@@ -704,94 +705,132 @@ int do_mkdirs(char *sources[], struct grst_stream_data *common_data)
   return anyerror;
 }
 
-int do_ping(struct grst_stream_data *common_data_ptr)
+static int
+parse_groups(const char *grps, struct grst_sitecast_group *sitecast_groups, int group_num, int *res_num)
 {
-  int request_length, response_length, i, ret, s, igroup;
-  struct sockaddr_in srv, from;
-  socklen_t fromlen;
-#define MAXBUF 8192  
-  char *request, response[MAXBUF], *p;
-  GRSThtcpMessage msg;
-  struct timeval start_timeval, wait_timeval, response_timeval;
-  struct grst_sitecast_group sitecast_groups[HTCP_SITECAST_GROUPS];
-  fd_set readsckts;
+  struct addrinfo *ai;
+  struct addrinfo hints;
+  char *groups, *p, *port, *rest, def_port[8];
+  int igroup, ret;
 
-  /* parse common_data_ptr->groups */ 
-
-  p = common_data_ptr->groups;
   igroup = -1;
+  groups = strdup(grps);
+  if (groups == NULL) {
+	perror("Error parsing multicast groups");
+	return ENOMEM;
+  }
 
-  for (igroup=-1; igroup+1 < HTCP_SITECAST_GROUPS; ++igroup)
-     {  
-       sitecast_groups[igroup+1].port     = GRST_HTCP_PORT;
-       sitecast_groups[igroup+1].timewait = 1;
-       sitecast_groups[igroup+1].ttl      = 1;
-       
-       ret = sscanf(p, "%d.%d.%d.%d:%d:%d:%d", 
-                 &(sitecast_groups[igroup+1].quad1),
-                 &(sitecast_groups[igroup+1].quad2),    
-                 &(sitecast_groups[igroup+1].quad3),
-                 &(sitecast_groups[igroup+1].quad4),    
-                 &(sitecast_groups[igroup+1].port),
-                 &(sitecast_groups[igroup+1].ttl),
-                 &(sitecast_groups[igroup+1].timewait));
+  memset(&hints, 0, sizeof(hints));
+  hints.ai_socktype = SOCK_DGRAM;
+  hints.ai_flags = AI_ADDRCONFIG | AI_NUMERICSERV | AI_NUMERICHOST;
 
-       if (ret == 0) break; /* end of list ? */
-         
-       if (ret < 5)
-         {
-           fprintf(stderr, "Failed to parse multicast group "
-                     "parameter %s\n", p);
-           return CURLE_FAILED_INIT;
-         }
-           
-       ++igroup;
-       
-       if ((p = index(p, ',')) == NULL) break;       
-       ++p;
-     }
+  snprintf(def_port, sizeof(def_port), "%u", GRST_HTCP_PORT);
+
+  p = strtok(groups, " ,");
+  while (p && igroup+1 < group_num) {
+	/* still IPv4 only: */
+	port = strchr(p, ':');
+	if (port == NULL) {
+	    fprintf(stderr, "Failed to parse multicast group, port missing\n");
+	    return CURLE_FAILED_INIT;
+	}
+	*port++ = '\0';
+	
+	rest = strchr(port, ':');
+	if (rest)
+	   *rest++ = '\0';
+	
+	ret = getaddrinfo(p, (port) ? port : def_port, &hints, &ai);
+	if (ret) {
+	    goto end_loop;
+	}
+	sitecast_groups[igroup+1].ai = ai;
+
+	sitecast_groups[igroup+1].timewait = 1;
+	sitecast_groups[igroup+1].ttl      = 1;
+	if (rest) {
+	    ret = sscanf(rest, "%d:%d", 
+			&(sitecast_groups[igroup+1].ttl),
+			&(sitecast_groups[igroup+1].timewait));
+	    if (ret < 1) {
+		fprintf(stderr, "Failed to parse multicast group "
+			 "parameter %s\n", p);
+	        return CURLE_FAILED_INIT;
+	    }
+	}
+	
+	igroup++;
+end_loop:
+	p = strtok(NULL, " ,");
+  }
+  free(groups);
 
   if (igroup == -1)
     {
       fprintf(stderr, "Failed to parse multicast group parameter %s\n", p);
       return CURLE_FAILED_INIT;
     }
+  *res_num = igroup;
+  return 0;
+}
 
-  if ((s = socket(AF_INET, SOCK_DGRAM, 0)) < 0) 
+int do_ping(struct grst_stream_data *common_data_ptr)
+{
+  int request_length, response_length, i, ret, s, igroup, max_fd;
+  struct sockaddr from;
+  socklen_t fromlen;
+#define MAXBUF 8192  
+  char *request, response[MAXBUF];
+  GRSThtcpMessage msg;
+  struct timeval start_timeval, wait_timeval, response_timeval;
+  struct grst_sitecast_group sitecast_groups[HTCP_SITECAST_GROUPS];
+  fd_set readsckts, open_sckts;
+  struct addrinfo *a;
+  char host[INET6_ADDRSTRLEN];
+  char serv[8];
+
+  /* parse common_data_ptr->groups */ 
+  if (common_data_ptr->groups == NULL)
     {
-      fprintf(stderr, "Failed to open UDP socket\n");
+      fprintf(stderr, "No multicast groups given\n");
       return CURLE_FAILED_INIT;
     }
 
+  ret = parse_groups(common_data_ptr->groups, sitecast_groups, HTCP_SITECAST_GROUPS, &igroup);
+  if (ret)
+	return ret;
+
   /* loop through multicast groups and send off the NOP pings */
-
+  GRSThtcpNOPrequestMake(&request, &request_length,
+			 (int) (start_timeval.tv_usec + i));
   gettimeofday(&start_timeval, NULL);
+  FD_ZERO(&open_sckts);
+  max_fd = -1;
+  for (i=0; i <= igroup; ++i) {
+	a = sitecast_groups[i].ai;
+	for (a = sitecast_groups[i].ai; a != NULL; a = a->ai_next) {
+	    s = socket(a->ai_family, a->ai_socktype, a->ai_protocol);
+	    if (s < 0)
+		continue;
 
-  for (i=0; i <= igroup; ++i)
-     {
-       bzero(&srv, sizeof(srv));
-       srv.sin_family = AF_INET;
-       srv.sin_port = htons(sitecast_groups[i].port);
-       srv.sin_addr.s_addr = htonl(sitecast_groups[i].quad1*0x1000000
-                                 + sitecast_groups[i].quad2*0x10000
-                                 + sitecast_groups[i].quad3*0x100
-                                 + sitecast_groups[i].quad4);
+	    ret = sendto(s, request, request_length, 0, a->ai_addr, a->ai_addrlen);
+	    if (ret < 0) {
+		close(s);
+		continue;
+	    }
 
-       GRSThtcpNOPrequestMake(&request, &request_length, 
-                              (int) (start_timeval.tv_usec + i));
-     
-       sendto(s, request, request_length, 0, (struct sockaddr *) &srv,
-                                                    sizeof(srv));
-       free(request);
+	    if (common_data_ptr->verbose > 0) {
+		getnameinfo(a->ai_addr, a->ai_addrlen, host, sizeof(host), NULL, 0, NI_NUMERICHOST);
+		fprintf(stderr, "UDP/HTCP NOP ping to %s\n", host);
+	    }
 
-       if (common_data_ptr->verbose > 0)
-         fprintf(stderr, "UDP/HTCP NOP ping to %d:%d:%d:%d %d\n",
-                         sitecast_groups[i].quad1,
-                         sitecast_groups[i].quad2,
-                         sitecast_groups[i].quad3,
-                         sitecast_groups[i].quad4,
-                         sitecast_groups[i].port);
-     }
+	    
+	    FD_SET(s, &open_sckts);
+	    if (s > max_fd)
+		max_fd = s;
+	}
+  }
+  free(request);
 
   /* reusing wait_timeval is a Linux-specific feature of select() */
   wait_timeval.tv_sec = common_data_ptr->timeout 
@@ -800,20 +839,31 @@ int do_ping(struct grst_stream_data *common_data_ptr)
 
   while ((wait_timeval.tv_sec > 0) || (wait_timeval.tv_usec > 0))
        {
-         FD_ZERO(&readsckts);
-         FD_SET(s, &readsckts);
-  
-         ret = select(s + 1, &readsckts, NULL, NULL, &wait_timeval);
+	 readsckts = open_sckts;
+ 
+         ret = select(max_fd + 1, &readsckts, NULL, NULL, &wait_timeval);
          gettimeofday(&response_timeval, NULL);
 
          if (ret > 0)
            {
+	     for (s = 0; s <= max_fd; s++) {
+		if (FD_ISSET(s, &readsckts))
+		   break;
+	     }
+	     if (s > max_fd)
+		break;
+
+	     fromlen = sizeof(from);
              response_length = recvfrom(s, response, MAXBUF,
                                         0, &from, &fromlen);
   
-             if (common_data_ptr->verbose > 0)
-              fprintf(stderr, "UDP mesg from %s:%d\n",
-                              inet_ntoa(from.sin_addr), ntohs(from.sin_port));
+	     getnameinfo(&from, fromlen,
+			 host, sizeof(host),
+			 serv, sizeof(serv), NI_NUMERICHOST);
+             if (common_data_ptr->verbose > 0) {
+              fprintf(stderr, "UDP mesg from %s:%s\n",
+                              host, serv);
+	     }
 
              if ((GRSThtcpMessageParse(&msg, response, response_length) 
                                                       == GRST_RET_OK) &&
@@ -821,9 +871,8 @@ int do_ping(struct grst_stream_data *common_data_ptr)
                  (msg.trans_id >= (int) start_timeval.tv_usec) &&
                  (msg.trans_id <= (int) (start_timeval.tv_usec + igroup)))
                {
-                 printf("%s:%d %.3fms\n", 
-                          inet_ntoa(from.sin_addr),
-                          ntohs(from.sin_port), 
+                 printf("%s:%s %.3fms\n", 
+                          host, serv,
                           (((long) 1000000 * response_timeval.tv_sec) +
                            ((long) response_timeval.tv_usec) -
                            ((long) 1000000 * start_timeval.tv_sec) -
@@ -831,7 +880,10 @@ int do_ping(struct grst_stream_data *common_data_ptr)
                }
            }
        }
-       
+   for (s = 0; s <=max_fd; s++)
+	if (FD_ISSET(s, &open_sckts))
+		close(s);
+
    return GRST_RET_OK;
 }
 
@@ -840,68 +892,29 @@ int do_finds(char *sources[],
 {
   int          isrc;
 
-  int request_length, response_length, i, ret, s, igroup;
-  struct sockaddr_in srv, from;
+  int request_length, response_length, i, ret, s, igroup, max_fd;
+  struct sockaddr from;
   socklen_t fromlen;
 #define MAXBUF 8192  
   char *request, response[MAXBUF], *p;
   GRSThtcpMessage msg;
   struct timeval start_timeval, wait_timeval;
   struct grst_sitecast_group sitecast_groups[HTCP_SITECAST_GROUPS];
-  fd_set readsckts;
+  fd_set readsckts, open_sckts;
+  struct addrinfo *a;
+  char host[INET6_ADDRSTRLEN];
+  char serv[8];
 
   /* parse common_data_ptr->groups */ 
-
   if (common_data_ptr->groups == NULL)
     {
       fprintf(stderr, "No multicast groups given\n");
       return CURLE_FAILED_INIT;
     }
 
-  p = common_data_ptr->groups;
-  igroup = -1;
-
-  for (igroup=-1; igroup+1 < HTCP_SITECAST_GROUPS;)
-     {  
-       sitecast_groups[igroup+1].port     = GRST_HTCP_PORT;
-       sitecast_groups[igroup+1].timewait = 1;
-       sitecast_groups[igroup+1].ttl      = 1;
-       
-       ret = sscanf(p, "%d.%d.%d.%d:%d:%d:%d", 
-                 &(sitecast_groups[igroup+1].quad1),
-                 &(sitecast_groups[igroup+1].quad2),    
-                 &(sitecast_groups[igroup+1].quad3),
-                 &(sitecast_groups[igroup+1].quad4),    
-                 &(sitecast_groups[igroup+1].port),
-                 &(sitecast_groups[igroup+1].ttl),
-                 &(sitecast_groups[igroup+1].timewait));
-
-       if (ret == 0) break; /* end of list ? */
-         
-       if (ret < 5)
-         {
-           fprintf(stderr, "Failed to parse multicast group "
-                     "parameter %s\n", p);
-           return CURLE_FAILED_INIT;
-         }
-           
-       ++igroup;
-       
-       if ((p = index(p, ',')) == NULL) break;       
-       ++p;
-     }
-
-  if (igroup == -1)
-    {
-      fprintf(stderr, "Failed to parse multicast group parameter %s\n", p);
-      return CURLE_FAILED_INIT;
-    }
-
-  if ((s = socket(AF_INET, SOCK_DGRAM, 0)) < 0) 
-    {
-      fprintf(stderr, "Failed to open UDP socket\n");
-      return CURLE_FAILED_INIT;
-    }
+  ret = parse_groups(common_data_ptr->groups, sitecast_groups, HTCP_SITECAST_GROUPS, &igroup);
+  if (ret)
+        return ret;
 
   /* loop through multicast groups since we need to take each 
      ones timewait into account */
@@ -910,48 +923,61 @@ int do_finds(char *sources[],
 
   for (i=0; i <= igroup; ++i)
      {
-       if (common_data_ptr->verbose)
-        fprintf(stderr, "Querying multicast group %d.%d.%d.%d:%d:%d:%d\n",
-                sitecast_groups[i].quad1, sitecast_groups[i].quad2,
-                sitecast_groups[i].quad3, sitecast_groups[i].quad4,
-                sitecast_groups[i].port, sitecast_groups[i].ttl,
-                sitecast_groups[i].timewait);
-        
-       bzero(&srv, sizeof(srv));
-       srv.sin_family = AF_INET;
-       srv.sin_port = htons(sitecast_groups[i].port);
-       srv.sin_addr.s_addr = htonl(sitecast_groups[i].quad1*0x1000000
-                                 + sitecast_groups[i].quad2*0x10000
-                                 + sitecast_groups[i].quad3*0x100
-                                 + sitecast_groups[i].quad4);
+       
+       FD_ZERO(&open_sckts);
+       max_fd = -1;
+       for (a = sitecast_groups[i].ai; a != NULL; a = a->ai_next) {
+		s = socket(a->ai_family, a->ai_socktype, a->ai_protocol);
+		if (s < 0)
+			continue;
 
-       /* send off queries, one for each source file */
+		if (common_data_ptr->verbose) {
+			getnameinfo(a->ai_addr, a->ai_addrlen,
+		    		host, sizeof(host),
+		    		serv, sizeof(serv), NI_NUMERICHOST);
+        		fprintf(stderr, "Querying multicast group %s:%s:%d:%d\n",
+				host, serv, sitecast_groups[i].ttl,
+                		sitecast_groups[i].timewait);
+		}
 
-       for (isrc=0; sources[isrc] != NULL; ++isrc)
-          {
-            GRSThtcpTSTrequestMake(&request, &request_length, 
-                                   (int) (start_timeval.tv_usec + isrc),
-                                   "GET", sources[isrc], "");
+	       /* send off queries, one for each source file */
 
-            sendto(s, request, request_length, 0, 
-                       (struct sockaddr *) &srv, sizeof(srv));
+	       for (isrc=0; sources[isrc] != NULL; ++isrc)
+		  {
+		    GRSThtcpTSTrequestMake(&request, &request_length, 
+					   (int) (start_timeval.tv_usec + isrc),
+					   "GET", sources[isrc], "");
 
-            free(request);
-          }
+		    sendto(s, request, request_length, 0, 
+			       a->ai_addr, a->ai_addrlen);
+
+		    free(request);
+		  }
+		FD_SET(s, &open_sckts);
+		if (s > max_fd)
+			max_fd = s;
+	}
           
-       /* reusing wait_timeval is a Linux-specific feature of select() */
-       wait_timeval.tv_usec = 0;
-       wait_timeval.tv_sec  = sitecast_groups[i].timewait;
+       	/* reusing wait_timeval is a Linux-specific feature of select() */
+       	wait_timeval.tv_usec = 0;
+      	wait_timeval.tv_sec  = sitecast_groups[i].timewait;
 
-       while ((wait_timeval.tv_sec > 0) || (wait_timeval.tv_usec > 0))
-            {
-              FD_ZERO(&readsckts);
-              FD_SET(s, &readsckts);
-  
-              ret = select(s + 1, &readsckts, NULL, NULL, &wait_timeval);
+       	while ((wait_timeval.tv_sec > 0) || (wait_timeval.tv_usec > 0))
+       {
+	      readsckts = open_sckts;
+
+              ret = select(max_fd + 1, &readsckts, NULL, NULL, &wait_timeval);
 
               if (ret > 0)
                 {
+		  for (s = 0; s <= max_fd; s++) {
+			if (FD_ISSET(s, &readsckts))
+				break;
+		  }
+		  if (s > max_fd)
+			break;
+
+		  fromlen = sizeof(from);
                   response_length = recvfrom(s, response, MAXBUF,
                                              0, &from, &fromlen);
   
@@ -975,6 +1001,9 @@ int do_finds(char *sources[],
             }
 
      }
+   for (s = 0; s <=max_fd; s++)
+	if (FD_ISSET(s, &open_sckts))
+		close(s);
 
    return GRST_RET_OK;
 }
@@ -982,15 +1011,18 @@ int do_finds(char *sources[],
 int translate_sitecast_url(char **source_ptr,
                            struct grst_stream_data *common_data_ptr)
 {
-  int request_length, response_length, i, ret, s, igroup;
-  struct sockaddr_in srv, from;
+  int request_length, response_length, i, ret, s, igroup, max_fd;
+  struct sockaddr from;
   socklen_t fromlen;
 #define MAXBUF 8192  
   char *request, response[MAXBUF], *p;
   GRSThtcpMessage msg;
   struct timeval start_timeval, wait_timeval;
   struct grst_sitecast_group sitecast_groups[HTCP_SITECAST_GROUPS];
-  fd_set readsckts;
+  fd_set readsckts, open_sckts;
+  struct addrinfo *a;
+  char host[INET6_ADDRSTRLEN];
+  char serv[8];
 
   /* parse common_data_ptr->groups */ 
 
@@ -1000,82 +1032,44 @@ int translate_sitecast_url(char **source_ptr,
       return CURLE_FAILED_INIT;
     }
 
-  p = common_data_ptr->groups;
-  igroup = -1;
-  
-  for (igroup=-1; igroup+1 < HTCP_SITECAST_GROUPS;)
-     {  
-       sitecast_groups[igroup+1].port     = GRST_HTCP_PORT;
-       sitecast_groups[igroup+1].timewait = 1;
-       sitecast_groups[igroup+1].ttl      = 1;
-       
-       ret = sscanf(p, "%d.%d.%d.%d:%d:%d:%d", 
-                 &(sitecast_groups[igroup+1].quad1),
-                 &(sitecast_groups[igroup+1].quad2),    
-                 &(sitecast_groups[igroup+1].quad3),
-                 &(sitecast_groups[igroup+1].quad4),    
-                 &(sitecast_groups[igroup+1].port),
-                 &(sitecast_groups[igroup+1].ttl),
-                 &(sitecast_groups[igroup+1].timewait));
-
-       if (ret == 0) break; /* end of list ? */
-         
-       if (ret < 5)
-         {
-           fprintf(stderr, "Failed to parse multicast group "
-                     "parameter %s\n", p);
-           return CURLE_FAILED_INIT;
-         }
-         
-       ++igroup;  
-       
-       if ((p = index(p, ',')) == NULL) break;       
-       ++p;
-     }
-
-  if (igroup == -1)
-    {
-      fprintf(stderr, "Failed to parse multicast group parameter %s\n", p);
-      return CURLE_FAILED_INIT;
-    }
-
-  if ((s = socket(AF_INET, SOCK_DGRAM, 0)) < 0) 
-    {
-      fprintf(stderr, "Failed to open UDP socket\n");
-      return CURLE_FAILED_INIT;
-    }
+  ret = parse_groups(common_data_ptr->groups, sitecast_groups, HTCP_SITECAST_GROUPS, &igroup);
+  if (ret)
+	return ret;
 
   /* loop through multicast groups since we need to take each 
      ones timewait into account */
 
   gettimeofday(&start_timeval, NULL);
 
+  GRSThtcpTSTrequestMake(&request, &request_length, 
+                         (int) (start_timeval.tv_usec),
+                         "GET", *source_ptr, "");
+
   for (i=0; i <= igroup; ++i)
      {
-       if (common_data_ptr->verbose)
-        fprintf(stderr, "Querying multicast group %d.%d.%d.%d:%d:%d:%d\n",
-                sitecast_groups[i].quad1, sitecast_groups[i].quad2,
-                sitecast_groups[i].quad3, sitecast_groups[i].quad4,
-                sitecast_groups[i].port, sitecast_groups[i].ttl,
-                sitecast_groups[i].timewait);
-        
-       bzero(&srv, sizeof(srv));
-       srv.sin_family = AF_INET;
-       srv.sin_port = htons(sitecast_groups[i].port);
-       srv.sin_addr.s_addr = htonl(sitecast_groups[i].quad1*0x1000000
-                                 + sitecast_groups[i].quad2*0x10000
-                                 + sitecast_groups[i].quad3*0x100
-                                 + sitecast_groups[i].quad4);
+       FD_ZERO(&open_sckts);
+       max_fd = -1;
+       for (a = sitecast_groups[i].ai; a != NULL; a = a->ai_next) {
+		s = socket(a->ai_family, a->ai_socktype, a->ai_protocol);
+		if (s < 0)
+			continue;
+		if (common_data_ptr->verbose) {
+		 getnameinfo(a->ai_addr, a->ai_addrlen,
+			host, sizeof(host),
+			serv, sizeof(serv), NI_NUMERICHOST);
+		 fprintf(stderr, "Querying multicast group %s:%s:%d:%d\n",
+			 host, serv, sitecast_groups[i].ttl,
+			 sitecast_groups[i].timewait);
+		}
 
-       /* send off queries, one for each source file */
+       		/* send off queries, one for each source file */
+       		sendto(s, request, request_length, 0, 
+                       a->ai_addr, a->ai_addrlen);
 
-       GRSThtcpTSTrequestMake(&request, &request_length, 
-                                   (int) (start_timeval.tv_usec),
-                                   "GET", *source_ptr, "");
-
-       sendto(s, request, request_length, 0, 
-                       (struct sockaddr *) &srv, sizeof(srv));
-
+       		FD_SET(s, &open_sckts);
+       		if (s > max_fd)
+			max_fd = s;
+       }
        free(request);
           
        /* reusing wait_timeval is a Linux-specific feature of select() */
@@ -1084,13 +1078,20 @@ int translate_sitecast_url(char **source_ptr,
 
        while ((wait_timeval.tv_sec > 0) || (wait_timeval.tv_usec > 0))
             {
-              FD_ZERO(&readsckts);
-              FD_SET(s, &readsckts);
+              readsckts = open_sckts;
   
-              ret = select(s + 1, &readsckts, NULL, NULL, &wait_timeval);
+              ret = select(max_fd + 1, &readsckts, NULL, NULL, &wait_timeval);
 
               if (ret > 0)
                 {
+		  for (s = 0; s <= max_fd; s++) {
+			if (FD_ISSET(s, &readsckts))
+				break;
+		  }
+		  if (s > max_fd)
+			break;
+
+		  fromlen = sizeof(from);
                   response_length = recvfrom(s, response, MAXBUF,
                                              0, &from, &fromlen);
   
@@ -1121,6 +1122,9 @@ int translate_sitecast_url(char **source_ptr,
             }
 
      }
+  for (s = 0; s <=max_fd; s++)
+	if (FD_ISSET(s, &open_sckts))
+		close(s);
      
   return GRST_RET_OK;
 }

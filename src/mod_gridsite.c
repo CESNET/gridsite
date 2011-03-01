@@ -118,7 +118,7 @@ module AP_MODULE_DECLARE_DATA gridsite_module;
 #define GRST_SITECAST_GROUPS 32
 
 struct sitecast_group
-   { int socket; int quad1; int quad2; int quad3; int quad4; int port; };
+   { char *address; int port; };
 
 #define GRST_SITECAST_ALIASES 32
    
@@ -139,6 +139,11 @@ struct sitecast_alias	sitecastaliases[GRST_SITECAST_ALIASES];
  /* This global records whether the SSLSrvConfigRec struct will have 
     the extra  BOOL insecure_reneg  member */
 int                     mod_ssl_with_insecure_reneg = 0;
+
+struct sitecast_sockets {
+    fd_set fds;
+    int max_fd;
+} sitecast_sockets;
 
 #if AP_MODULE_MAGIC_AT_LEAST(20051115,0)
 /* SSL_app_data2_idx is private in Apache 2.2 mod_ssl but can be
@@ -1622,10 +1627,6 @@ static void *create_gridsite_srv_config(apr_pool_t *p, server_rec *s)
 
         sitecastdnlists = NULL;
 
-        sitecastgroups[0].quad1 = 0;
-        sitecastgroups[0].quad2 = 0;
-        sitecastgroups[0].quad3 = 0;
-        sitecastgroups[0].quad4 = 0;
         sitecastgroups[0].port  = GRST_HTCP_PORT;
                                       /* GridSiteCastUniPort udp-port */
 
@@ -1902,13 +1903,10 @@ static const char *mod_gridsite_take1_cmds(cmd_parms *a, void *cfg,
              {
                sitecastgroups[i].port = GRST_HTCP_PORT;
              
-               if (sscanf(parm, "%d.%d.%d.%d:%d",
-                          &(sitecastgroups[i].quad1), 
-                          &(sitecastgroups[i].quad2), 
-                          &(sitecastgroups[i].quad3), 
-                          &(sitecastgroups[i].quad4), 
-                          &(sitecastgroups[i].port)) < 4)
-                 return "Failed parsing GridSiteCastGroup nnn.nnn.nnn.nnn[:port]";
+               if (sscanf(parm, "%s:%d",
+                          &(sitecastgroups[i].address), 
+                          &(sitecastgroups[i].port)) < 1)
+                 return "Failed parsing GridSiteCastGroup";
                  
                break;
              }
@@ -3940,35 +3938,44 @@ int GRST_callback_SSLVerify_wrapper(int ok, X509_STORE_CTX *ctx)
 }
 
 void sitecast_handle_NOP_request(server_rec *main_server, 
-                                 GRSThtcpMessage *htcp_mesg, int igroup,
-                                 struct sockaddr_in *client_addr_ptr)
+                                 GRSThtcpMessage *htcp_mesg, int s,
+                                 struct sockaddr *client_addr_ptr,
+				 socklen_t client_addr_len)
 {
   int  outbuf_len;
   char *outbuf;
+  char host[INET6_ADDRSTRLEN];
+  char serv[8];
   
   if (GRSThtcpNOPresponseMake(&outbuf, &outbuf_len,
                               htcp_mesg->trans_id) == GRST_RET_OK)
     {
+      getnameinfo(client_addr_ptr, client_addr_len,
+		  host, sizeof(host), serv, sizeof(serv), NI_NUMERICHOST);
       ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, main_server,
-            "SiteCast sends NOP response from port %d to %s:%d",
-            sitecastgroups[0].port, inet_ntoa(client_addr_ptr->sin_addr),
-            ntohs(client_addr_ptr->sin_port));
+            "SiteCast sends NOP response to %s:%s",
+            host, serv);
 
-      sendto(sitecastgroups[0].socket, outbuf, outbuf_len, 0,
-                 client_addr_ptr, sizeof(struct sockaddr_in));
+      sendto(s, outbuf, outbuf_len, 0,
+             client_addr_ptr, client_addr_len);
                  
       free(outbuf);
     }
 }
 
 void sitecast_handle_TST_GET(server_rec *main_server, 
-                             GRSThtcpMessage *htcp_mesg, int igroup,
-                             struct sockaddr_in *client_addr_ptr)
+                             GRSThtcpMessage *htcp_mesg, int s,
+                             struct sockaddr *client_addr_ptr,
+			     socklen_t client_addr_len)
 {
-  int             i, outbuf_len, ialias;
-  char            *filename, *outbuf, *location, *local_uri = NULL;
+  int             outbuf_len, ialias;
+  char            *filename, *outbuf, *location;
   struct stat     statbuf;
+  char host[INET6_ADDRSTRLEN];
+  char serv[8];
   
+  getnameinfo(client_addr_ptr, client_addr_len,
+	      host, sizeof(host), serv, sizeof(serv), NI_NUMERICHOST);
   ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, main_server,
         "SiteCast responder received TST GET with uri %s", 
         htcp_mesg->uri->text, GRSThtcpCountstrLen(htcp_mesg->uri));
@@ -3980,11 +3987,10 @@ void sitecast_handle_TST_GET(server_rec *main_server,
        if (sitecastaliases[ialias].sitecast_url == NULL) 
          {
            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, main_server,
-              "SiteCast responder does not handle %*s requested by %s:%d",
+              "SiteCast responder does not handle %*s requested by %s:%s",
                         GRSThtcpCountstrLen(htcp_mesg->uri),
                         htcp_mesg->uri->text,
-                        inet_ntoa(client_addr_ptr->sin_addr),
-                        ntohs(client_addr_ptr->sin_port));
+			host, serv);
       
            return; /* no match */
          }
@@ -3999,11 +4005,10 @@ void sitecast_handle_TST_GET(server_rec *main_server,
   if (ialias == GRST_SITECAST_ALIASES) 
     {
       ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, main_server,
-              "SiteCast responder does not handle %*s requested by %s:%d",
+              "SiteCast responder does not handle %*s requested by %s:%s",
                         GRSThtcpCountstrLen(htcp_mesg->uri),
                         htcp_mesg->uri->text,
-                        inet_ntoa(client_addr_ptr->sin_addr),
-                        ntohs(client_addr_ptr->sin_port));
+                        host, serv);
       
       return; /* no match */
     }
@@ -4034,12 +4039,11 @@ void sitecast_handle_TST_GET(server_rec *main_server,
                                   location, "", "") == GRST_RET_OK)
         {
           ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, main_server,
-            "SiteCast sends TST response from port %d to %s:%d",
-            sitecastgroups[0].port, inet_ntoa(client_addr_ptr->sin_addr),
-            ntohs(client_addr_ptr->sin_port));
+            "SiteCast sends TST response to %s:%s",
+	    host, serv);
 
-          sendto(sitecastgroups[0].socket, outbuf, outbuf_len, 0,
-                 client_addr_ptr, sizeof(struct sockaddr_in));
+          sendto(s, outbuf, outbuf_len, 0,
+                 client_addr_ptr, client_addr_len);
                  
           free(outbuf);
         }
@@ -4056,33 +4060,38 @@ void sitecast_handle_TST_GET(server_rec *main_server,
 }
 
 void sitecast_handle_request(server_rec *main_server, 
-                             char *reqbuf, int reqbuf_len, int igroup,
-                             struct sockaddr_in *client_addr_ptr)
+                             char *reqbuf, int reqbuf_len,
+			     int s,
+                             struct sockaddr *client_addr_ptr,
+			     socklen_t client_addr_len)
 {
   GRSThtcpMessage htcp_mesg;
+  char host[INET6_ADDRSTRLEN];
+  char serv[8];
 
+  getnameinfo(client_addr_ptr, client_addr_len,
+	      host, sizeof(host),
+	      serv, sizeof(serv), NI_NUMERICHOST);
   if (GRSThtcpMessageParse(&htcp_mesg,reqbuf,reqbuf_len) != GRST_RET_OK)
     {
       ap_log_error(APLOG_MARK, APLOG_ERR, 0, main_server,
-              "SiteCast responder rejects format of UDP message from %s:%d",
-                        inet_ntoa(client_addr_ptr->sin_addr),
-                        ntohs(client_addr_ptr->sin_port));
+              "SiteCast responder rejects format of UDP message from %s:%s",
+                        host, serv);
       return;
     }
 
   if (htcp_mesg.rr != 0) /* ignore HTCP responses: we just do requests */
     {
       ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, main_server,
-              "SiteCast responder ignores HTCP response from %s:%d",
-                        inet_ntoa(client_addr_ptr->sin_addr),
-                        ntohs(client_addr_ptr->sin_port));
+              "SiteCast responder ignores HTCP response from %s:%s",
+                        host, serv);
       return;
     }
 
   if (htcp_mesg.opcode == GRSThtcpNOPop)
     {
-      sitecast_handle_NOP_request(main_server, &htcp_mesg, 
-                                  igroup, client_addr_ptr);
+      sitecast_handle_NOP_request(main_server, &htcp_mesg, s,
+                                  client_addr_ptr, client_addr_len);
       return;
     }
 
@@ -4093,115 +4102,146 @@ void sitecast_handle_request(server_rec *main_server,
           ((GRSThtcpCountstrLen(htcp_mesg.method) == 4) &&
            (strncmp(htcp_mesg.method->text, "HEAD", 4) == 0)))
         {
-          sitecast_handle_TST_GET(main_server, &htcp_mesg, 
-                                  igroup, client_addr_ptr);
+          sitecast_handle_TST_GET(main_server, &htcp_mesg, s,
+                                  client_addr_ptr, client_addr_len);
           return;
         }
         
       ap_log_error(APLOG_MARK, APLOG_ERR, 0, main_server,
-          "SiteCast responder rejects method %*s in TST message from %s:%d",
+          "SiteCast responder rejects method %*s in TST message from %s:%s",
           GRSThtcpCountstrLen(htcp_mesg.method), htcp_mesg.method->text,
-          inet_ntoa(client_addr_ptr->sin_addr),
-          ntohs(client_addr_ptr->sin_port));
+          host, serv);
       return;
     }
 
   ap_log_error(APLOG_MARK, APLOG_ERR, 0, main_server,
-          "SiteCast does not implement HTCP op-code %d in message from %s:%d",
+          "SiteCast does not implement HTCP op-code %d in message from %s:%s",
           htcp_mesg.opcode,
-          inet_ntoa(client_addr_ptr->sin_addr),
-          ntohs(client_addr_ptr->sin_port));
+          host, serv);
+}
+
+static int
+bind_sitecast_sockets(server_rec *main_server, const char *node,
+		      unsigned int port, int is_unicast)
+{
+    int s, open, ret;
+    struct addrinfo *ai;
+    struct addrinfo hints;
+    struct ipv6_mreq mreq6;
+    struct ip_mreq mreq;
+    char serv[8];
+    struct addrinfo *a;
+
+    memset(&hints, 0, sizeof(hints));
+    hints.ai_socktype = SOCK_DGRAM;
+    hints.ai_flags = AI_ADDRCONFIG | AI_NUMERICSERV;
+    if (!is_unicast)
+	hints.ai_flags |= AI_NUMERICHOST;
+
+    snprintf(serv, sizeof(serv), "%u", port);
+
+    ret = getaddrinfo(node, serv, &hints, &ai);
+    if (ret) {
+	ap_log_error(APLOG_MARK, APLOG_ERR, 0, main_server,
+		"%s UDP Responder fails to look up %s",
+		(is_unicast) ? "Unicast" : "Multicast", node);
+	return -1;
+    }
+
+    open = 0;
+    for (a = ai; a != NULL; a = a->ai_next) {
+	s = socket(a->ai_family, a->ai_socktype, a->ai_protocol);
+	if (s < 0)
+	    continue;
+
+	ret = bind(s, a->ai_addr, a->ai_addrlen);
+	if (ret < 0) {
+	    close (s);
+	    continue;
+	}
+
+	if (!is_unicast) {
+	    switch (a->ai_family) {
+		case AF_INET:
+		    bzero(&mreq, sizeof(mreq));
+		    mreq.imr_multiaddr = ((struct sockaddr_in *)(a->ai_addr))->sin_addr;
+		    mreq.imr_interface.s_addr = htonl(INADDR_ANY);
+		    ret = setsockopt(s, IPPROTO_IP, IP_ADD_MEMBERSHIP,
+				     &mreq, sizeof(mreq));
+		    break;
+		case AF_INET6:
+		    mreq6.ipv6mr_multiaddr = 
+			    ((struct sockaddr_in6 *)a->ai_addr)->sin6_addr;
+		    mreq6.ipv6mr_interface = 
+			    ((struct sockaddr_in6 *)a->ai_addr)->sin6_scope_id;
+		    ret = setsockopt(s, IPPROTO_IPV6, IPV6_ADD_MEMBERSHIP,
+				     &mreq6, sizeof(mreq6));
+		    break;
+		default:
+		    continue;
+	    }
+	    if (ret < 0) {
+		ap_log_error(APLOG_MARK, APLOG_ERR, 0, main_server,
+			     "SiteCast UDP Responder fails on setting multicast (%s)",
+			     strerror(errno));
+		continue;
+	    }
+	}
+
+	FD_SET(s, &sitecast_sockets.fds);
+	if (s > sitecast_sockets.max_fd)
+	    sitecast_sockets.max_fd = s;
+	open = 1;
+    }
+    freeaddrinfo(ai);
+
+    if (!open) {
+      ap_log_error(APLOG_MARK, APLOG_ERR, 0, main_server,
+	           "mod_gridsite: sitecast responder fails on unicast");
+      return -1;
+    }
+
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, main_server,
+                 "SiteCast UDP %s responder on %s:%s",
+		 (is_unicast) ? "unicast" : "multicast",
+		 node, serv);
+    return 0;
 }
 
 void sitecast_responder(server_rec *main_server)
 {
 #define GRST_SITECAST_MAXBUF 8192
-  char   reqbuf[GRST_SITECAST_MAXBUF], *p;
-  int    n, reqbuf_len, i, j, igroup,
-         quad1, quad2, quad3, quad4, port, retval, client_addr_len;
-  struct sockaddr_in srv, client_addr;
-  struct ip_mreq mreq;
+  char   reqbuf[GRST_SITECAST_MAXBUF];
+  int    reqbuf_len, ret, retval, i;
+  struct sockaddr client_addr;
+  socklen_t client_addr_len;
   fd_set readsckts;
-  struct hostent *server_hostent;
+  int s;
+  char host[INET6_ADDRSTRLEN];
+  char serv[8];
 
   strcpy((char *) main_server->process->argv[0], "GridSiteCast UDP responder");
 
+  FD_ZERO(&sitecast_sockets.fds);
+  sitecast_sockets.max_fd = -1;
+
   /* initialise unicast/replies socket first */
-
-  bzero(&srv, sizeof(srv));
-  srv.sin_family = AF_INET;
-  srv.sin_port = htons(sitecastgroups[0].port);
-
-  if ((server_hostent = gethostbyname(main_server->server_hostname)) == NULL)
-    {
-      ap_log_error(APLOG_MARK, APLOG_ERR, 0, main_server,
-              "SiteCast UDP Responder fails to look up servername %s",
-              main_server->server_hostname);
+  ret =  bind_sitecast_sockets(main_server, main_server->server_hostname, sitecastgroups[0].port, 1);
+  if (ret)
       return;
-    }
-
-  srv.sin_addr.s_addr = (u_int32_t) (server_hostent->h_addr_list[0][0]);
-  
-  if (((sitecastgroups[0].socket 
-                                = socket(AF_INET, SOCK_DGRAM, 0)) < 0) ||
-       (bind(sitecastgroups[0].socket, 
-                                (struct sockaddr *) &srv, sizeof(srv)) < 0))
-    {
-      ap_log_error(APLOG_MARK, APLOG_ERR, 0, main_server,
-              "mod_gridsite: sitecast responder fails on unicast bind (%s)",
-              strerror(errno));
-      return;
-    }
-
-  ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, main_server,
-                "SiteCast UDP unicast/replies on %d.%d.%d.%d:%d",
-                   server_hostent->h_addr_list[0][0],
-                   server_hostent->h_addr_list[0][1],
-                   server_hostent->h_addr_list[0][2],
-                   server_hostent->h_addr_list[0][3],
-                   sitecastgroups[0].port);
 
   /* initialise multicast listener sockets next */
 
   for (i=1; (i <= GRST_SITECAST_GROUPS) && 
             (sitecastgroups[i].port != 0); ++i)
      {
-       bzero(&srv, sizeof(srv));
-       srv.sin_family = AF_INET;
-       srv.sin_port = htons(sitecastgroups[i].port);
-       srv.sin_addr.s_addr = htonl(sitecastgroups[i].quad1*0x1000000
-                                 + sitecastgroups[i].quad2*0x10000
-                                 + sitecastgroups[i].quad3*0x100 
-                                 + sitecastgroups[i].quad4);
+       ret = bind_sitecast_sockets(main_server, sitecastgroups[i].address, sitecastgroups[i].port, 0);
+       if (ret)
+	   continue;
 
-       if (((sitecastgroups[i].socket 
-                                     = socket(AF_INET, SOCK_DGRAM, 0)) < 0) ||
-               (bind(sitecastgroups[i].socket, 
-                                  (struct sockaddr *) &srv, sizeof(srv)) < 0))
-         {
-           ap_log_error(APLOG_MARK, APLOG_ERR, 0, main_server,
-                "SiteCast UDP Responder fails on multicast bind (%s)",
-                strerror(errno));
-           return;
-         }
-     
-       bzero(&mreq, sizeof(mreq));
-       mreq.imr_multiaddr.s_addr = srv.sin_addr.s_addr;
-       mreq.imr_interface.s_addr = htonl(INADDR_ANY);
-
-       if (setsockopt(sitecastgroups[i].socket, IPPROTO_IP,
-                      IP_ADD_MEMBERSHIP, &mreq, sizeof(mreq)) < 0) 
-         { 
-           ap_log_error(APLOG_MARK, APLOG_ERR, 0, main_server,
-                "SiteCast UDP Responder fails on setting multicast (%s)",
-                strerror(errno));
-           return; 
-         }
-         
        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, main_server,
-        "SiteCast UDP Responder listening on %d.%d.%d.%d:%d",
-        sitecastgroups[i].quad1, sitecastgroups[i].quad2,
-        sitecastgroups[i].quad3, sitecastgroups[i].quad4, 
+        "SiteCast UDP Responder listening on %s:%d",
+	sitecastgroups[i].address,
         sitecastgroups[i].port);
      }
 
@@ -4221,51 +4261,35 @@ void sitecast_responder(server_rec *main_server)
        {
          /* set up bitmasks for select */
        
-         FD_ZERO(&readsckts);
-         
-         n = 0;
-         for (i=0; (i <= GRST_SITECAST_GROUPS) && 
-                   (sitecastgroups[i].port != 0); ++i) /* reset bitmask */
-            {
-              FD_SET(sitecastgroups[i].socket, &readsckts);
-              if (sitecastgroups[i].socket > n) n = sitecastgroups[i].socket;
-            }
+         readsckts = sitecast_sockets.fds;
 
          ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, main_server,
                       "SiteCast UDP Responder waiting for requests");
 
-         if ((retval = select(n + 1, &readsckts, NULL, NULL, NULL)) < 1)
+         if ((retval = select(sitecast_sockets.max_fd + 1, &readsckts, NULL, NULL, NULL)) < 1)
                                    continue; /* < 1 on timeout or error */
 
-         for (igroup=0; (igroup <= GRST_SITECAST_GROUPS) && 
-                   (sitecastgroups[igroup].port != 0); ++igroup)
-            {
-              if (FD_ISSET(sitecastgroups[igroup].socket, &readsckts))
-                {
-                  client_addr_len = sizeof(client_addr);
+	 for (s = 0; s <= sitecast_sockets.max_fd; s++) {
+	     if (FD_ISSET(s, &readsckts))
+		 break;
+	 }
+	 if (s > sitecast_sockets.max_fd)
+	     continue;
 
-                  if ((reqbuf_len = recvfrom(sitecastgroups[igroup].socket, 
-                                             reqbuf, GRST_SITECAST_MAXBUF, 0,
-                     (struct sockaddr *) &client_addr, &client_addr_len)) >= 0)
-                    {
-                      ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, main_server,
-                        "SiteCast receives UDP message from %s:%d "
-                        "to %d.%d.%d.%d:%d",
-                        inet_ntoa(client_addr.sin_addr),
-                        ntohs(client_addr.sin_port),
-                        sitecastgroups[igroup].quad1,
-                        sitecastgroups[igroup].quad2,
-                        sitecastgroups[igroup].quad3,
-                        sitecastgroups[igroup].quad4,
-                        sitecastgroups[igroup].port);
+	 client_addr_len = sizeof(client_addr);
+	 reqbuf_len = recvfrom(s, reqbuf, GRST_SITECAST_MAXBUF, 0,
+			       &client_addr, &client_addr_len);
+	 if (reqbuf_len < 0)
+	     continue;
 
-                      sitecast_handle_request(main_server, reqbuf, 
-                                              reqbuf_len, igroup,
-                                              &client_addr);
-                    }
-                }
-            }
-            
+	 getnameinfo(&client_addr, client_addr_len,
+		     host, sizeof(host), serv, sizeof(serv), NI_NUMERICHOST);
+	 ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, main_server,
+		      "SiteCast receives UDP message from %s:%s",
+		      host, serv);
+
+	 sitecast_handle_request(main_server, reqbuf, reqbuf_len, s,
+				 &client_addr, client_addr_len);
        } /* **** end of main listening loop **** */
 }
 

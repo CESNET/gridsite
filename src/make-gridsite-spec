@@ -54,7 +54,7 @@ See http://www.gridsite.org/ for details.
 Group: Development/Libraries
 Summary: GridSite shared library and core documentation
 Provides: gridsite
-Obsoletes: gridsite-libs
+Obsoletes: gridsite-libs.%{_arch}
 
 %description shared
 GridSite shared library and core documentation
@@ -75,7 +75,7 @@ See http://www.gridsite.org/ for details.
 Group: System Environment/Daemons
 Summary: GridSite mod_gridsite module for Apache httpd
 Requires: gridsite-shared
-Obsoletes: gridsite
+Obsoletes: gridsite.%{_arch}
 
 %description apache
 GridSite Apache module and CGI binaries

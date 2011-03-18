@@ -56,6 +56,10 @@ ifndef MYLDFLAGS
 export MYLDFLAGS=-L.
 endif
 
+CURL_CFLAGS=`curl-config --cflags`
+CURL_LIBS=`curl-config --libs`
+XML2_CFLAGS=`xml2-config --cflags`
+XML2_LIBS=`xml2-config --libs`
 
 
 #
@@ -95,11 +99,11 @@ grst_x509.o: grst_x509.c ../interface/gridsite.h
 
 grst_gacl.o: grst_gacl.c ../interface/gridsite.h
 	gcc -g $(MYCFLAGS) \
-            -I/usr/kerberos/include `xml2-config --cflags` -c grst_gacl.c
+            -I/usr/kerberos/include $(XML2_CFLAGS) -c grst_gacl.c
 
 grst_xacml.o: grst_xacml.c ../interface/gridsite.h
 	gcc -g $(MYCFLAGS) \
-            -I/usr/kerberos/include `xml2-config --cflags` -c grst_xacml.c
+            -I/usr/kerberos/include $(XML2_CFLAGS) -c grst_xacml.c
 
 grst_http.o: grst_http.c ../interface/gridsite.h
 	gcc -g $(MYCFLAGS) \
@@ -121,7 +125,7 @@ libgridsite_globus.so.$(VERSION): grst_err_globus.o \
                grst_x509_globus.o grst_gacl_globus.o grst_http_globus.o \
                grst_asn1_globus.o grst_xacml_globus.o grst_htcp_globus.o 
 	gcc -shared -Wl,-soname,libgridsite_globus.so.$(MINOR_VERSION) \
-         -o libgridsite_globus.so.$(PATCH_VERSION) \
+         -o libgridsite_globus.so.$(PATCH_VERSION) $(XML2_LIBS) \
          grst_err_globus.o grst_x509_globus.o grst_gacl_globus.o grst_xacml_globus.o \
          grst_http_globus.o grst_asn1_globus.o
 	ln -sf libgridsite_globus.so.$(VERSION) libgridsite_globus.so
@@ -143,12 +147,12 @@ grst_x509_globus.o: grst_x509.c ../interface/gridsite.h
 
 grst_gacl_globus.o: grst_gacl.c ../interface/gridsite.h
 	gcc -g $(MYCFLAGS) $(OPENSSL_GLOBUS_FLAGS) \
-            -I/usr/kerberos/include `xml2-config --cflags` -c grst_gacl.c \
+            -I/usr/kerberos/include $(XML2_CFLAGS) -c grst_gacl.c \
             -o grst_gacl_globus.o
 
 grst_xacml_globus.o: grst_xacml.c ../interface/gridsite.h
 	gcc -g $(MYCFLAGS) $(OPENSSL_GLOBUS_FLAGS) \
-            -I/usr/kerberos/include `xml2-config --cflags` -c grst_xacml.c \
+            -I/usr/kerberos/include $(XML2_CFLAGS) -c grst_xacml.c \
             -o grst_xacml_globus.o
 
 grst_http_globus.o: grst_http.c ../interface/gridsite.h
@@ -182,7 +186,7 @@ libgridsite_nossl.so.$(VERSION): grst_err_nossl.o \
                grst_gacl_nossl.o grst_http_nossl.o \
                grst_xacml_nossl.o grst_htcp_nossl.o 
 	gcc -shared -Wl,-soname,libgridsite_nossl.so.$(MINOR_VERSION) \
-         -o libgridsite_nossl.so.$(PATCH_VERSION) \
+         -o libgridsite_nossl.so.$(PATCH_VERSION) $(XML2_LIBS) \
          grst_err_nossl.o grst_gacl_nossl.o grst_xacml_nossl.o \
          grst_http_nossl.o grst_htcp_nossl.o
 	ln -sf libgridsite_nossl.so.$(VERSION) libgridsite_nossl.so
@@ -199,12 +203,12 @@ grst_err_nossl.o: grst_err.c ../interface/gridsite.h
 
 grst_gacl_nossl.o: grst_gacl.c ../interface/gridsite.h
 	gcc -g $(MYCFLAGS) -DGRST_NO_OPENSSL \
-            -I/usr/kerberos/include `xml2-config --cflags` -c grst_gacl.c \
+            -I/usr/kerberos/include $(XML2_CFLAGS) -c grst_gacl.c \
             -o grst_gacl_nossl.o
 
 grst_xacml_nossl.o: grst_xacml.c ../interface/gridsite.h
 	gcc -g $(MYCFLAGS) -DGRST_NO_OPENSSL \
-            -I/usr/kerberos/include `xml2-config --cflags` -c grst_xacml.c \
+            -I/usr/kerberos/include $(XML2_CFLAGS) -c grst_xacml.c \
             -o grst_xacml_nossl.o
 
 grst_http_nossl.o: grst_http.c ../interface/gridsite.h
@@ -233,29 +237,29 @@ htcp: htcp.c libgridsite.so.$(VERSION)
 	gcc -g -DVERSION=\"$(PATCH_VERSION)\" $(MYCFLAGS) \
 	    -o htcp htcp.c -L. \
 	    -I/usr/kerberos/include \
-            `curl-config --cflags` `curl-config --libs` \
+            $(CURL_CFLAGS) $(CURL_LIBS) \
             -lgridsite
 
 htcp-static: htcp.c libgridsite.a
 	gcc -g -DVERSION=\"$(PATCH_VERSION)\" $(MYCFLAGS) \
 	    -o htcp-static htcp.c -L. \
 	    -I/usr/kerberos/include \
-            `curl-config --cflags` `curl-config --libs` \
+            $(CURL_CFLAGS) $(CURL_LIBS) \
             -lgridsite -static
 
 gridsite-copy.cgi: gridsite-copy.c libgridsite.so.$(VERSION)
 	gcc -g -DVERSION=\"$(PATCH_VERSION)\" $(MYCFLAGS) \
 	    -o gridsite-copy.cgi gridsite-copy.c -L. \
 	    -I/usr/kerberos/include \
-            `curl-config --cflags` `curl-config --libs` \
+            $(CURL_CFLAGS) $(CURL_LIBS) \
             $(MYFCGILIBS) -lgridsite
 
 mod_gridsite.so: mod_gridsite.c mod_ssl-private.h libgridsite.so.$(VERSION)
 	gcc -g $(MYCFLAGS) -shared -Wl,-soname=gridsite_module \
            -I/usr/kerberos/include \
-           -I/usr/include/libxml2 \
+           $(XML2_CFLAGS) \
            -DVERSION=\"$(VERSION)\" -o mod_gridsite.so \
-           mod_gridsite.c $(MYLDFLAGS) -lxml2 -lm -lz -lgridsite
+           mod_gridsite.c $(MYLDFLAGS) $(XML2_LIBS) -lm -lz -lgridsite
 
 mod_gridsite_example.so: mod_gridsite_example.c 
 	gcc -g -shared -Wl,-soname=gridsite_example_module \
@@ -270,32 +274,32 @@ real-gridsite-admin.cgi: grst_admin_main.c grst_admin_gacl.c \
             grst_admin_gacl.c \
             grst_admin_file.c \
             -I/usr/kerberos/include \
-            -DVERSION=\"$(VERSION)\" -lgridsite -lssl -lcrypto -lxml2 -lz -lm
+            -DVERSION=\"$(VERSION)\" -lgridsite -lssl -lcrypto $(XML2_LIBS) -lz -lm
 
 findproxyfile: findproxyfile.c libgridsite.so.$(VERSION)
 	gcc -g -DVERSION=\"$(PATCH_VERSION)\" $(MYCFLAGS) $(MYLDFLAGS) \
             -o findproxyfile findproxyfile.c -L. \
             -I/usr/kerberos/include -lgridsite \
-            -lssl -lcrypto -lxml2 -lz -lm
+            -lssl -lcrypto $(XML2_LIBS) -lz -lm
 
 showx509exts: showx509exts.c libgridsite.so.$(VERSION)
 	gcc -g -DVERSION=\"$(PATCH_VERSION)\" $(MYCFLAGS) $(MYLDFLAGS) \
             -o showx509exts showx509exts.c -L. \
             -I/usr/kerberos/include \
             -lgridsite \
-            -lssl -lcrypto -lxml2 -lz -lm
+            -lssl -lcrypto $(XML2_LIBS) -lz -lm
  
 slashgrid: slashgrid.c libgridsite.so.$(VERSION)
 	gcc -g -o slashgrid -lfuse -lpthread slashgrid.c \
-          $(MYCFLAGS) $(MYLDFLAGS) `xml2-config --cflags` \
+          $(MYCFLAGS) $(MYLDFLAGS) $(XML2_CFLAGS) \
           -D_FILE_OFFSET_BITS=64 -D_REENTRANT -DFUSE_USE_VERSION=22 \
-          -I/usr/kerberos/include `curl-config --cflags` \
-          -L. `curl-config --libs` -lgridsite -lpthread
+          -I/usr/kerberos/include $(CURL_CFLAGS) \
+          -L. $(CURL_LIBS) -lgridsite -lpthread
 
 # This target is used by make-gridsite-spec to test for FUSE include+libs
 fuse-test: fuse-test.c
 	gcc -g -lfuse fuse-test.c \
-          $(MYCFLAGS) $(MYLDFLAGS) `xml2-config --cflags` \
+          $(MYCFLAGS) $(MYLDFLAGS) $(XML2_CFLAGS) \
           -D_FILE_OFFSET_BITS=64 -D_REENTRANT -DFUSE_USE_VERSION=22
 
 apidoc:
@@ -309,12 +313,12 @@ apidoc:
 gaclexample: gaclexample.c libgridsite.a
 	gcc -g -o gaclexample gaclexample.c -I../interface -L. \
             -I/usr/kerberos/include -lgridsite \
-            -lssl -lcrypto -lxml2 -lz -lm
+            -lssl -lcrypto $(XML2_LIBS) -lz -lm
 	    
 xacmlexample: xacmlexample.c libgridsite.a
 	gcc -g -o xacmlexample xacmlexample.c -I../interface -L. \
             -I/usr/kerberos/include -lgridsite \
-            -lssl -lcrypto -lxml2 -lz -lm
+            -lssl -lcrypto $(XML2_LIBS) -lz -lm
 #
 # Delegation machinery, including SOAP delegation portType. To build this
 # you either need to use the gLite build environment and set REPOSITORY
@@ -343,7 +347,7 @@ gridsite-delegation.cgi: grst-delegation.c delegation.h \
             -DVERSION=\"$(VERSION)\" -L. -L$(GSOAPDIR)/lib \
             -L$(GRIDSITEDIR)/lib \
             soapC.c soapServer.c -lgsoap \
-            -lgridsite -lcurl -lz -lssl -lcrypto -lxml2 -lm
+            -lgridsite $(CURL_LIBS) -lz -lssl -lcrypto $(XML2_LIBS) -lm
 
 htproxyput: htproxyput.c delegation.h DelegationService.wsdl libgridsite.so.$(VERSION)
 	gcc -g $(MYCFLAGS) $(MYLDFLAGS) -o htproxyput \
@@ -355,7 +359,7 @@ htproxyput: htproxyput.c delegation.h DelegationService.wsdl libgridsite.so.$(VE
             -DWITH_OPENSSL -L. -L$(GSOAPDIR)/lib \
             $(STDSOAP2) \
             soapC.c soapClient.c -lgsoapssl \
-            -lgridsite -lcurl -lz -lssl -lcrypto -lxml2 -lm
+            -lgridsite $(CURL_LIBS) -lz -lssl -lcrypto $(XML2_LIBS) -lm
         
 # This target is used by make-gridsite-spec to test for gSOAP include+libs
 gsoap-test: gsoap-test.c 
@@ -367,7 +371,7 @@ gsoap-test: gsoap-test.c
             -I$(GRIDSITEDIR)/include \
             -DWITH_OPENSSL -L$(GSOAPDIR)/lib \
             $(STDSOAP2) -L$(GRIDSITEDIR)/lib \
-            -lgsoapssl -lz -lssl -lcrypto -lxml2 -lm
+            -lgsoapssl -lz -lssl -lcrypto $(XML2_LIBS) -lm
         
 gridsite-storage.cgi: gridsite-storage.c libgridsite.so.$(VERSION)
 	gcc -g $(MYCFLAGS) $(MYLDFLAGS) -o gridsite-storage.cgi \
@@ -376,7 +380,7 @@ gridsite-storage.cgi: gridsite-storage.c libgridsite.so.$(VERSION)
             -I$(GRIDSITEDIR)/include \
             -DVERSION=\"$(VERSION)\" -L. \
             -L$(GRIDSITEDIR)/lib \
-            -lgridsite -lcurl -lz -lssl -lcrypto -lxml2 -lm
+            -lgridsite $(CURL_LIBS) -lz -lssl -lcrypto $(XML2_LIBS) -lm
 
 clean:
 

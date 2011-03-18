@@ -51,7 +51,7 @@
 #include <unistd.h>              
 #include <signal.h>
 #include <dirent.h>
-#include <malloc.h>
+#include <stdlib.h>
 #include <curl/curl.h>
 #include <pthread.h>
 #include <pwd.h>

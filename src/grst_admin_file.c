@@ -51,7 +51,13 @@ POSSIBILITY OF SUCH DAMAGE.
 #include <fcntl.h>
 
 // when porting: remember that sendfile() is very OS-specific!
+#if defined(FREEBSD) || defined(__FreeBSD__) 
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <sys/uio.h>
+#else
 #include <sys/sendfile.h>
+#endif
 
 #include <gridsite.h>
 

@@ -45,7 +45,6 @@
 #include <stdlib.h>
 #include <getopt.h>
 #include <string.h>
-#include <malloc.h>
 #include <dirent.h>
 #include <sys/socket.h>
 #include <netinet/in.h>

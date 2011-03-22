@@ -53,6 +53,10 @@ CURL_LIBS=`curl-config --libs`
 XML2_CFLAGS=`xml2-config --cflags`
 XML2_LIBS=`xml2-config --libs`
 HTTPD_FLAGS=-I/usr/include/httpd -I/usr/include/apache2 -I/usr/include/apr-0 -I/usr/include/apr-1 -I/usr/include/apr-1.0
+GSOAP_CFLAGS=`pkg-config gsoap --cflags`
+GSOAP_LIBS=`pkg-config gsoap --libs`
+GSOAPSSL_CFLAGS=`pkg-config gsoapssl --cflags`
+GSOAPSSL_LIBS=`pkg-config gsoapssl --libs`
 
 ifndef MYCFLAGS
 export MYCFLAGS=-I. -I../interface -fPIC -DLINUX=2 -D_REENTRANT -D_LARGEFILE64_SOURCE $(HTTPD_FLAGS) 
@@ -343,11 +347,11 @@ gridsite-delegation.cgi: grst-delegation.c delegation.h \
                          DelegationService.wsdl libgridsite.so.$(VERSION)
 	gcc -g $(MYCFLAGS) $(MYLDFLAGS) -o gridsite-delegation.cgi \
             grst-delegation.c \
-            -I/usr/kerberos/include -I. -I$(GSOAPDIR)/include \
+            -I/usr/kerberos/include -I. $(GSOAP_CFLAGS) \
             -I$(GRIDSITEDIR)/include \
-            -DVERSION=\"$(VERSION)\" -L. -L$(GSOAPDIR)/lib \
-            -L$(GRIDSITEDIR)/lib \
-            soapC.c soapServer.c -lgsoap \
+            -DVERSION=\"$(VERSION)\" -L. \
+            soapC.c soapServer.c \
+            -L$(GRIDSITEDIR)/lib  $(GSOAP_LIBS) \
             -lgridsite $(CURL_LIBS) -lz -lssl -lcrypto $(XML2_LIBS) -lm
 
 htproxyput: htproxyput.c delegation.h DelegationService.wsdl libgridsite.so.$(VERSION)
@@ -355,11 +359,11 @@ htproxyput: htproxyput.c delegation.h DelegationService.wsdl libgridsite.so.$(VE
             htproxyput.c \
             -I/usr/kerberos/include -I. \
             -g -DVERSION=\"$(VERSION)\" \
-            -I$(GSOAPDIR)/include \
+            $(GSOAPSSL_CFLAGS) \
             -I$(GRIDSITEDIR)/include \
-            -DWITH_OPENSSL -L. -L$(GSOAPDIR)/lib \
+            -L. \
             $(STDSOAP2) \
-            soapC.c soapClient.c -lgsoapssl \
+            soapC.c soapClient.c $(GSOAPSSL_LIBS) \
             -lgridsite $(CURL_LIBS) -lz -lssl -lcrypto $(XML2_LIBS) -lm
         
 # This target is used by make-gridsite-spec to test for gSOAP include+libs
@@ -368,11 +372,10 @@ gsoap-test: gsoap-test.c
             gsoap-test.c \
             -I/usr/kerberos/include -I. \
             -g -DVERSION=\"$(VERSION)\" \
-            -I$(GSOAPDIR)/include \
+            $(GSOAPSSL_CFLAGS) \
             -I$(GRIDSITEDIR)/include \
-            -DWITH_OPENSSL -L$(GSOAPDIR)/lib \
             $(STDSOAP2) -L$(GRIDSITEDIR)/lib \
-            -lgsoapssl -lz -lssl -lcrypto $(XML2_LIBS) -lm
+            $(GSOAPSSL_LIBS) -lz -lssl -lcrypto $(XML2_LIBS) -lm
         
 gridsite-storage.cgi: gridsite-storage.c libgridsite.so.$(VERSION)
 	gcc -g $(MYCFLAGS) $(MYLDFLAGS) -o gridsite-storage.cgi \

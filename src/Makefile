@@ -48,18 +48,19 @@ ifndef libdir
 export libdir=lib
 endif
 
+CURL_CFLAGS=`curl-config --cflags`
+CURL_LIBS=`curl-config --libs`
+XML2_CFLAGS=`xml2-config --cflags`
+XML2_LIBS=`xml2-config --libs`
+HTTPD_FLAGS=-I/usr/include/httpd -I/usr/include/apache2 -I/usr/include/apr-0 -I/usr/include/apr-1 -I/usr/include/apr-1.0
+
 ifndef MYCFLAGS
-export MYCFLAGS=-I. -I../interface -I/usr/include/httpd -I/usr/include/apache2 -I/usr/include/apr-0 -I/usr/include/apr-1 -I/usr/include/apr-1.0 -I/opt/glite/include -fPIC -DLINUX=2 -D_REENTRANT -D_LARGEFILE64_SOURCE $(HTTPD_FLAGS) 
+export MYCFLAGS=-I. -I../interface -fPIC -DLINUX=2 -D_REENTRANT -D_LARGEFILE64_SOURCE $(HTTPD_FLAGS) 
 endif
 
 ifndef MYLDFLAGS
 export MYLDFLAGS=-L.
 endif
-
-CURL_CFLAGS=`curl-config --cflags`
-CURL_LIBS=`curl-config --libs`
-XML2_CFLAGS=`xml2-config --cflags`
-XML2_LIBS=`xml2-config --libs`
 
 
 #

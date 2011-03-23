@@ -1,3 +1,11 @@
+- ==== GridSite version 1.7.12 ====
+* Tue Mar 18 19:04:15 CET 2011 Frantisek Dvorak <valtri@civ.zcu.cz>
+- Makefile distinguishes between -lgsoap and -lgsoapssl in cflags.
+- Makefile: CFLAGS cleanup, HTTPD_FLAGS replaces httpd-specific cflags.
+- Unresolved symbols from xml in _globus and _nossl library versions fixed.
+- Compile and link flags of dependencies unified.
+- Portability improvements
+- ==== GridSite version 1.7.11 ====
 * Tue Mar  1 10:31:27 CET 2011 Daniel Kouril <kouril@ics.muni.cz>
 - Support for using IPv6
 * Tue Feb 22 2011 Zdenek Sustr <sustr4@cesnet.cz>

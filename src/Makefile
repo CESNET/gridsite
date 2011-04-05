@@ -387,6 +387,11 @@ gridsite-storage.cgi: gridsite-storage.c libgridsite.so.$(VERSION)
             -lgridsite $(CURL_LIBS) -lz -lssl -lcrypto $(XML2_LIBS) -lm
 
 clean:
+	rm -rvf doxygen
+	rm -vf DelegationSoapBinding.* soapC*.c soapH*.h soapS*.c soapStub.h ns.xsd
+	rm -vf fuse-test.c gsoap-test.c gridsite.spec
+	rm -vf libgridsite*.so* *.cgi mod_gridsite*.so *.a *.o
+	rm -vf gsexec urlencode htcp htcp-static findproxyfile showx509exts slashgrid fuse-test gaclexample xacmlexample htproxyput gsoap-test
 
 #
 # Install
@@ -551,8 +556,7 @@ htcp-bin: htcp
 rpm: dist
 	export PATCH_VERSION=$(PATCH_VERSION) ; \
 	 export MINOR_VERSION=$(MINOR_VERSION) ; \
-	 export MYPREFIX=/usr ; \
-	 ./make-gridsite-spec
+	 ./make-gridsite-spec '$(MAKEFLAGS)'
 	rm -Rf $(MYRPMDIR)/BUILDROOT $(MYRPMDIR)/BUILD
 	mkdir -p $(MYRPMDIR)/SOURCES $(MYRPMDIR)/SPECS $(MYRPMDIR)/BUILD \
              $(MYRPMDIR)/SRPMS $(MYRPMDIR)/RPMS/i386 $(MYRPMDIR)/BUILDROOT
@@ -570,4 +574,4 @@ wtf:
 #	ls -lR /usr/local/
 #	ls -lR $(GSOAPDIR)
 
-
+.PHONY: build build-lib apidoc clean install install-lib install-slashgrid install-ws dist htcp-bin rpm wtf

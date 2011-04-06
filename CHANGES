@@ -1,3 +1,9 @@
+- ==== GridSite version 1.7.13 ====
+* Tue Apr 5 13:00:24 2011 František Dvořák <valtri@civ.zcu.cz>
+- adding gridsite-1.5-compat in separated patch
+* Tue Apr 5 12:58:10 2011 František Dvořák <valtri@civ.zcu.cz>
+- rpm packaging updates (guidelines, rpmbuild vs make rpm, optional build
+  dependencies)
 - ==== GridSite version 1.7.12 ====
 * Tue Mar 18 19:04:15 CET 2011 Frantisek Dvorak <valtri@civ.zcu.cz>
 - Makefile distinguishes between -lgsoap and -lgsoapssl in cflags.

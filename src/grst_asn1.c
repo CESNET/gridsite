@@ -463,32 +463,57 @@ int GRSTasn1ParseDump(BIO *bp, unsigned char *pp, long len,
                                  taglist, maxtag, lasttag));
         }                        
 
+int
+GRSTasn1GetField(int index, char *coords, char *asn1string,
+		   struct GRSTasn1TagList taglist[], int lasttag,
+		   ASN1_OBJECT **field_obj, int *field_index)
+{
+    char coordstmp[81];
+    const unsigned char *q;
+    ASN1_OBJECT *obj = NULL;
+    int iobj, ival;
+
+    snprintf(coordstmp, sizeof(coordstmp), coords, index, 1);
+    iobj = GRSTasn1SearchTaglist(taglist, lasttag, coordstmp);
+    if (iobj < 0)
+	return GRST_RET_FAILED;
+
+    snprintf(coordstmp, sizeof(coordstmp), coords, index, 2);
+    ival = GRSTasn1SearchTaglist(taglist, lasttag, coordstmp);
+    if (ival < 0)
+	return GRST_RET_FAILED;
+
+    q = (unsigned char *) &asn1string[taglist[iobj].start];
+    obj = d2i_ASN1_OBJECT(NULL, &q,
+		    taglist[iobj].length + taglist[iobj].headerlength);
+    if (obj == NULL)
+	return GRST_RET_FAILED;
+
+    *field_obj = obj;
+    *field_index = ival;
+
+    return GRST_RET_OK;
+}
+
 int GRSTasn1GetX509Name(char *x509name, int maxlength, char *coords,
                         char *asn1string,
                         struct GRSTasn1TagList taglist[], int lasttag)                        
 {
-   int i, iobj, istr, n, len = 0;
+   int i, istr, n, len = 0;
    ASN1_OBJECT *obj = NULL;
-   unsigned char coordstmp[81], *q;
-   const unsigned char *shortname;
+   const char *shortname;
+   int ret;
 
    for (i=1; ; ++i)
       {
-        snprintf(coordstmp, sizeof(coordstmp), coords, i, 1);
-        iobj = GRSTasn1SearchTaglist(taglist, lasttag, coordstmp);
-        if (iobj < 0) break;
-        
-        snprintf(coordstmp, sizeof(coordstmp), coords, i, 2);
-        istr = GRSTasn1SearchTaglist(taglist, lasttag, coordstmp);
-        if (istr < 0) break;
-        
-        q = &asn1string[taglist[iobj].start];
-        d2i_ASN1_OBJECT(&obj, &q, taglist[iobj].length +
-                                  taglist[iobj].headerlength);
+	ret = GRSTasn1GetField(i, coords, asn1string, taglist, lasttag, &obj, &istr);
+	if (ret)
+	    break;
 
         n = OBJ_obj2nid(obj);
-// free obj now?
         shortname = OBJ_nid2sn(n);
+	ASN1_OBJECT_free(obj);
+	obj = NULL;
         
         if (len + 2 + strlen(shortname) + taglist[istr].length >= maxlength)
           {
@@ -505,4 +530,36 @@ int GRSTasn1GetX509Name(char *x509name, int maxlength, char *coords,
    x509name[len] = '\0';
    
    return (x509name[0] != '\0') ? GRST_RET_OK : GRST_RET_FAILED;
+}
+
+int
+GRSTasn1FindField(const char *oid, char *coords,
+		   char *asn1string,
+		   struct GRSTasn1TagList taglist[], int lasttag,
+		   int *result)
+{
+    int i, ret;
+    char buf[128];
+    ASN1_OBJECT *obj = NULL;
+    int index;
+
+    i = 0;
+    while (1) {
+	i++;
+	ret = GRSTasn1GetField(i, coords, asn1string, taglist, lasttag, &obj, &index);
+	if (ret)
+	    break;
+
+	OBJ_obj2txt(buf, sizeof(buf), obj, 1);
+	ASN1_OBJECT_free(obj);
+	obj = NULL;
+
+	if (strcmp(oid, buf) == 0) {
+	    *result = index;
+	    ret = 0;
+	    break;
+	}
+    };
+
+    return ret;
 }

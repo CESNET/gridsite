@@ -657,16 +657,16 @@ static int GRSTx509ChainVomsAdd(GRSTx509Cert **grst_cert,
 #define GRST_ASN1_COORDS_VOMS_DN       "-1-1-%d-1-3-1-1-1-%%d-1-%%d"
 #define GRST_ASN1_COORDS_TIME1         "-1-1-%d-1-6-1"
 #define GRST_ASN1_COORDS_TIME2         "-1-1-%d-1-6-2"
-#define GRST_ASN1_COORDS_VOMSCERT      "-1-1-%d-1-8-4-2"
+#define GRST_ASN1_COORDS_VOMSCERT      "-1-1-%d-1-8-%%d-%%d"
+
    ASN1_OCTET_STRING *asn1data;
    char              *asn1string, acissuerdn[200], acvomsdn[200],
                       dn_coords[200], fqan_coords[200], time1_coords[200],
                       time2_coords[200], vomscert_coords[200], *voname = NULL,
                       serial_coords[200];
-   unsigned char     *p;
    long               asn1length;
    int                lasttag=-1, itag, i, j, acnumber = 1, chain_errors = 0,
-                      ivomscert, tmp_chain_errors;
+                      ivomscert, tmp_chain_errors, ret;
    char              *acissuerserial = NULL;
    struct GRSTasn1TagList taglist[MAXTAG+1];
    time_t             actime1 = 0, actime2 = 0, time_now,
@@ -773,8 +773,9 @@ static int GRSTx509ChainVomsAdd(GRSTx509Cert **grst_cert,
 
         snprintf(vomscert_coords, sizeof(vomscert_coords), 
                  GRST_ASN1_COORDS_VOMSCERT, acnumber);
-        ivomscert = GRSTasn1SearchTaglist(taglist, lasttag, vomscert_coords);
-        
+	ret = GRSTasn1FindField(GRST_VOMS_PK_CERT_LIST_OID, vomscert_coords, asn1string,
+				taglist, lasttag, &ivomscert);
+
         /* try using internal VOMS issuer cert */
         tmp_chain_errors = GRST_CERT_BAD_SIG;
         tmp_time1 = time1_time;

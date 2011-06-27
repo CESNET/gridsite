@@ -84,9 +84,9 @@ build-lib: libgridsite_globus.so.$(VERSION) libgridsite_globus.a \
 libgridsite.so.$(VERSION): grst_err.o grst_x509.o grst_gacl.o grst_xacml.o \
                            grst_http.o grst_asn1.o grst_htcp.o
 	gcc -shared -Wl,-soname,libgridsite.so.$(MINOR_VERSION) \
-         -o libgridsite.so.$(PATCH_VERSION) -lcrypto `xml2-config --libs` \
+         -o libgridsite.so.$(PATCH_VERSION) \
          grst_err.o grst_x509.o grst_gacl.o grst_xacml.o grst_http.o \
-         grst_asn1.o grst_htcp.o 
+         grst_asn1.o grst_htcp.o -lcrypto $(XML2_LIBS)
 	ln -sf libgridsite.so.$(VERSION) libgridsite.so
 	ln -sf libgridsite.so.$(VERSION) libgridsite.so.$(MINOR_VERSION)
 
@@ -130,9 +130,9 @@ libgridsite_globus.so.$(VERSION): grst_err_globus.o \
                grst_x509_globus.o grst_gacl_globus.o grst_http_globus.o \
                grst_asn1_globus.o grst_xacml_globus.o grst_htcp_globus.o 
 	gcc -shared -Wl,-soname,libgridsite_globus.so.$(MINOR_VERSION) \
-         -o libgridsite_globus.so.$(PATCH_VERSION) $(XML2_LIBS) \
+         -o libgridsite_globus.so.$(PATCH_VERSION) \
          grst_err_globus.o grst_x509_globus.o grst_gacl_globus.o grst_xacml_globus.o \
-         grst_http_globus.o grst_asn1_globus.o
+         grst_http_globus.o grst_asn1_globus.o $(XML2_LIBS)
 	ln -sf libgridsite_globus.so.$(VERSION) libgridsite_globus.so
 
 libgridsite_globus.a: grst_err_globus.o grst_x509_globus.o grst_gacl_globus.o grst_http_globus.o grst_asn1_globus.o
@@ -191,9 +191,9 @@ libgridsite_nossl.so.$(VERSION): grst_err_nossl.o \
                grst_gacl_nossl.o grst_http_nossl.o \
                grst_xacml_nossl.o grst_htcp_nossl.o 
 	gcc -shared -Wl,-soname,libgridsite_nossl.so.$(MINOR_VERSION) \
-         -o libgridsite_nossl.so.$(PATCH_VERSION) $(XML2_LIBS) \
+         -o libgridsite_nossl.so.$(PATCH_VERSION) \
          grst_err_nossl.o grst_gacl_nossl.o grst_xacml_nossl.o \
-         grst_http_nossl.o grst_htcp_nossl.o
+         grst_http_nossl.o grst_htcp_nossl.o $(XML2_LIBS)
 	ln -sf libgridsite_nossl.so.$(VERSION) libgridsite_nossl.so
 
 libgridsite_nossl.a: grst_err_nossl.o grst_gacl_nossl.o grst_http_nossl.o

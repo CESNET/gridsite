@@ -1,28 +1,28 @@
 gridsite-1.5-compat package.
 
 diff --git a/org.gridsite.core/src/Makefile b/org.gridsite.core/src/Makefile
-index 975d5d7..067cb8d 100644
+index d2005e1..3a28d82 100644
 --- a/org.gridsite.core/src/Makefile
 +++ b/org.gridsite.core/src/Makefile
 @@ -89,6 +89,10 @@ libgridsite.so.$(VERSION): grst_err.o grst_x509.o grst_gacl.o grst_xacml.o \
-          grst_asn1.o grst_htcp.o 
+          grst_asn1.o grst_htcp.o -lcrypto $(XML2_LIBS)
  	ln -sf libgridsite.so.$(VERSION) libgridsite.so
  	ln -sf libgridsite.so.$(VERSION) libgridsite.so.$(MINOR_VERSION)
 +	gcc -shared -Wl,-soname,libgridsite.so.1.5 \
-+         -o libgridsite.so.1.5 -lcrypto `xml2-config --libs` \
++         -o libgridsite.so.1.5 \
 +         grst_err.o grst_x509.o grst_gacl.o grst_xacml.o grst_http.o \
-+         grst_asn1.o grst_htcp.o
++         grst_asn1.o grst_htcp.o -lcrypto $(XML2_LIBS)
  
  libgridsite.a: grst_err.o grst_x509.o grst_gacl.o grst_xacml.o grst_http.o grst_asn1.o grst_htcp.o
  	ar src libgridsite.a grst_err.o grst_x509.o grst_gacl.o grst_xacml.o grst_http.o grst_asn1.o grst_htcp.o
 @@ -134,6 +138,10 @@ libgridsite_globus.so.$(VERSION): grst_err_globus.o \
           grst_err_globus.o grst_x509_globus.o grst_gacl_globus.o grst_xacml_globus.o \
-          grst_http_globus.o grst_asn1_globus.o
+          grst_http_globus.o grst_asn1_globus.o $(XML2_LIBS)
  	ln -sf libgridsite_globus.so.$(VERSION) libgridsite_globus.so
 +	gcc -shared -Wl,-soname,libgridsite_globus.so.1.5 \
-+         -o libgridsite_globus.so.1.5 $(XML2_LIBS) \
++         -o libgridsite_globus.so.1.5 \
 +         grst_err_globus.o grst_x509_globus.o grst_gacl_globus.o grst_xacml_globus.o \
-+         grst_http_globus.o grst_asn1_globus.o
++         grst_http_globus.o grst_asn1_globus.o $(XML2_LIBS)
  
  libgridsite_globus.a: grst_err_globus.o grst_x509_globus.o grst_gacl_globus.o grst_http_globus.o grst_asn1_globus.o
  	ar src libgridsite_globus.a \
@@ -36,12 +36,12 @@ index 975d5d7..067cb8d 100644
  	cp -f libgridsite.a libgridsite_globus.a
 @@ -195,6 +204,10 @@ libgridsite_nossl.so.$(VERSION): grst_err_nossl.o \
           grst_err_nossl.o grst_gacl_nossl.o grst_xacml_nossl.o \
-          grst_http_nossl.o grst_htcp_nossl.o
+          grst_http_nossl.o grst_htcp_nossl.o $(XML2_LIBS)
  	ln -sf libgridsite_nossl.so.$(VERSION) libgridsite_nossl.so
 +	gcc -shared -Wl,-soname,libgridsite_nossl.so.1.5 \
-+         -o libgridsite_nossl.so.1.5 $(XML2_LIBS) \
++         -o libgridsite_nossl.so.1.5 \
 +         grst_err_nossl.o grst_gacl_nossl.o grst_xacml_nossl.o \
-+         grst_http_nossl.o grst_htcp_nossl.o
++         grst_http_nossl.o grst_htcp_nossl.o $(XML2_LIBS)
  
  libgridsite_nossl.a: grst_err_nossl.o grst_gacl_nossl.o grst_http_nossl.o
  	ar src libgridsite_nossl.a \

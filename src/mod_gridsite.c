@@ -108,6 +108,12 @@
 
 #include "gridsite.h"
 
+#ifndef IPV6_ADD_MEMBERSHIP
+#ifdef  IPV6_JOIN_GROUP
+#define IPV6_ADD_MEMBERSHIP IPV6_JOIN_GROUP
+#endif
+#endif
+
 #ifndef UNSET
 #define UNSET -1
 #endif

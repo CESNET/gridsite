@@ -102,6 +102,8 @@
 #include <libxml/parser.h>
 #include <libxml/tree.h>
 
+#include <openssl/x509v3.h>
+
 #include "mod_ssl-private.h"
 
 #include "gridsite.h"
@@ -3664,7 +3666,7 @@ int GRST_ssl_callback_SSLVerify_CRL(int ok, X509_STORE_CTX *ctx, conn_rec *c)
             if (!ASN1_INTEGER_cmp(sn, X509_get_serialNumber(cert))) {
                 if (s->loglevel >= APLOG_DEBUG) {
                     char *cp = X509_NAME_oneline(issuer, NULL, 0);
-                    char *serial = i2s_ASN1_INTEGER(NULL,ASN1_INTEGER_get(sn));
+                    char *serial = i2s_ASN1_INTEGER(NULL,sn);
 
                     ap_log_error(APLOG_MARK, APLOG_INFO, 0, s,
                                  "Certificate with serial %s "

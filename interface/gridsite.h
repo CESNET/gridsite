@@ -33,8 +33,15 @@
  * For more about GridSite: http://www.gridsite.org/             *
  *---------------------------------------------------------------*/
 
+#ifndef HEADER_GRIDSITE_H
+#define HEADER_GRIDSITE_H
+
 #ifndef GRST_VERSION
 #define GRST_VERSION 010500
+#endif
+
+#ifdef __cplusplus
+extern "C" {
 #endif
 
 #ifndef GRST_NO_OPENSSL
@@ -451,3 +458,8 @@ int    GRSThtcpMessageParse(GRSThtcpMessage *, char *, int);
 #define GRST_PASSCODE_JS "<script type=\"text/javascript\" language=\"Javascript\"><!--\nfunction changeValue(formName){        if( document.forms[formName].passcode.value==\"\" ) document.forms[formName].passcode.value=getCookie(\"GRIDHTTP_PASSCODE\");       return true;   } \nfunction getCookie(c_name){ if (document.cookie.length>0)  {  c_start=document.cookie.indexOf(c_name + \"=\");  if (c_start!=-1)    {    c_start=c_start + c_name.length+1;    c_end=document.cookie.indexOf(\";\",c_start);    if (c_end==-1) c_end=document.cookie.length;    return unescape(document.cookie.substring(c_start,c_end)); }} return \"\"; } \n -->\n</script>"
 #endif
 
+#ifdef __cplusplus
+} // extern "C"
+#endif
+
+#endif // HEADER_GRIDSITE_H

@@ -35,6 +35,9 @@
 
 #ifndef HEADER_GACL_H
 #define HEADER_GACL_H
+
+#ifdef __cplusplus
+extern "C" {
 #endif
 
 #ifndef GACL_LIB_VERSION
@@ -186,3 +189,9 @@ extern GACLperm   gacl_perm_vals[];
 
 GACLentry *GRSTgaclEntryParse(xmlNodePtr cur);
 /*  special function for legacy EDG LB service */
+
+#ifdef __cplusplus
+} // extern "C"
+#endif
+
+#endif // HEADER_GACL_H

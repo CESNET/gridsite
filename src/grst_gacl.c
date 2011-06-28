@@ -1388,7 +1388,7 @@ GRSTgaclPerm GRSTgaclAclTestexclUser(GRSTgaclAcl *acl, GRSTgaclUser *user)
     Wrapper functions for gridsite-gacl.h support of legacy API
 */
 
-GRSTgaclEntry *GACLparseEntry(xmlNodePtr cur)
+GRSTgaclEntry *GACLparseEntry(void *cur)
 {
   return GRSTgaclEntryParse(cur);
 }

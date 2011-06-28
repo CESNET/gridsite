@@ -1,3 +1,15 @@
+- ==== GridSite version 1.7.14 ====
+* Wed Jun 22 2011 Daniel Kouřil <kouril@ics.muni.cz>
+- Not relying on hard-coded positions of certificates (fixes using VOMS .lsc files)
+* Mon Jun 27 2011 František Dvořák <valtri@civ.zcu.cz>
+- Fixes from Mattias Ellert <mellert> (bugs #69632, #83449, and #83450):
+  - extern "C" declarations and include protections in public headers
+  - integer/pointer portability fix
+  - proper link ordering
+- IPv6 portability
+* Tue Jun 28 2011 František Dvořák <valtri@civ.zcu.cz>
+- Fix static declaration in public header,
+  function GACLparseEntry() added into gridsite-gacl.h
 - ==== GridSite version 1.7.13 ====
 * Tue Apr 5 13:00:24 2011 František Dvořák <valtri@civ.zcu.cz>
 - adding gridsite-1.5-compat in separated patch

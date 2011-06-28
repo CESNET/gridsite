@@ -1929,7 +1929,7 @@ int GRSTx509MakeProxyCert(char **proxychain, FILE *debugfp,
       
       X509_add_ext(certs[0], pci_ex, -1);
     }
-  else free(pci_obj);
+  else ASN1_OBJECT_free(pci_obj);
 
   /* set issuer and subject name of the cert from the req and the CA */
 

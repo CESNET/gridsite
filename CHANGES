@@ -1,4 +1,4 @@
-- ==== GridSite version 1.7.14 ====
+- ==== GridSite version 1.7.15 ====
 * Wed Jun 29 2011 Daniel Kouřil <kouril@ics.muni.cz>
 - Fixing memleak in GRSTx509MakeProxyCert
 - ==== GridSite version 1.7.14 ====

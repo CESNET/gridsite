@@ -1,4 +1,7 @@
 - ==== GridSite version 1.7.14 ====
+* Wed Jun 29 2011 Daniel Kouřil <kouril@ics.muni.cz>
+- Fixing memleak in GRSTx509MakeProxyCert
+- ==== GridSite version 1.7.14 ====
 * Wed Jun 22 2011 Daniel Kouřil <kouril@ics.muni.cz>
 - Not relying on hard-coded positions of certificates (fixes using VOMS .lsc files)
 * Mon Jun 27 2011 František Dvořák <valtri@civ.zcu.cz>

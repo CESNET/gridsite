@@ -496,7 +496,7 @@ static int GRSTx509VerifyVomsSigCert(time_t *time1_time, time_t *time2_time,
 
    vomscert_vomsdn = X509_NAME_oneline(X509_get_subject_name(vomscert),NULL,0);
 
-   if (strcmp(vomscert_vomsdn, acvomsdn) != 0)
+   if (GRSTx509NameCmp(vomscert_vomsdn, acvomsdn) != 0)
      {
        free(vomscert_vomsdn);
        
@@ -592,8 +592,8 @@ static int GRSTx509VerifyVomsSigCert(time_t *time1_time, time_t *time2_time,
 
                   if ((p = index(lsc_vomsdn, '\n')) != NULL) *p = '\0';
                   
-                  if ((strcmp(lsc_cadn, vomscert_cadn) == 0) &&
-                      (strcmp(lsc_vomsdn, acvomsdn) == 0)) 
+                  if ((GRSTx509NameCmp(lsc_cadn, vomscert_cadn) == 0) &&
+                      (GRSTx509NameCmp(lsc_vomsdn, acvomsdn) == 0)) 
                     {
                       GRSTerrorLog(GRST_LOG_DEBUG, "Matched LSC file %s", lscpath);
                       lsc_found = 1;

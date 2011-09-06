@@ -196,7 +196,7 @@ libgridsite_nossl.so.$(VERSION): grst_err_nossl.o \
          grst_http_nossl.o grst_htcp_nossl.o $(XML2_LIBS)
 	ln -sf libgridsite_nossl.so.$(VERSION) libgridsite_nossl.so
 
-libgridsite_nossl.a: grst_err_nossl.o grst_gacl_nossl.o grst_http_nossl.o
+libgridsite_nossl.a: grst_err_nossl.o grst_gacl_nossl.o grst_http_nossl.o grst_htcp_nossl.o
 	ar src libgridsite_nossl.a \
                grst_err_nossl.o grst_gacl_nossl.o grst_http_nossl.o grst_htcp_nossl.o
 

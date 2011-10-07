@@ -516,9 +516,11 @@ install-ws: gridsite-delegation.cgi htproxyput
 dist:
 	mkdir -p ../dist/gridsite-$(PATCH_VERSION)/src \
                  ../dist/gridsite-$(PATCH_VERSION)/doc \
-                 ../dist/gridsite-$(PATCH_VERSION)/interface
+                 ../dist/gridsite-$(PATCH_VERSION)/interface \
+                 ../dist/gridsite-$(PATCH_VERSION)/project
 	cp -f ../VERSION ../README ../LICENSE ../CHANGES ../INSTALL \
                  ../dist/gridsite-$(PATCH_VERSION)
+	cp -f ../project/debian.* ../dist/gridsite-$(PATCH_VERSION)/project
 	if test -f Makefile.inc; then \
 	         cp -f Makefile.inc ../dist/gridsite-$(PATCH_VERSION)/src; \
 	fi
@@ -527,7 +529,7 @@ dist:
                  htproxyput.c grst_admin.h mod_ssl-private.h \
                  gsexec.c gsexec.h gridsite-copy.c gridsite-storage.c \
                  delegation.h \
-                 roffit make-gridsite-spec \
+                 roffit make-gridsite-spec make-debian-files \
                  Doxyfile doxygen.css doxyheader.html \
                  ../dist/gridsite-$(PATCH_VERSION)/src
 	cp -f ../doc/*.html ../doc/*.1 ../doc/*.8 ../doc/*.conf ../doc/*.sh \
@@ -573,6 +575,19 @@ rpm: dist
 	$(RPMCMD) --define "_topdir $(MYRPMDIR)" \
                   -ba --buildroot $(MYRPMDIR)/BUILDROOT gridsite.spec
 
+deb: dist
+	rm -Rf $(MYRPMDIR)
+	(mkdir -p $(MYRPMDIR) && \
+	 tar -xC $(MYRPMDIR) -f ../gridsite-$(PATCH_VERSION).src.tar.gz && \
+	 cd $(MYRPMDIR)/gridsite-$(PATCH_VERSION)/src && \
+	 export PATCH_VERSION=$(PATCH_VERSION) && \
+	 export MINOR_VERSION=$(MINOR_VERSION) && \
+	 export project=$(project) && \
+	 export top_srcdir=.. && \
+	 ./make-debian-files)
+	(cd $(MYRPMDIR)/gridsite-$(PATCH_VERSION) && \
+	pwd && \
+	dpkg-buildpackage)
 
 wtf: 
 	pwd
@@ -582,4 +597,4 @@ wtf:
 #	ls -lR /usr/local/
 #	ls -lR $(GSOAPDIR)
 
-.PHONY: build build-lib apidoc clean install install-lib install-slashgrid install-ws dist htcp-bin rpm wtf
+.PHONY: build build-lib apidoc clean install install-lib install-slashgrid install-ws dist htcp-bin rpm deb wtf

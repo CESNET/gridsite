@@ -1,0 +1,6 @@
+gridsite (${PATCH_VERSION}-`echo ${RELEASE_VERSION}`) unstable; urgency=low
+
+  * Local package
+  * Automatically generated package
+
+ -- EMI CESNET security <emi-lb@metacentrum.cz>  `date '+%a, %m %b %Y %T %z'`

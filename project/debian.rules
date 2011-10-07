@@ -1,0 +1,10 @@
+#! /usr/bin/make -f
+
+override_dh_auto_build:
+	\$(MAKE) -C src prefix=/usr build gridsite-delegation.cgi htproxyput slashgrid
+
+override_dh_auto_install:
+	\$(MAKE) -C src prefix=../debian/tmp/usr RPM_BUILD_ROOT=../debian/tmp install install-ws install-slashgrid
+
+%:
+	dh -Smakefile -Dsrc \$@

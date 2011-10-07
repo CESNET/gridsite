@@ -1,0 +1,138 @@
+#! /bin/sh
+
+process_template() {
+	local res;
+	local tmpl="`cat $1`"
+
+	eval "res=\"$tmpl\""
+	echo "$res"
+}
+
+export LC_TIME=C
+
+for i in top_srcdir MINOR_VERSION PATCH_VERSION RELEASE_VERSION; do
+	eval res="\$$i"
+	if test -z "$res"; then
+		echo "$i not specified"
+		exit 1
+	fi
+done
+
+rm -rf ${top_srcdir}/debian
+mkdir -p ${top_srcdir}/debian/source
+ln -s ../LICENSE ${top_srcdir}/debian/copyright
+
+cd ${top_srcdir}/debian
+process_template ${top_srcdir}/project/debian.control > control
+process_template ${top_srcdir}/project/debian.rules > rules
+process_template ${top_srcdir}/project/debian.changelog > changelog
+chmod +x rules
+echo "7" > compat
+echo "3.0 (native)" > source/format
+
+# apache
+cat > gridsite-apache.install <<EOF
+usr/lib/httpd/modules/mod_gridsite.so
+usr/sbin/real-gridsite-admin.cgi
+usr/sbin/gridsite-copy.cgi
+usr/sbin/gridsite-storage.cgi
+EOF
+cat > gridsite-apache.manpages <<EOF
+doc/mod_gridsite.8
+EOF
+
+# commands
+cat > gridsite-commands.install <<EOF
+usr/bin/htcp
+usr/bin/htls
+usr/bin/htll
+usr/bin/htrm
+usr/bin/htmkdir
+usr/bin/htmv
+usr/bin/htping
+usr/bin/htfind
+usr/bin/urlencode
+usr/bin/findproxyfile
+EOF
+cat > gridsite-commands.manpages <<EOF
+doc/htcp.1
+doc/htrm.1
+doc/htls.1
+doc/htll.1
+doc/htmkdir.1
+doc/htmv.1
+doc/htping.1
+doc/htfind.1
+doc/urlencode.1
+doc/findproxyfile.1
+EOF
+
+# gsexec
+cat > gridsite-gsexec.install <<EOF
+usr/sbin/gsexec
+EOF
+cat > gridsite-gsexec.manpages <<EOF
+doc/gsexec.8
+EOF
+
+# service-clients
+cat > gridsite-service-clients.install <<EOF
+usr/bin/htproxyput
+usr/bin/htproxydestroy
+usr/bin/htproxytime
+usr/bin/htproxyunixtime
+usr/bin/htproxyrenew
+usr/bin/htproxyinfo
+EOF
+cat > gridsite-service-clients.manpages <<EOF
+doc/htproxyput.1
+doc/htproxydestroy.1
+doc/htproxytime.1
+doc/htproxyunixtime.1
+doc/htproxyrenew.1
+doc/htproxyinfo.1
+EOF
+
+# services
+cat > gridsite-services.install <<EOF
+usr/sbin/gridsite-delegation.cgi
+EOF
+cat > gridsite-services.manpages <<EOF
+doc/gridsite-delegation.8
+EOF
+
+# slashgrid
+cat > gridsite-slashgrid.dirs <<EOF
+etc/init.d
+EOF
+cat > gridsite-slashgrid.install <<EOF
+usr/sbin/slashgrid
+etc/rc.d/init.d/slashgrid etc/init.d
+var/spool/slashgrid
+EOF
+cat > gridsite-slashgrid.manpages <<EOF
+doc/slashgrid.8
+EOF
+
+# shared
+cat > libgridsite${MINOR_VERSION}.docs <<EOF
+CHANGES
+README
+VERSION
+doc/*.html
+doc/fuse.spec
+doc/gsoap-devel.spec
+doc/build-apache2.sh
+EOF
+cat > libgridsite${MINOR_VERSION}.install <<EOF
+usr/lib/lib*.so.*
+EOF
+
+# devel
+cat > libgridsite-dev.install <<EOF
+usr/include/*
+usr/lib/lib*.a
+usr/lib/lib*.so
+EOF
+
+cd - >/dev/null

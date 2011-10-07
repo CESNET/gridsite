@@ -1,0 +1,85 @@
+Source: gridsite
+Section: main
+Priority: optional
+Maintainer: EMI CESNET security <emi-lb@metacentrum.cz>
+Build-Depends: debhelper (>= 7.0.50~),
+	apache2-prefork-dev,
+	gsoap,
+	libglobus-gssapi-gsi-dev,
+	libcurl4-openssl-dev,
+	doxygen,
+	libfuse-dev,
+	libxml2,
+	libxml2-dev,
+	libssl-dev
+Standards-Version: 3.9.1
+Homepage: http://gridsite.org
+Vcs-Cvs: :pserver:anonymous@jra1mw.cvs.cern.ch:/cvs/jra1mw/org.gridsite.core
+
+Package: libgridsite${MINOR_VERSION}
+Section: libs
+Architecture: any
+Provides: gridsite
+Depends: \${shlibs:Depends}, \${misc:Depends}
+Description: GridSite libraries and documentation
+ GridSite adds GSI, VOMS and GACL support to Apache 2.0 (mod_gridsite),
+ a library for manipulating these technologies (libgridsite), and CGI
+ programs for interactive management of HTTP(S) servers (gridsite-admin.cgi).
+ This package contains shared libraries and core documentation.
+
+Package: libgridsite-dev
+Section: libdevel
+Architecture: any
+Depends: libgridsite,
+         \${misc:Depends}
+Description: GridSite static libraries and headers
+ Development files for GridSite - .a libraries and .h headers.
+
+Package: gridsite-apache
+Section: httpd
+Architecture: any
+Depends: \${shlibs:Depends}, \${misc:Depends}
+Description: GridSite mod_gridsite module for Apache httpd
+ GridSite Apache module and CGI binaries.
+
+Package: gridsite-commands
+Section: web
+Architecture: any
+Depends: \${shlibs:Depends}, \${misc:Depends}
+Description: HTTP(S) read/write client and other GridSite commands
+ htcp is a client to fetch files or directory listings from remote
+ servers using HTTP or HTTPS, or to put or delete files or directories
+ onto remote servers using HTTPS. htcp is similar to scp(1), but uses
+ HTTP/HTTPS rather than ssh as its transfer protocol.
+
+Package: gridsite-gsexec
+Section: web
+Architecture: any
+Depends: \${shlibs:Depends}, \${misc:Depends}
+Description: gsexec binary for the Apache HTTP server
+ This package includes the /usr/sbin/gsexec binary which can be installed
+ to allow the Apache HTTP server to run CGI programs (and any programs
+ executed by SSI pages) as a user other than the 'apache' user. gsexec
+ is a drop-in replacement for suexec, with extended functionality for use
+ with GridSite and Grid Security credentials.
+
+Package: gridsite-slashgrid
+Section: web
+Architecture: any
+Depends: \${shlibs:Depends}, \${misc:Depends}, libcurl3 (>=7.12.1), fuse-utils
+Description: SlashGrid daemon
+ SlashGrid provides remote virtual filesystems under /grid (\"slash grid\").
+
+Package: gridsite-services
+Section: web
+Architecture: any
+Depends: \${shlibs:Depends}, \${misc:Depends}
+Description: GridSite WS gridsite-delegation.cgi
+ GridSite WS delegation service, gridsite-delegation.cgi
+
+Package: gridsite-service-clients
+Section: web
+Architecture: any
+Depends: \${shlibs:Depends}, \${misc:Depends}
+Description: GridSite WS htproxyput
+ GridSite WS delegation client, htproxyput

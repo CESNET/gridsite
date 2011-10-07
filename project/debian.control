@@ -30,7 +30,7 @@ Description: GridSite libraries and documentation
 Package: libgridsite-dev
 Section: libdevel
 Architecture: any
-Depends: libgridsite,
+Depends: libgridsite${MINOR_VERSION},
          \${misc:Depends}
 Description: GridSite static libraries and headers
  Development files for GridSite - .a libraries and .h headers.

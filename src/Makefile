@@ -582,6 +582,7 @@ deb: dist
 	 cd $(MYRPMDIR)/gridsite-$(PATCH_VERSION)/src && \
 	 export PATCH_VERSION=$(PATCH_VERSION) && \
 	 export MINOR_VERSION=$(MINOR_VERSION) && \
+	 export RELEASE_VERSION=$(RELEASE_VERSION) && \
 	 export project=$(project) && \
 	 export top_srcdir=.. && \
 	 ./make-debian-files)

@@ -1,3 +1,11 @@
+* Fri Oct 7 2011 František Dvořák <valtri@civ.zcu.cz>
+- Packaging cleanups and rpmlint fixes
+- Typos in slashgrid.8
+- Packaging for Debian
+* Tue Sep 6 Daniel Kouřil <kouril@ics.muni.cz>
+- dependency fix in Makefile from Mattias Ellert <mellert> (bug #86230)
+* Wed Aug 17 Daniel Kouřil <kouril@ics.muni.cz>
+- using GRSTx509NameCmp() for DN comparation (bug #85223)
 - ==== GridSite version 1.7.15 ====
 * Wed Jun 29 2011 Daniel Kouřil <kouril@ics.muni.cz>
 - Fixing memleak in GRSTx509MakeProxyCert

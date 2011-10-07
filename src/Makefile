@@ -66,6 +66,7 @@ ifndef MYLDFLAGS
 export MYLDFLAGS=-L.
 endif
 
+-include Makefile.inc
 
 #
 # Build
@@ -469,6 +470,9 @@ install-lib:
                                  $(prefix)/$(libdir)/libgridsite_nossl.so.$(MINOR_VERSION)
 
 install-slashgrid: slashgrid
+	-mkdir -p $(RPM_BUILD_ROOT)/etc/rc.d/init.d
+	-mkdir -p $(prefix)/share/doc/gridsite-$(MINOR_VERSION)
+	-mkdir -p $(prefix)/share/man/man8
 	cp -f slashgrid $(prefix)/sbin
 	cp -f slashgrid.init $(RPM_BUILD_ROOT)/etc/rc.d/init.d/slashgrid
 	cp -f ../doc/slashgrid.8.html $(prefix)/share/doc/gridsite-$(MINOR_VERSION) ; \
@@ -515,6 +519,9 @@ dist:
                  ../dist/gridsite-$(PATCH_VERSION)/interface
 	cp -f ../VERSION ../README ../LICENSE ../CHANGES ../INSTALL \
                  ../dist/gridsite-$(PATCH_VERSION)
+	if test -f Makefile.inc; then \
+	         cp -f Makefile.inc ../dist/gridsite-$(PATCH_VERSION)/src; \
+	fi
 	cp -f Makefile grst*.c htcp.c slashgrid.c slashgrid.init \
                  urlencode.c findproxyfile.c gaclexample.c mod_gridsite*.c \
                  htproxyput.c grst_admin.h mod_ssl-private.h \
@@ -556,7 +563,8 @@ htcp-bin: htcp
 rpm: dist
 	export PATCH_VERSION=$(PATCH_VERSION) ; \
 	 export MINOR_VERSION=$(MINOR_VERSION) ; \
-	 ./make-gridsite-spec '$(MAKEFLAGS)'
+	 export project=$(project); \
+	 ./make-gridsite-spec
 	rm -Rf $(MYRPMDIR)/BUILDROOT $(MYRPMDIR)/BUILD
 	mkdir -p $(MYRPMDIR)/SOURCES $(MYRPMDIR)/SPECS $(MYRPMDIR)/BUILD \
              $(MYRPMDIR)/SRPMS $(MYRPMDIR)/RPMS/i386 $(MYRPMDIR)/BUILDROOT

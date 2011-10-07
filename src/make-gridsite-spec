@@ -1,15 +1,5 @@
 #!/bin/sh
 
-if test -f build.sh; then
-	MAKE="`cat build.sh`"
-	eval echo "$MAKE" > buildtest.sh
-	MAKETEST="`cat buildtest.sh`'"
-	rm -f buildtest.sh
-else
-	MAKE="make GSOAPDIR=\$GSOAPDIR OPENSSL_FLAGS=\$OPENSSL_FLAGS OPENSSL_LIBS=\$OPENSSL_LIBS FLAVOR_EXT=\$FLAVOR_EXT $1"
-	MAKETEST="make GSOAPDIR=$GSOAPDIR STDSOAP2=$STDSOAP2 $1"
-fi
-
 # test to see if fuse-devel (or fuse.h and libfuse) is installed
 #
 cat <<EOF >fuse-test.c
@@ -17,8 +7,14 @@ cat <<EOF >fuse-test.c
 int main() { struct fuse_context ctx;
 return fuse_main(0, (char **) 0, (struct fuse_operations *) 0); }
 EOF
-$MAKETEST fuse-test
+make fuse-test
 if [ $? = 0 ] ; then have_fuse=1 ; fi
+
+if [ x"$project" = x"glite" ]; then
+	globusdep=',vdt_globus_sdk'
+else
+	globusdep=',globus-gssapi-gsi-devel'
+fi
 
 # test to see if gsoap-devel (or stdsoap2.h and libgsoapssl) is installed
 #
@@ -28,7 +24,7 @@ cat <<EOF >gsoap-test.c
 main() { return; }
 #endif
 EOF
-$MAKETEST gridsite-delegation.cgi
+make gridsite-delegation.cgi
 if [ $? = 0 ] ; then have_gsoap=1 ; fi
 rm -f a.out
 
@@ -58,7 +54,7 @@ URL: http://www.gridsite.org/
 Vendor: GridPP
 Requires: libxml2
 Buildrequires: libxml2-devel,curl-devel,httpd-devel,openssl-devel
-Buildrequires: doxygen${gsoapdep}${fusedep}
+Buildrequires: doxygen${gsoapdep}${fusedep}${globusdep}
 Packager: Andrew McNab <Andrew.McNab@manchester.ac.uk>
 
 %description
@@ -132,20 +128,20 @@ See http://www.gridsite.org/ for details.
 
 %build
 cd src
-$MAKE prefix=\$RPM_BUILD_ROOT/%{_prefix}
+make prefix=\$RPM_BUILD_ROOT/%{_prefix}
 
 EOF
 
 if [ $have_fuse ] ; then
 cat <<EOF >>gridsite.spec
-$MAKE prefix=\$RPM_BUILD_ROOT/%{_prefix} slashgrid
+make prefix=\$RPM_BUILD_ROOT/%{_prefix} slashgrid
 
 EOF
 fi
 
 if [ $have_gsoap ] ; then
 cat <<EOF >>gridsite.spec
-$MAKE prefix=\$RPM_BUILD_ROOT/%{_prefix} gridsite-delegation.cgi htproxyput
+make prefix=\$RPM_BUILD_ROOT/%{_prefix} gridsite-delegation.cgi htproxyput
 
 EOF
 fi
@@ -155,7 +151,7 @@ cat <<EOF >>gridsite.spec
 %install
 cd src
 
-$MAKE install prefix=\$RPM_BUILD_ROOT/%{_prefix} libdir=%{_lib}
+make install prefix=\$RPM_BUILD_ROOT/%{_prefix} libdir=%{_lib}
 EOF
 
 if [ $have_fuse ] ; then
@@ -163,7 +159,7 @@ if [ $have_fuse ] ; then
 cat <<EOF >>gridsite.spec
 
 mkdir -p \$RPM_BUILD_ROOT/etc/rc.d/init.d
-$MAKE install-slashgrid prefix=\$RPM_BUILD_ROOT/%{_prefix}
+make install-slashgrid prefix=\$RPM_BUILD_ROOT/%{_prefix}
 EOF
 fi
 
@@ -171,7 +167,7 @@ if [ $have_gsoap ] ; then
 
 cat <<EOF >>gridsite.spec
 
-$MAKE install-ws prefix=\$RPM_BUILD_ROOT/%{_prefix}
+make install-ws prefix=\$RPM_BUILD_ROOT/%{_prefix}
 EOF
 fi
 
@@ -182,7 +178,7 @@ if [ "\$UID" = "0" ] ; then
  /sbin/ldconfig
 fi
 
-%postun
+%postun shared
 if [ "\$UID" = "0" ] ; then
  /sbin/ldconfig
 fi
@@ -249,7 +245,7 @@ cat <<EOF >>gridsite.spec
 %package slashgrid
 Group: Applications/Internet
 Summary: slashgrid daemon
-Requires: curl >= 7.12.1,fuse,fuse-libs
+Requires: curl >= 7.12.1,fuse
 
 %description slashgrid
 SlashGrid daemon
@@ -314,6 +310,13 @@ See http://www.gridsite.org/ for details.
 %attr(-, root, root) %{_prefix}/share/doc/gridsite-${MINOR_VERSION:-1.x}/htproxyunixtime.1
 %attr(-, root, root) %{_prefix}/share/doc/gridsite-${MINOR_VERSION:-1.x}/htproxyrenew.1
 %attr(-, root, root) %{_prefix}/share/doc/gridsite-${MINOR_VERSION:-1.x}/htproxyinfo.1
+
+EOF
+
+LC_TIME=C cat >> gridsite.spec <<EOF
+%changelog
+* `date '+%a %b %d %Y'` - autobuild@`hostname -f`
+- automatically generated package
 EOF
 
 fi

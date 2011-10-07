@@ -1,10 +1,10 @@
 gridsite-1.5-compat package.
 
-diff --git a/org.gridsite.core/src/Makefile b/org.gridsite.core/src/Makefile
-index d2005e1..3a28d82 100644
---- a/org.gridsite.core/src/Makefile
-+++ b/org.gridsite.core/src/Makefile
-@@ -89,6 +89,10 @@ libgridsite.so.$(VERSION): grst_err.o grst_x509.o grst_gacl.o grst_xacml.o \
+diff --git a/src/Makefile b/src/Makefile
+index eae692e..6378d34 100644
+--- a/src/Makefile
++++ b/src/Makefile
+@@ -90,6 +90,10 @@ libgridsite.so.$(VERSION): grst_err.o grst_x509.o grst_gacl.o grst_xacml.o \
           grst_asn1.o grst_htcp.o -lcrypto $(XML2_LIBS)
  	ln -sf libgridsite.so.$(VERSION) libgridsite.so
  	ln -sf libgridsite.so.$(VERSION) libgridsite.so.$(MINOR_VERSION)
@@ -15,7 +15,7 @@ index d2005e1..3a28d82 100644
  
  libgridsite.a: grst_err.o grst_x509.o grst_gacl.o grst_xacml.o grst_http.o grst_asn1.o grst_htcp.o
  	ar src libgridsite.a grst_err.o grst_x509.o grst_gacl.o grst_xacml.o grst_http.o grst_asn1.o grst_htcp.o
-@@ -134,6 +138,10 @@ libgridsite_globus.so.$(VERSION): grst_err_globus.o \
+@@ -135,6 +139,10 @@ libgridsite_globus.so.$(VERSION): grst_err_globus.o \
           grst_err_globus.o grst_x509_globus.o grst_gacl_globus.o grst_xacml_globus.o \
           grst_http_globus.o grst_asn1_globus.o $(XML2_LIBS)
  	ln -sf libgridsite_globus.so.$(VERSION) libgridsite_globus.so
@@ -26,7 +26,7 @@ index d2005e1..3a28d82 100644
  
  libgridsite_globus.a: grst_err_globus.o grst_x509_globus.o grst_gacl_globus.o grst_http_globus.o grst_asn1_globus.o
  	ar src libgridsite_globus.a \
-@@ -179,6 +187,7 @@ else
+@@ -180,6 +188,7 @@ else
  
  libgridsite_globus.so.$(VERSION): libgridsite.so.$(VERSION)
  	cp -f libgridsite.so.$(VERSION) libgridsite_globus.so.$(VERSION)
@@ -34,7 +34,7 @@ index d2005e1..3a28d82 100644
  
  libgridsite_globus.a: libgridsite.a
  	cp -f libgridsite.a libgridsite_globus.a
-@@ -195,6 +204,10 @@ libgridsite_nossl.so.$(VERSION): grst_err_nossl.o \
+@@ -196,6 +205,10 @@ libgridsite_nossl.so.$(VERSION): grst_err_nossl.o \
           grst_err_nossl.o grst_gacl_nossl.o grst_xacml_nossl.o \
           grst_http_nossl.o grst_htcp_nossl.o $(XML2_LIBS)
  	ln -sf libgridsite_nossl.so.$(VERSION) libgridsite_nossl.so
@@ -43,9 +43,9 @@ index d2005e1..3a28d82 100644
 +         grst_err_nossl.o grst_gacl_nossl.o grst_xacml_nossl.o \
 +         grst_http_nossl.o grst_htcp_nossl.o $(XML2_LIBS)
  
- libgridsite_nossl.a: grst_err_nossl.o grst_gacl_nossl.o grst_http_nossl.o
+ libgridsite_nossl.a: grst_err_nossl.o grst_gacl_nossl.o grst_http_nossl.o grst_htcp_nossl.o
  	ar src libgridsite_nossl.a \
-@@ -467,6 +480,9 @@ install-lib:
+@@ -468,6 +481,9 @@ install-lib:
                                   $(prefix)/$(libdir)/libgridsite_nossl.so.$(MAJOR_VERSION)
  	ln -sf libgridsite_nossl.so.$(PATCH_VERSION) \
                                   $(prefix)/$(libdir)/libgridsite_nossl.so.$(MINOR_VERSION)
@@ -55,23 +55,14 @@ index d2005e1..3a28d82 100644
  
  install-slashgrid: slashgrid
  	cp -f slashgrid $(prefix)/sbin
-diff --git a/org.gridsite.core/src/make-gridsite-spec b/org.gridsite.core/src/make-gridsite-spec
-index f7821e0..8c2c7a5 100755
---- a/org.gridsite.core/src/make-gridsite-spec
-+++ b/org.gridsite.core/src/make-gridsite-spec
-@@ -53,6 +53,7 @@ Summary: GridSite
- License: Modified BSD
- Group: System Environment/Daemons
- Source: %{name}-%{version}.src.tar.gz
-+Patch1: compat-1.5.patch
- BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
- URL: http://www.gridsite.org/
- Vendor: GridPP
-@@ -314,6 +315,19 @@ See http://www.gridsite.org/ for details.
- %attr(-, root, root) %{_prefix}/share/doc/gridsite-${MINOR_VERSION:-1.x}/htproxyunixtime.1
+diff --git a/src/make-gridsite-spec b/src/make-gridsite-spec
+index 372214c..b6cd7ba 100755
+--- a/src/make-gridsite-spec
++++ b/src/make-gridsite-spec
+@@ -311,6 +311,23 @@ See http://www.gridsite.org/ for details.
  %attr(-, root, root) %{_prefix}/share/doc/gridsite-${MINOR_VERSION:-1.x}/htproxyrenew.1
  %attr(-, root, root) %{_prefix}/share/doc/gridsite-${MINOR_VERSION:-1.x}/htproxyinfo.1
-+
+ 
 +%package 1.5-compat
 +Group: Development/Libraries
 +Summary: GridSite 1.5 compatibility package
@@ -84,6 +75,11 @@ index f7821e0..8c2c7a5 100755
 +%attr(-, root, root) %{_prefix}/%{_lib}/libgridsite.so.1.5
 +%attr(-, root, root) %{_prefix}/%{_lib}/libgridsite_globus.so.1.5
 +%attr(-, root, root) %{_prefix}/%{_lib}/libgridsite_nossl.so.1.5
++
++%post 1.5-compat -p /sbin/ldconfig
++
++%postun 1.5-compat -p /sbin/ldconfig
++
  EOF
  
- fi
+ LC_LANG=C cat >> gridsite.spec <<EOF

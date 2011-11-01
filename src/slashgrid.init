@@ -1,7 +1,12 @@
 #!/bin/bash
-#
-# slashgrid        Startup script for the SlashGrid client-side server
-#
+### BEGIN INIT INFO
+# Provides: slashgrid
+# Required-Start: $remote_fs $network $syslog
+# Required-Stop: $remote_fs $network $syslog
+# Default-Start:
+# Default-Stop:
+# Description: Startup script for the SlashGrid client-side server
+### END INIT INFO
 # chkconfig: - 90 10
 # description: Filesystem extension for access to HTTP(S) file servers
 # processname: slashgrid

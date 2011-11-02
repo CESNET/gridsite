@@ -385,7 +385,7 @@ gridsite-storage.cgi: gridsite-storage.c libgridsite.so.$(VERSION)
             -I$(GRIDSITEDIR)/include \
             -DVERSION=\"$(VERSION)\" -L. \
             -L$(GRIDSITEDIR)/lib \
-            -lgridsite $(CURL_LIBS) -lz -lssl -lcrypto $(XML2_LIBS) -lm
+            -lgridsite $(CURL_CFLAGS) $(CURL_LIBS) -lz -lssl -lcrypto $(XML2_LIBS) -lm
 
 clean:
 	rm -rvf doxygen

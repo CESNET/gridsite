@@ -352,7 +352,7 @@ gridsite-delegation.cgi: grst-delegation.c delegation.h \
             -I$(GRIDSITEDIR)/include \
             -DVERSION=\"$(VERSION)\" -L. \
             soapC.c soapServer.c \
-            -L$(GRIDSITEDIR)/lib  $(GSOAP_LIBS) \
+            -L$(GRIDSITEDIR)/$(libdir)  $(GSOAP_LIBS) \
             -lgridsite $(CURL_LIBS) -lz -lssl -lcrypto $(XML2_LIBS) -lm
 
 htproxyput: htproxyput.c delegation.h DelegationService.wsdl libgridsite.so.$(VERSION)
@@ -375,7 +375,7 @@ gsoap-test: gsoap-test.c
             -g -DVERSION=\"$(VERSION)\" \
             $(GSOAPSSL_CFLAGS) \
             -I$(GRIDSITEDIR)/include \
-            $(STDSOAP2) -L$(GRIDSITEDIR)/lib \
+            $(STDSOAP2) -L$(GRIDSITEDIR)/$(libdir) \
             $(GSOAPSSL_LIBS) -lz -lssl -lcrypto $(XML2_LIBS) -lm
         
 gridsite-storage.cgi: gridsite-storage.c libgridsite.so.$(VERSION)
@@ -384,7 +384,7 @@ gridsite-storage.cgi: gridsite-storage.c libgridsite.so.$(VERSION)
             -I/usr/kerberos/include -I.\
             -I$(GRIDSITEDIR)/include \
             -DVERSION=\"$(VERSION)\" -L. \
-            -L$(GRIDSITEDIR)/lib \
+            -L$(GRIDSITEDIR)/$(libdir) \
             -lgridsite $(CURL_CFLAGS) $(CURL_LIBS) -lz -lssl -lcrypto $(XML2_LIBS) -lm
 
 clean:

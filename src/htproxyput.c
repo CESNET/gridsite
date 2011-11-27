@@ -335,6 +335,12 @@ int main(int argc, char *argv[])
               return 1;        
             }
 
+          if (!getNewProxyReqResponse.getNewProxyReqReturn)
+            {
+              fprintf(stderr, "Empty response from getNewProxyReq\n");
+              return 1;
+            }
+
           reqtxt = getNewProxyReqResponse.getNewProxyReqReturn->proxyRequest;
           delegation_id = 
                    getNewProxyReqResponse.getNewProxyReqReturn->delegationID;

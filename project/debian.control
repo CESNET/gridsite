@@ -20,7 +20,7 @@ Package: libgridsite${MINOR_VERSION}
 Section: libs
 Architecture: any
 Provides: gridsite
-Depends: \${shlibs:Depends}, \${misc:Depends}
+Depends: \${shlibs:Depends}, \${misc:Depends}, libssl-dev
 Description: GridSite libraries and documentation
  GridSite adds GSI, VOMS and GACL support to Apache 2.0 (mod_gridsite),
  a library for manipulating these technologies (libgridsite), and CGI
@@ -30,7 +30,7 @@ Description: GridSite libraries and documentation
 Package: libgridsite-dev
 Section: libdevel
 Architecture: any
-Depends: libgridsite${MINOR_VERSION},
+Depends: libgridsite${MINOR_VERSION} (= \${binary:Version}),
          \${misc:Depends}
 Description: GridSite static libraries and headers
  Development files for GridSite - .a libraries and .h headers.

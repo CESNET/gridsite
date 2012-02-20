@@ -28,7 +28,7 @@ process_template ${top_srcdir}/project/debian.rules > rules
 process_template ${top_srcdir}/project/debian.changelog > changelog
 chmod +x rules
 echo "7" > compat
-echo "3.0 (native)" > source/format
+echo "3.0 (quilt)" > source/format
 
 # apache
 cat > gridsite-apache.install <<EOF

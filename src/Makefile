@@ -565,6 +565,7 @@ htcp-bin: htcp
 rpm: dist
 	export PATCH_VERSION=$(PATCH_VERSION) ; \
 	 export MINOR_VERSION=$(MINOR_VERSION) ; \
+	 export RELEASE_VERSION=$(RELEASE_VERSION) && \
 	 export project=$(project); \
 	 ./make-gridsite-spec
 	rm -Rf $(MYRPMDIR)/BUILDROOT $(MYRPMDIR)/BUILD

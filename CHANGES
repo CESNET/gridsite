@@ -1,3 +1,11 @@
+- ==== GridSite version 1.7.17 ====
+* Sun Nov 27 František Dvořák <valtri@civ.zcu.cz>
+- Prevent possible crash in htproxyput due to gsoap incompatibility
+- Using libraries only in $(libdir) when linking
+* Mon Feb 20 František Dvořák <valtri@civ.zcu.cz>
+- Fix age version in RPM packaging
+- Minor Debian packaging fixes
+- New rpm-prepare and deb-prepare targets to build only source package files
 - ==== GridSite version 1.7.16 ====
 * Fri Oct 7 2011 František Dvořák <valtri@civ.zcu.cz>
 - Packaging cleanups and rpmlint fixes

@@ -644,6 +644,7 @@ end:
 /// Get the VOMS attributes in the given extension
 static int GRSTx509ChainVomsAdd(GRSTx509Cert **grst_cert, 
                          time_t time1_time, time_t time2_time,
+			 int delegation,
                          X509_EXTENSION *ex, 
                          GRSTx509Cert *user_cert, char *vomsdir, char *capath)
 ///
@@ -826,6 +827,7 @@ static int GRSTx509ChainVomsAdd(GRSTx509Cert **grst_cert,
                  (*grst_cert)->type = GRST_CERT_TYPE_VOMS;
                  (*grst_cert)->issuer = strdup(acvomsdn);
                  (*grst_cert)->dn = strdup(user_cert->dn);
+		 (*grst_cert)->delegation = delegation;
                }
              else break;
            }
@@ -1114,12 +1116,12 @@ int GRSTx509ChainLoadCheck(GRSTx509Chain **chain,
                        {
                          GRSTx509ChainVomsAdd(&grst_cert, 
                                               new_grst_cert->notbefore,
-                                              new_grst_cert->notafter,                                              
+                                              new_grst_cert->notafter,
+					      (lastcert == NULL) ? i : i+1,
                                               ex,
                                               user_cert,
                                               vomsdir,
                                               capath);
-                         grst_cert->delegation = (lastcert == NULL) ? i : i+1;
                        }
                    }                     
               } 

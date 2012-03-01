@@ -1,3 +1,6 @@
+- ==== GridSite version 1.7.18 ====
+* Tue Mar 01 2012 Zdeněk Šustr <sustr4@cesnet.cz>
+- Storinf reference in chain for FAQN lists
 - ==== GridSite version 1.7.17 ====
 * Mon Feb 20 2012 František Dvořák <valtri@civ.zcu.cz>
 - Fix age version in RPM packaging

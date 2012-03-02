@@ -1678,7 +1678,7 @@ static void *create_gridsite_dir_config(apr_pool_t *p, char *path)
         conf->dnlists       = NULL;  /* GridSiteDNlists       Search-path  */
         conf->dnlistsuri    = NULL;  /* GridSiteDNlistsURI    URI-value    */
         conf->adminlist     = NULL;  /* GridSiteAdminList     URI-value    */
-        conf->gsiproxylimit = 1;     /* GridSiteGSIProxyLimit number       */
+        conf->gsiproxylimit = 0;     /* GridSiteGSIProxyLimit number       */
         conf->unzip         = NULL;  /* GridSiteUnzip         file-path    */
 
         conf->methods    = apr_pstrdup(p, " GET ");
@@ -1969,8 +1969,11 @@ static const char *mod_gridsite_take1_cmds(cmd_parms *a, void *cfg,
     {
       n = -1;
     
-      if ((sscanf(parm, "%d", &n) == 1) && (n >= 0))
+      if ((sscanf(parm, "%d", &n) == 1) && (n >= 0)) {
+		  if (n == 0)
+		      n = 1000; /* thousand is an African for "unlimited" */
                   ((mod_gridsite_dir_cfg *) cfg)->gsiproxylimit = n;
+      }
       else return "GridSiteGSIProxyLimit must be a number >= 0";     
     }
     else if (strcasecmp(a->cmd->name, "GridSiteUnzip") == 0)
@@ -3917,8 +3920,8 @@ int GRST_callback_SSLVerify_wrapper(int ok, X509_STORE_CTX *ctx)
         certstack = (STACK_OF(X509) *) X509_STORE_CTX_get_chain(ctx);
 
         errnum = GRSTx509ChainLoadCheck(&grst_chain, certstack, NULL,
-                                        "/etc/grid-security/certificates", 
-                                        "/etc/grid-security/vomsdir");
+					 "/etc/grid-security/certificates",
+					 "/etc/grid-security/vomsdir");
 
         if (errnum != X509_V_OK)
           {

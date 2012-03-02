@@ -1678,7 +1678,7 @@ static void *create_gridsite_dir_config(apr_pool_t *p, char *path)
         conf->dnlists       = NULL;  /* GridSiteDNlists       Search-path  */
         conf->dnlistsuri    = NULL;  /* GridSiteDNlistsURI    URI-value    */
         conf->adminlist     = NULL;  /* GridSiteAdminList     URI-value    */
-        conf->gsiproxylimit = 0;     /* GridSiteGSIProxyLimit number       */
+        conf->gsiproxylimit = 1000;  /* GridSiteGSIProxyLimit number       */
         conf->unzip         = NULL;  /* GridSiteUnzip         file-path    */
 
         conf->methods    = apr_pstrdup(p, " GET ");

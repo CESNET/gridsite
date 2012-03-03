@@ -1,6 +1,9 @@
+- ==== GridSite version 1.7.19 ====
+* Fri Mar 03 2012 Zdeněk Šustr <sustr4@cesnet.cz>
+- GridSiteGSIProxyLimit wors as documented and set high enough to be "unlimited"
 - ==== GridSite version 1.7.18 ====
 * Tue Mar 01 2012 Zdeněk Šustr <sustr4@cesnet.cz>
-- Storinf reference in chain for FAQN lists
+- Storing reference in chain for FAQN lists
 - ==== GridSite version 1.7.17 ====
 * Mon Feb 20 2012 František Dvořák <valtri@civ.zcu.cz>
 - Fix age version in RPM packaging

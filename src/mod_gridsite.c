@@ -4542,10 +4542,11 @@ static ap_unix_identity_t *mod_gridsite_get_suexec_id_doer(const request_rec *r)
 static void register_hooks(apr_pool_t *p)
 {
     /* config and handler stuff */
+    static const char * const aszPre[] = { "mod_ssl.c", NULL };
 
     ap_hook_post_config(mod_gridsite_server_post_config, NULL, NULL, 
                                                               APR_HOOK_LAST);
-    ap_hook_child_init(mod_gridsite_child_init, NULL, NULL, APR_HOOK_MIDDLE);
+    ap_hook_child_init(mod_gridsite_child_init, aszPre, NULL, APR_HOOK_MIDDLE);
     
     ap_hook_check_user_id(mod_gridsite_check_user_id, NULL, NULL, 
                                                       APR_HOOK_REALLY_FIRST);

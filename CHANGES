@@ -1,3 +1,6 @@
+- ==== GridSite version 1.7.20 ====
+* Fri Apr 02 2012 Zdeněk Šustr <sustr4@cesnet.cz>
+- Make sure the module is loaded only after mod_ssl.
 - ==== GridSite version 1.7.19 ====
 * Fri Mar 03 2012 Zdeněk Šustr <sustr4@cesnet.cz>
 - GridSiteGSIProxyLimit wors as documented and set high enough to be "unlimited"

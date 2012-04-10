@@ -133,7 +133,7 @@ libgridsite_globus.so.$(VERSION): grst_err_globus.o \
 	gcc -shared -Wl,-soname,libgridsite_globus.so.$(MINOR_VERSION) \
          -o libgridsite_globus.so.$(PATCH_VERSION) \
          grst_err_globus.o grst_x509_globus.o grst_gacl_globus.o grst_xacml_globus.o \
-         grst_http_globus.o grst_asn1_globus.o $(XML2_LIBS)
+         grst_http_globus.o grst_asn1_globus.o $(XML2_LIBS) $(OPENSSL_GLOBUS_LIBS)
 	ln -sf libgridsite_globus.so.$(VERSION) libgridsite_globus.so
 
 libgridsite_globus.a: grst_err_globus.o grst_x509_globus.o grst_gacl_globus.o grst_http_globus.o grst_asn1_globus.o
@@ -263,9 +263,9 @@ gridsite-copy.cgi: gridsite-copy.c libgridsite.so.$(VERSION)
 mod_gridsite.so: mod_gridsite.c mod_ssl-private.h libgridsite.so.$(VERSION)
 	gcc -g $(MYCFLAGS) -shared -Wl,-soname=gridsite_module \
            -I/usr/kerberos/include \
-           $(XML2_CFLAGS) \
+           $(XML2_CFLAGS) -lcrypto -lssl \
            -DVERSION=\"$(VERSION)\" -o mod_gridsite.so \
-           mod_gridsite.c $(MYLDFLAGS) $(XML2_LIBS) -lm -lz -lgridsite
+           mod_gridsite.c $(MYLDFLAGS) -lgridsite
 
 mod_gridsite_example.so: mod_gridsite_example.c 
 	gcc -g -shared -Wl,-soname=gridsite_example_module \
@@ -280,13 +280,12 @@ real-gridsite-admin.cgi: grst_admin_main.c grst_admin_gacl.c \
             grst_admin_gacl.c \
             grst_admin_file.c \
             -I/usr/kerberos/include \
-            -DVERSION=\"$(VERSION)\" -lgridsite -lssl -lcrypto $(XML2_LIBS) -lz -lm
+            -DVERSION=\"$(VERSION)\" -lgridsite
 
 findproxyfile: findproxyfile.c libgridsite.so.$(VERSION)
 	gcc -g -DVERSION=\"$(PATCH_VERSION)\" $(MYCFLAGS) $(MYLDFLAGS) \
             -o findproxyfile findproxyfile.c -L. \
-            -I/usr/kerberos/include -lgridsite \
-            -lssl -lcrypto $(XML2_LIBS) -lz -lm
+            -I/usr/kerberos/include -lgridsite
 
 showx509exts: showx509exts.c libgridsite.so.$(VERSION)
 	gcc -g -DVERSION=\"$(PATCH_VERSION)\" $(MYCFLAGS) $(MYLDFLAGS) \
@@ -353,7 +352,7 @@ gridsite-delegation.cgi: grst-delegation.c delegation.h \
             -DVERSION=\"$(VERSION)\" -L. \
             soapC.c soapServer.c \
             -L$(GRIDSITEDIR)/$(libdir)  $(GSOAP_LIBS) \
-            -lgridsite $(CURL_LIBS) -lz -lssl -lcrypto $(XML2_LIBS) -lm
+            -lgridsite
 
 htproxyput: htproxyput.c delegation.h DelegationService.wsdl libgridsite.so.$(VERSION)
 	gcc -g $(MYCFLAGS) $(MYLDFLAGS) -o htproxyput \
@@ -365,7 +364,7 @@ htproxyput: htproxyput.c delegation.h DelegationService.wsdl libgridsite.so.$(VE
             -L. \
             $(STDSOAP2) \
             soapC.c soapClient.c $(GSOAPSSL_LIBS) \
-            -lgridsite $(CURL_LIBS) -lz -lssl -lcrypto $(XML2_LIBS) -lm
+            -lgridsite -lssl -lcrypto
         
 # This target is used by make-gridsite-spec to test for gSOAP include+libs
 gsoap-test: gsoap-test.c 
@@ -385,7 +384,7 @@ gridsite-storage.cgi: gridsite-storage.c libgridsite.so.$(VERSION)
             -I$(GRIDSITEDIR)/include \
             -DVERSION=\"$(VERSION)\" -L. \
             -L$(GRIDSITEDIR)/$(libdir) \
-            -lgridsite $(CURL_CFLAGS) $(CURL_LIBS) -lz -lssl -lcrypto $(XML2_LIBS) -lm
+            -lgridsite $(CURL_CFLAGS) $(CURL_LIBS)
 
 clean:
 	rm -rvf doxygen

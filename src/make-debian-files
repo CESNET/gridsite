@@ -40,6 +40,10 @@ EOF
 cat > gridsite-apache.manpages <<EOF
 doc/mod_gridsite.8
 EOF
+cat > gridsite-apache.docs <<EOF
+doc/httpd-*.conf
+src/mod_gridsite_example.c
+EOF
 
 # commands
 cat > gridsite-commands.install <<EOF
@@ -100,6 +104,9 @@ EOF
 cat > gridsite-services.manpages <<EOF
 doc/gridsite-delegation.8
 EOF
+cat > gridsite-services.docs <<EOF
+doc/delegation-1.1.0.wsdl
+EOF
 
 # slashgrid
 cat > gridsite-slashgrid.dirs <<EOF
@@ -117,6 +124,7 @@ EOF
 # shared
 cat > libgridsite${MINOR_VERSION}.docs <<EOF
 CHANGES
+INSTALL
 README
 VERSION
 doc/*.html

@@ -32,7 +32,7 @@ echo "3.0 (quilt)" > source/format
 
 # apache
 cat > gridsite-apache.install <<EOF
-usr/lib/httpd/modules/mod_gridsite.so
+usr/lib/apache2/modules/mod_gridsite.so
 usr/sbin/real-gridsite-admin.cgi
 usr/sbin/gridsite-copy.cgi
 usr/sbin/gridsite-storage.cgi
@@ -41,7 +41,7 @@ cat > gridsite-apache.manpages <<EOF
 doc/mod_gridsite.8
 EOF
 cat > gridsite-apache.docs <<EOF
-doc/httpd-*.conf
+debian/tmp/usr/share/doc/gridsite-${MINOR_VERSION}/httpd-*.conf
 src/mod_gridsite_example.c
 EOF
 

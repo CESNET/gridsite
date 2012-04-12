@@ -48,6 +48,10 @@ ifndef libdir
 export libdir=lib
 endif
 
+ifndef httpd_name
+export httpd_name=httpd
+endif
+
 CURL_CFLAGS=`curl-config --cflags`
 CURL_LIBS=`curl-config --libs`
 XML2_CFLAGS=`xml2-config --cflags`
@@ -399,12 +403,11 @@ clean:
 
 install: apidoc install-lib
 	mkdir -p $(prefix)/include \
-                 $(prefix)/$(libdir) \
+                 $(prefix)/$(libdir)/$(httpd_name)/modules \
                  $(prefix)/bin \
                  $(prefix)/sbin \
                  $(prefix)/share/man/man1 \
                  $(prefix)/share/man/man8 \
-                 $(prefix)/$(libdir)/httpd/modules \
                  $(prefix)/share/doc/gridsite-$(MINOR_VERSION)
 	sed 's/^\(#define GRST_VERSION\).*$$/\1 $(DEFVERSION)/' \
 	      ../interface/gridsite.h > $(prefix)/include/gridsite.h
@@ -439,7 +442,7 @@ install: apidoc install-lib
 	ln -sf htcp $(prefix)/bin/htping
 	ln -sf htcp $(prefix)/bin/htfind
 	cp -f gsexec $(prefix)/sbin
-	cp -f mod_gridsite.so $(prefix)/$(libdir)/httpd/modules
+	cp -f mod_gridsite.so $(prefix)/$(libdir)/$(httpd_name)/modules
 
 install-lib:
 	mkdir -p $(prefix)/$(libdir)
@@ -506,7 +509,13 @@ install-ws: gridsite-delegation.cgi htproxyput
 	ln -sf htproxyput $(prefix)/bin/htproxyrenew
 	ln -sf htproxyput $(prefix)/bin/htproxyinfo
 	cp -f gridsite-delegation.cgi $(prefix)/sbin
-	   
+
+post-install-debian:
+	sed -i \
+		-e 's,^\(ServerRoot\) .*,\1 "/etc/$(httpd_name)",' \
+		-e 's,/usr/lib/httpd/modules,/usr/$(libdir)/$(httpd_name)/modules,' \
+		$(prefix)/share/doc/gridsite-$(MINOR_VERSION)/*.conf
+
 #
 # Distributions
 #
@@ -602,4 +611,4 @@ wtf:
 #	ls -lR /usr/local/
 #	ls -lR $(GSOAPDIR)
 
-.PHONY: build build-lib apidoc clean install install-lib install-slashgrid install-ws dist htcp-bin rpm deb wtf
+.PHONY: build build-lib apidoc clean install install-lib install-slashgrid install-ws dist htcp-bin rpm deb wtf post-install-debian

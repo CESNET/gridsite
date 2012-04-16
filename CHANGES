@@ -1,3 +1,9 @@
+- ==== GridSite version 1.7.21 ====
+* Mon Apr 16 2012 František Dvořák <valtri@civ.zcu.cz>
+- Partially harmonize package names with EPEL
+- Packaging fixes (library dependencies, ...)
+* Thu Apr 12 2012 František Dvořák <valtri@civ.zcu.cz>
+- mod_gridsite location on Debian
 * Tue Apr 10 2012 František Dvořák <valtri@civ.zcu.cz>
 - Cleanup of the libraries used in linking
 - Missing documentation in Debian packages

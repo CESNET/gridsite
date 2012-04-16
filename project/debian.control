@@ -19,7 +19,6 @@ Vcs-Cvs: :pserver:anonymous@jra1mw.cvs.cern.ch:/cvs/jra1mw/org.gridsite.core
 Package: libgridsite${MINOR_VERSION}
 Section: libs
 Architecture: any
-Provides: gridsite
 Depends: \${shlibs:Depends}, \${misc:Depends}, libssl-dev
 Description: GridSite libraries and documentation
  GridSite adds GSI, VOMS and GACL support to Apache 2.0 (mod_gridsite),
@@ -38,6 +37,7 @@ Description: GridSite static libraries and headers
 Package: gridsite-apache
 Section: httpd
 Architecture: any
+Provides: gridsite (= \${binary:Version})
 Depends: \${shlibs:Depends}, \${misc:Depends}
 Description: GridSite mod_gridsite module for Apache httpd
  GridSite Apache module and CGI binaries.

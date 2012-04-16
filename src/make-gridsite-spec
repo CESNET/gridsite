@@ -52,7 +52,7 @@ Source: %{name}-%{version}.src.tar.gz
 BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
 URL: http://www.gridsite.org/
 Vendor: GridPP
-Requires: libxml2
+Requires: gridsite-apache%{?_isa}
 Buildrequires: libxml2-devel,curl-devel,httpd-devel,openssl-devel
 Buildrequires: doxygen${gsoapdep}${fusedep}${globusdep}
 Packager: Andrew McNab <Andrew.McNab@manchester.ac.uk>
@@ -64,13 +64,13 @@ programs for interactive management of HTTP(S) servers (gridsite-admin.cgi)
 
 See http://www.gridsite.org/ for details.
 
-%package shared
+%package libs
 Group: Development/Libraries
 Summary: GridSite shared library and core documentation
-Provides: gridsite
-Obsoletes: gridsite-libs%{?_isa}
+Obsoletes: gridsite-shared%{?_isa} <= 1.7.20
+Provides: gridsite-shared%{?_isa} = %{version}-%{release}
 
-%description shared
+%description libs
 GridSite shared library and core documentation
 
 See http://www.gridsite.org/ for details.
@@ -78,7 +78,7 @@ See http://www.gridsite.org/ for details.
 %package devel
 Group: Development/Libraries
 Summary: GridSite .a libraries and .h headers
-Requires: gridsite-shared
+Requires: gridsite-libs%{_isa} = %{version}-%{release}
 
 %description devel
 GridSite development libraries
@@ -88,8 +88,6 @@ See http://www.gridsite.org/ for details.
 %package apache
 Group: System Environment/Daemons
 Summary: GridSite mod_gridsite module for Apache httpd
-Requires: gridsite-shared
-Obsoletes: gridsite%{?_isa}
 
 %description apache
 GridSite Apache module and CGI binaries
@@ -99,7 +97,7 @@ See http://www.gridsite.org/ for details.
 %package commands
 Group: Applications/Internet
 Summary: HTTP(S) read/write client and other GridSite commands
-Requires: curl, gridsite-shared
+Requires: curl
 
 %description commands
 htcp is a client to fetch files or directory listings from remote
@@ -173,29 +171,28 @@ fi
 
 cat <<EOF >>gridsite.spec
 
-%post shared
+%post libs
 if [ "\$UID" = "0" ] ; then
  /sbin/ldconfig
 fi
 
-%postun shared
+%postun libs
 if [ "\$UID" = "0" ] ; then
  /sbin/ldconfig
 fi
 
-%files shared
+%files
+
+%files libs
 %attr(-, root, root) %{_prefix}/%{_lib}/libgridsite.so.%{version}
 %attr(-, root, root) %{_prefix}/%{_lib}/libgridsite.so.${MINOR_VERSION:-1.x}
 %attr(-, root, root) %{_prefix}/%{_lib}/libgridsite.so.${MAJOR_VERSION:-1}
-%attr(-, root, root) %{_prefix}/%{_lib}/libgridsite.so
 %attr(-, root, root) %{_prefix}/%{_lib}/libgridsite_globus.so.%{version}
 %attr(-, root, root) %{_prefix}/%{_lib}/libgridsite_globus.so.${MINOR_VERSION:-1.x}
 %attr(-, root, root) %{_prefix}/%{_lib}/libgridsite_globus.so.${MAJOR_VERSION:-1}
-%attr(-, root, root) %{_prefix}/%{_lib}/libgridsite_globus.so
 %attr(-, root, root) %{_prefix}/%{_lib}/libgridsite_nossl.so.%{version}
 %attr(-, root, root) %{_prefix}/%{_lib}/libgridsite_nossl.so.${MINOR_VERSION:-1.x}
 %attr(-, root, root) %{_prefix}/%{_lib}/libgridsite_nossl.so.${MAJOR_VERSION:-1}
-%attr(-, root, root) %{_prefix}/%{_lib}/libgridsite_nossl.so
 %attr(-, root, root) %{_prefix}/share/doc/gridsite-${MINOR_VERSION:-1.x}
 
 %files devel
@@ -204,6 +201,9 @@ fi
 %attr(-, root, root) %{_prefix}/%{_lib}/libgridsite.a
 %attr(-, root, root) %{_prefix}/%{_lib}/libgridsite_globus.a
 %attr(-, root, root) %{_prefix}/%{_lib}/libgridsite_nossl.a
+%attr(-, root, root) %{_prefix}/%{_lib}/libgridsite.so
+%attr(-, root, root) %{_prefix}/%{_lib}/libgridsite_globus.so
+%attr(-, root, root) %{_prefix}/%{_lib}/libgridsite_nossl.so
 
 %files apache
 %attr(-, root, root) %{_prefix}/share/man/man8/mod_gridsite.8.gz
@@ -284,7 +284,7 @@ GridSite WS delegation service, gridsite-delegation.cgi
 %package service-clients
 Group: Applications/Internet
 Summary: GridSite WS htproxyput
-Requires: curl, gridsite-shared
+Requires: curl
 
 %description service-clients
 GridSite WS delegation client, htproxyput

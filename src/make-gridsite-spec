@@ -78,7 +78,7 @@ See http://www.gridsite.org/ for details.
 %package devel
 Group: Development/Libraries
 Summary: GridSite .a libraries and .h headers
-Requires: gridsite-libs%{_isa} = %{version}-%{release}
+Requires: gridsite-libs%{?_isa} = %{version}-%{release}
 
 %description devel
 GridSite development libraries

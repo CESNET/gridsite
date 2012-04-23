@@ -67,8 +67,8 @@ See http://www.gridsite.org/ for details.
 %package libs
 Group: Development/Libraries
 Summary: GridSite shared library and core documentation
-Obsoletes: gridsite-shared%{?_isa}
-Provides: gridsite-shared%{?_isa} = %{version}-%{release}
+Obsoletes: gridsite-shared
+Provides: gridsite-shared = %{version}-%{release}
 
 %description libs
 GridSite shared library and core documentation

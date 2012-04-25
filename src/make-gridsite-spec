@@ -53,7 +53,7 @@ BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
 URL: http://www.gridsite.org/
 Vendor: GridPP
 Requires: gridsite-apache%{?_isa}
-Buildrequires: libxml2-devel,curl-devel,httpd-devel,openssl-devel
+Buildrequires: libxml2-devel,curl-devel,httpd-devel,openssl-devel,pkgconfig
 Buildrequires: doxygen${gsoapdep}${fusedep}${globusdep}
 Packager: Andrew McNab <Andrew.McNab@manchester.ac.uk>
 

@@ -11,7 +11,8 @@ Build-Depends: debhelper (>= 7.0.50~),
 	libfuse-dev,
 	libxml2,
 	libxml2-dev,
-	libssl-dev
+	libssl-dev,
+	pkg-config
 Standards-Version: 3.9.1
 Homepage: http://gridsite.org
 Vcs-Cvs: :pserver:anonymous@jra1mw.cvs.cern.ch:/cvs/jra1mw/org.gridsite.core

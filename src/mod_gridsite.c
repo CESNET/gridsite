@@ -3237,7 +3237,9 @@ static int mod_gridsite_perm_handler(request_rec *r)
     
     apr_table_setn(r->notes, "GRST_PERM", apr_psprintf(r->pool, "%d", perm));
 
-    cred = user->firstcred;
+    cred = NULL;
+    if (user)
+	cred = user->firstcred;
     if ((cred != NULL) && (strncmp(cred->auri, "dn:", 3) == 0))
       {
         apr_table_setn(r->notes, "GRST_CRED_AURI_0",

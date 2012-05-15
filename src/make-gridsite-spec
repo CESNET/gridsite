@@ -16,6 +16,16 @@ else
 	globusdep=',globus-gssapi-gsi-devel'
 fi
 
+if [ x"$project" = x"emi1" ]; then
+	shared_name="shared"
+	shared_provide="libs"
+	shared_obsoletes="gridsite-libs < 1.7.21"
+else
+	shared_name="libs"
+	shared_provide="shared"
+	shared_obsoletes="gridsite-shared <= 1.7.21"
+fi
+
 # test to see if gsoap-devel (or stdsoap2.h and libgsoapssl) is installed
 #
 cat <<EOF >gsoap-test.c
@@ -64,13 +74,13 @@ programs for interactive management of HTTP(S) servers (gridsite-admin.cgi)
 
 See http://www.gridsite.org/ for details.
 
-%package libs
+%package $shared_name
 Group: Development/Libraries
 Summary: GridSite shared library and core documentation
-Obsoletes: gridsite-shared
-Provides: gridsite-shared = %{version}-%{release}
+Obsoletes: $shared_obsoletes
+Provides: gridsite-$shared_provide = %{version}-%{release}
 
-%description libs
+%description $shared_name
 GridSite shared library and core documentation
 
 See http://www.gridsite.org/ for details.
@@ -78,7 +88,7 @@ See http://www.gridsite.org/ for details.
 %package devel
 Group: Development/Libraries
 Summary: GridSite .a libraries and .h headers
-Requires: gridsite-libs%{?_isa} = %{version}-%{release}
+Requires: gridsite-$shared_name%{?_isa} = %{version}-%{release}
 
 %description devel
 GridSite development libraries
@@ -171,19 +181,19 @@ fi
 
 cat <<EOF >>gridsite.spec
 
-%post libs
+%post $shared_name
 if [ "\$UID" = "0" ] ; then
  /sbin/ldconfig
 fi
 
-%postun libs
+%postun $shared_name
 if [ "\$UID" = "0" ] ; then
  /sbin/ldconfig
 fi
 
 %files
 
-%files libs
+%files $shared_name
 %attr(-, root, root) %{_prefix}/%{_lib}/libgridsite.so.%{version}
 %attr(-, root, root) %{_prefix}/%{_lib}/libgridsite.so.${MINOR_VERSION:-1.x}
 %attr(-, root, root) %{_prefix}/%{_lib}/libgridsite.so.${MAJOR_VERSION:-1}

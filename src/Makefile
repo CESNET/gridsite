@@ -550,6 +550,7 @@ dist:
                  delegation.h \
                  roffit make-gridsite-spec make-debian-files \
                  Doxyfile doxygen.css doxyheader.html \
+                 *.pc.in \
                  ../dist/gridsite-$(PATCH_VERSION)/src
 	cp -f ../doc/*.html ../doc/*.1 ../doc/*.8 ../doc/*.conf ../doc/*.sh \
               ../doc/*.spec ../doc/*.wsdl \

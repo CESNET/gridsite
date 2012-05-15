@@ -132,24 +132,24 @@ See http://www.gridsite.org/ for details.
 
 %prep
 
-%setup
+%setup -q
 
 %build
 cd src
-make prefix=\$RPM_BUILD_ROOT/%{_prefix}
+make prefix=%{_prefix}
 
 EOF
 
 if [ $have_fuse ] ; then
 cat <<EOF >>gridsite.spec
-make prefix=\$RPM_BUILD_ROOT/%{_prefix} slashgrid
+make prefix=%{_prefix} slashgrid
 
 EOF
 fi
 
 if [ $have_gsoap ] ; then
 cat <<EOF >>gridsite.spec
-make prefix=\$RPM_BUILD_ROOT/%{_prefix} gridsite-delegation.cgi htproxyput
+make prefix=%{_prefix} gridsite-delegation.cgi htproxyput
 
 EOF
 fi
@@ -157,6 +157,8 @@ fi
 cat <<EOF >>gridsite.spec
 
 %install
+rm -rf \$RPM_BUILD_ROOT
+
 cd src
 
 make install prefix=\$RPM_BUILD_ROOT/%{_prefix} libdir=%{_lib}
@@ -180,6 +182,8 @@ EOF
 fi
 
 cat <<EOF >>gridsite.spec
+%clean
+rm -rf \$RPM_BUILD_ROOT
 
 %post $shared_name
 if [ "\$UID" = "0" ] ; then

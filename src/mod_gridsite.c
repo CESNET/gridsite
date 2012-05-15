@@ -3050,9 +3050,7 @@ static int mod_gridsite_perm_handler(request_rec *r)
 
     /* finally add IP credential */
     
-    remotehost = (char *) ap_get_remote_host(r->connection,
-                                  r->per_dir_config, REMOTE_DOUBLE_REV, NULL);
-    if ((remotehost != NULL) && (*remotehost != '\0'))
+    if (r->connection->remote_ip)
       {
         cred = GRSTgaclCredCreate("ip:", r->connection->remote_ip);
         GRSTgaclCredSetNotAfter(cred, GRST_MAX_TIME_T);

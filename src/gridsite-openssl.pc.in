@@ -1,0 +1,11 @@
+prefix=@prefix@
+exec_prefix=${prefix}
+libdir=${exec_prefix}/@libdir@
+includedir=${prefix}/include
+
+Name: gridsite openssl
+Description: gridsite libs with openssl support
+Version: @version@
+Requires: openssl, libxml-2.0
+Libs: -L${libdir} -lgridsite
+Cflags: -I${includedir}

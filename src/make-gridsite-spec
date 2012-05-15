@@ -214,6 +214,7 @@ fi
 %attr(-, root, root) %{_prefix}/%{_lib}/libgridsite.so
 %attr(-, root, root) %{_prefix}/%{_lib}/libgridsite_globus.so
 %attr(-, root, root) %{_prefix}/%{_lib}/libgridsite_nossl.so
+%attr(-, root, root) %{_prefix}/%{_lib}/pkgconfig/*.pc
 
 %files apache
 %attr(-, root, root) %{_prefix}/share/man/man8/mod_gridsite.8.gz

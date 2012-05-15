@@ -141,6 +141,7 @@ cat > libgridsite-dev.install <<EOF
 usr/include/*
 usr/lib/lib*.a
 usr/lib/lib*.so
+usr/lib/pkgconfig/*.pc
 EOF
 
 cd - >/dev/null

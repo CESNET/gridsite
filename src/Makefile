@@ -72,6 +72,12 @@ endif
 
 -include Makefile.inc
 
+ifdef OPENSSL_GLOBUS_LIBS
+PC_FILES=gridsite-openssl.pc gridsite-globus.pc
+else
+PC_FILES=gridsite-openssl.pc
+endif
+
 #
 # Build
 #
@@ -82,7 +88,7 @@ build: apidoc build-lib \
 
 build-lib: libgridsite_globus.so.$(VERSION) libgridsite_globus.a \
            libgridsite.so.$(VERSION) libgridsite.a \
-           libgridsite_nossl.so.$(VERSION) libgridsite_nossl.a
+           libgridsite_nossl.so.$(VERSION) libgridsite_nossl.a $(PC_FILES)
 
 # First, normal versions using system OpenSSL rather than Globus OpenSSL
 
@@ -390,12 +396,16 @@ gridsite-storage.cgi: gridsite-storage.c libgridsite.so.$(VERSION)
             -L$(GRIDSITEDIR)/$(libdir) \
             -lgridsite $(CURL_CFLAGS) $(CURL_LIBS)
 
+%.pc: %.pc.in
+	sed -e "s/@version@/$(VERSION)/" -e "s,@prefix@,$(prefix)," -e "s/@libdir@/$(libdir)/" $< > $@
+
 clean:
 	rm -rvf doxygen
 	rm -vf DelegationSoapBinding.* soapC*.c soapH*.h soapS*.c soapStub.h ns.xsd
 	rm -vf fuse-test.c gsoap-test.c gridsite.spec
 	rm -vf libgridsite*.so* *.cgi mod_gridsite*.so *.a *.o
 	rm -vf gsexec urlencode htcp htcp-static findproxyfile showx509exts slashgrid fuse-test gaclexample xacmlexample htproxyput gsoap-test
+	rm -vf gridsite-openssl.pc gridsite-globus.pc
 
 #
 # Install
@@ -445,7 +455,7 @@ install: apidoc install-lib
 	cp -f mod_gridsite.so $(prefix)/$(libdir)/$(httpd_name)/modules
 
 install-lib:
-	mkdir -p $(prefix)/$(libdir)
+	mkdir -p $(prefix)/$(libdir)/pkgconfig
 	cp -f  libgridsite.a $(prefix)/$(libdir)
 	cp -f  libgridsite.so.$(PATCH_VERSION) $(prefix)/$(libdir)
 	ln -sf libgridsite.so.$(PATCH_VERSION) \
@@ -470,6 +480,7 @@ install-lib:
                                  $(prefix)/$(libdir)/libgridsite_nossl.so.$(MAJOR_VERSION)
 	ln -sf libgridsite_nossl.so.$(PATCH_VERSION) \
                                  $(prefix)/$(libdir)/libgridsite_nossl.so.$(MINOR_VERSION)
+	cp -f $(PC_FILES) $(prefix)/$(libdir)/pkgconfig
 
 install-slashgrid: slashgrid
 	-mkdir -p $(RPM_BUILD_ROOT)/etc/rc.d/init.d

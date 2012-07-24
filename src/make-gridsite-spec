@@ -19,11 +19,11 @@ fi
 if [ x"$project" = x"emi1" ]; then
 	shared_name="shared"
 	shared_provide="libs"
-	shared_obsoletes="gridsite-libs < 1.7.21"
+	shared_obsoletes="gridsite-libs < $PATCH_VERSION"
 else
 	shared_name="libs"
 	shared_provide="shared"
-	shared_obsoletes="gridsite-shared <= 1.7.21"
+	shared_obsoletes="gridsite-shared <= $PATCH_VERSION"
 fi
 
 # test to see if gsoap-devel (or stdsoap2.h and libgsoapssl) is installed
@@ -83,7 +83,7 @@ See http://www.gridsite.org/ for details.
 %package $shared_name
 Group: Development/Libraries
 Summary: GridSite shared library and core documentation
-Obsoletes: $shared_obsoletes <= %{version}
+Obsoletes: $shared_obsoletes
 Provides: gridsite-$shared_provide = %{version}-%{release}
 
 %description $shared_name

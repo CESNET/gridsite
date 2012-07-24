@@ -559,6 +559,7 @@ dist:
                  ../dist/gridsite-$(PATCH_VERSION)/interface
 	cd ../dist ; tar zcvf ../gridsite-$(PATCH_VERSION).src.tar.gz \
                  gridsite-$(PATCH_VERSION)
+	chmod +x ../dist/gridsite-$(PATCH_VERSION)/src/make-debian-files
 	rm -Rf ../dist/gridsite-$(PATCH_VERSION)
 
 
@@ -595,7 +596,7 @@ rpm: rpm-prepare
 	cp -f ../gridsite-$(PATCH_VERSION).src.tar.gz $(MYRPMDIR)/SOURCES
 	cp -f gridsite.spec $(MYRPMDIR)/SPECS
 	$(RPMCMD) --define "_topdir $(MYRPMDIR)" \
-                  -ba --buildroot $(MYRPMDIR)/BUILDROOT gridsite.spec
+                  -bs --nodeps --buildroot $(MYRPMDIR)/BUILDROOT gridsite.spec
 
 deb-prepare: dist
 	export PATCH_VERSION=$(PATCH_VERSION) && \
@@ -613,7 +614,7 @@ deb: deb-prepare
 	cp -rf ../debian/ $(MYRPMDIR)/gridsite-$(PATCH_VERSION)/
 	(cd $(MYRPMDIR)/gridsite-$(PATCH_VERSION) && \
 	pwd && \
-	dpkg-buildpackage)
+	dpkg-buildpackage -S -d -uc -us)
 
 wtf: 
 	pwd

@@ -1,3 +1,13 @@
+- ==== GridSite version 1.7.22 ====
+* Tue Jul 24 2012 František Dvořák <valtri@civ.zcu.cz>
+- Proper obsoletes in rpm packages (versioned, not platform dependent)
+- Dependency on pkg-config in devel package
+- Provide pkg-config files for gridsite
+- Create only source packages from make
+- gridsite-apache and gridsite-services into main gridsite package
+* Tue May 15 2012 Daniel Kouřil <kouril@ics.muni.cz>
+- Refrain from accessing uninitialized memory (GGUS #81757)
+- Remove DNS lookup in mod_gridsite, use remote IP from Apache context
 - ==== GridSite version 1.7.21 ====
 * Mon Apr 16 2012 František Dvořák <valtri@civ.zcu.cz>
 - Partially harmonize package names with EPEL

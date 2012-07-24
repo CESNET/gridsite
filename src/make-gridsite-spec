@@ -83,7 +83,7 @@ See http://www.gridsite.org/ for details.
 %package $shared_name
 Group: Development/Libraries
 Summary: GridSite shared library and core documentation
-Obsoletes: $shared_obsoletes
+Obsoletes: $shared_obsoletes <= %{version}
 Provides: gridsite-$shared_provide = %{version}-%{release}
 
 %description $shared_name

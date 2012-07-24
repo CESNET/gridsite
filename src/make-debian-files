@@ -30,18 +30,21 @@ chmod +x rules
 echo "7" > compat
 echo "3.0 (quilt)" > source/format
 
-# apache
-cat > gridsite-apache.install <<EOF
+# main (apache, cgi, delegation)
+cat > gridsite.install <<EOF
 usr/lib/apache2/modules/mod_gridsite.so
 usr/sbin/real-gridsite-admin.cgi
 usr/sbin/gridsite-copy.cgi
+usr/sbin/gridsite-delegation.cgi
 usr/sbin/gridsite-storage.cgi
 EOF
-cat > gridsite-apache.manpages <<EOF
+cat > gridsite.manpages <<EOF
+doc/gridsite-delegation.8
 doc/mod_gridsite.8
 EOF
-cat > gridsite-apache.docs <<EOF
+cat > gridsite.docs <<EOF
 debian/tmp/usr/share/doc/gridsite-${MINOR_VERSION}/httpd-*.conf
+doc/delegation-1.1.0.wsdl
 src/mod_gridsite_example.c
 EOF
 
@@ -95,17 +98,6 @@ doc/htproxytime.1
 doc/htproxyunixtime.1
 doc/htproxyrenew.1
 doc/htproxyinfo.1
-EOF
-
-# services
-cat > gridsite-services.install <<EOF
-usr/sbin/gridsite-delegation.cgi
-EOF
-cat > gridsite-services.manpages <<EOF
-doc/gridsite-delegation.8
-EOF
-cat > gridsite-services.docs <<EOF
-doc/delegation-1.1.0.wsdl
 EOF
 
 # slashgrid

@@ -84,7 +84,8 @@ endif
 
 build: apidoc build-lib \
        htcp gridsite-copy.cgi gridsite-storage.cgi mod_gridsite.so \
-       urlencode findproxyfile gsexec real-gridsite-admin.cgi
+       urlencode findproxyfile gsexec real-gridsite-admin.cgi \
+       gridsite-delegation.cgi
 
 build-lib: libgridsite_globus.so.$(VERSION) libgridsite_globus.a \
            libgridsite.so.$(VERSION) libgridsite.a \

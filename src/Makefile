@@ -78,6 +78,16 @@ else
 PC_FILES=gridsite-openssl.pc
 endif
 
+# caNl adoption part
+# caNl library and headers have to be in standard system places.
+ifeq ($(GRIDSITE_WITH_CANL),yes)
+GRST_X509_FILE=grst_canl_x509.c
+MYCANLLDFLAGS=-lcanl_c
+else
+GRST_X509_FILE=grst_x509.c
+MYCANLLDFLAGS=
+endif
+
 #
 # Build
 #
@@ -98,7 +108,7 @@ libgridsite.so.$(VERSION): grst_err.o grst_x509.o grst_gacl.o grst_xacml.o \
 	gcc -shared -Wl,-soname,libgridsite.so.$(MINOR_VERSION) \
          -o libgridsite.so.$(PATCH_VERSION) \
          grst_err.o grst_x509.o grst_gacl.o grst_xacml.o grst_http.o \
-         grst_asn1.o grst_htcp.o -lcrypto $(XML2_LIBS)
+         grst_asn1.o grst_htcp.o -lcrypto ${MYCANLLDFLAGS} $(XML2_LIBS)
 	ln -sf libgridsite.so.$(VERSION) libgridsite.so
 	ln -sf libgridsite.so.$(VERSION) libgridsite.so.$(MINOR_VERSION)
 
@@ -110,9 +120,9 @@ grst_err.o: grst_err.c ../interface/gridsite.h
 	    -I/usr/kerberos/include \
 	    -c grst_err.c
 
-grst_x509.o: grst_x509.c ../interface/gridsite.h
+grst_x509.o: ${GRST_X509_FILE} ../interface/gridsite.h
 	gcc -g $(MYCFLAGS) \
-            -I/usr/kerberos/include -c grst_x509.c
+            -I/usr/kerberos/include -c ${GRST_X509_FILE} -o $@
 
 grst_gacl.o: grst_gacl.c ../interface/gridsite.h
 	gcc -g $(MYCFLAGS) \
@@ -251,7 +261,7 @@ urlencode: urlencode.c libgridsite.so.$(VERSION)
             -lgridsite
 
 htcp: htcp.c libgridsite.so.$(VERSION)
-	gcc -g -DVERSION=\"$(PATCH_VERSION)\" $(MYCFLAGS) \
+	gcc -g -DVERSION=\"$(PATCH_VERSION)\" ${MYCANLLDFLAGS} $(MYCFLAGS) \
 	    -o htcp htcp.c -L. \
 	    -I/usr/kerberos/include \
             $(CURL_CFLAGS) $(CURL_LIBS) \

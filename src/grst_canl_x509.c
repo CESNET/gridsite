@@ -2105,71 +2105,84 @@ int GRSTx509CreateProxyRequest(char **reqtxt, char **keytxt, char *ocspurl)
 /// Returns GRST_RET_OK on success, non-zero otherwise. Request string
 /// and private key are PEM encoded strings
 {
-  int              i;
-  char            *ptr;
-  size_t           ptrlen;
-  RSA             *keypair;
-  X509_NAME       *subject;
-  X509_NAME_ENTRY *ent;
-  EVP_PKEY        *pkey;
-  X509_REQ        *certreq;
-  BIO             *reqmem, *keymem;
-  const EVP_MD    *digest;
-  struct stat      statbuf;
+    int              i = 0;
+    char            *ptr = 0;
+    size_t           ptrlen = 0;
+    EVP_PKEY        *pkey = NULL;
+    X509_REQ        *req = NULL;
+    BIO             *reqmem = NULL, *keymem = NULL;
+    canl_cred proxy_bob = NULL;
+    int retval = 0;
+    canl_ctx c_ctx = NULL;
+    int ret = 0;
 
-  /* create key pair and put it in a PEM string */
-
-  if ((keypair = RSA_generate_key(GRST_KEYSIZE, 65537, NULL, NULL)) == NULL)
-                                                               return 1;
-
-  keymem = BIO_new(BIO_s_mem());
-  if (!PEM_write_bio_RSAPrivateKey(keymem, keypair, NULL, NULL, 0, NULL, NULL))
-    {
-      BIO_free(keymem);
-      return 3;
+    /*Make new canl_ctx, TODO MP how to initialize it only once?*/
+    c_ctx = canl_create_ctx();
+    if (c_ctx == NULL) {
+        return 10; /* TODO MP we can use caNl error codes now */
     }
 
-  ptrlen = BIO_get_mem_data(keymem, &ptr);
-  
-  *keytxt = malloc(ptrlen + 1);
-  memcpy(*keytxt, ptr, ptrlen);
-  (*keytxt)[ptrlen] = '\0';
+    ret = canl_cred_new(c_ctx, &proxy_bob);
+    if (ret){
+        retval = 11;
+        goto end;
+    }
 
-  BIO_free(keymem);
-  
-  /* now create the certificate request */
+    /*use caNl to generate a X509 request*/
+    ret = canl_cred_new_req(c_ctx, proxy_bob, GRST_KEYSIZE);
+    if (ret) {
+        retval = 12;
+        goto end;
+    }
 
-  certreq = X509_REQ_new();
+    ret = canl_cred_save_req(c_ctx, proxy_bob, &req);
+    if (ret) {
+        retval = 13;
+        goto end;
+    }
 
-  OpenSSL_add_all_algorithms();
+    /*Convert request into a string*/
+    reqmem = BIO_new(BIO_s_mem());
+    PEM_write_bio_X509_REQ(reqmem, req);
+    ptrlen = BIO_get_mem_data(reqmem, &ptr);
 
-  pkey = EVP_PKEY_new();
-  EVP_PKEY_assign_RSA(pkey, keypair);
+    *reqtxt = malloc(ptrlen + 1);
+    memcpy(*reqtxt, ptr, ptrlen);
+    (*reqtxt)[ptrlen] = '\0';
 
-  X509_REQ_set_pubkey(certreq, pkey);
-  
-  subject = X509_NAME_new();
-  ent = X509_NAME_ENTRY_create_by_NID(NULL, OBJ_txt2nid("organizationName"), 
-                                      MBSTRING_ASC, "Dummy", -1);
-  X509_NAME_add_entry (subject, ent, -1, 0);
-  X509_REQ_set_subject_name (certreq, subject);
-  
-  digest = EVP_md5();
-  X509_REQ_sign(certreq, pkey, digest);
+    /* Put keypair in a PEM string */
+    ret = canl_cred_save_priv_key(c_ctx, proxy_bob, &pkey);
+    if (ret){
+        retval = 15;
+        goto end;
+    }
+    keymem = BIO_new(BIO_s_mem());
+    if (!PEM_write_bio_PrivateKey(keymem, pkey, NULL, NULL, 0, NULL, NULL))
+    {
+        BIO_free(keymem);
+        return 3;
+    }
 
-  reqmem = BIO_new(BIO_s_mem());
-  PEM_write_bio_X509_REQ(reqmem, certreq);
-  ptrlen = BIO_get_mem_data(reqmem, &ptr);
-  
-  *reqtxt = malloc(ptrlen + 1);
-  memcpy(*reqtxt, ptr, ptrlen);
-  (*reqtxt)[ptrlen] = '\0';
+    ptrlen = BIO_get_mem_data(keymem, &ptr);
+    *keytxt = malloc(ptrlen + 1);
+    memcpy(*keytxt, ptr, ptrlen);
+    (*keytxt)[ptrlen] = '\0';
 
-  BIO_free(reqmem);
+end:
+    if (proxy_bob)
+        canl_cred_free(c_ctx, proxy_bob);
+    if (pkey)
+        EVP_PKEY_free(pkey);
+    if (reqmem)
+        BIO_free(reqmem);
+    if (keymem)
+        BIO_free(keymem);
+    if (req)
+        X509_REQ_free(req);
+    if (c_ctx)
+        canl_free_ctx(c_ctx);
 
-  X509_REQ_free(certreq);
-  
-  return 0;
+    return retval;
 }
 
 /// Make and store a X.509 request for a GSI proxy
@@ -2184,12 +2197,13 @@ int GRSTx509MakeProxyRequest(char **reqtxt, char *proxydir,
     char *docroot = NULL, *prvkeyfile = NULL, *ptr = NULL, *user_dn_enc = NULL;
     size_t ptrlen = 0;
     FILE *fp = NULL;
-    RSA *keypair = NULL;
+    EVP_PKEY *pkey = NULL;
     BIO *reqmem = NULL;
     canl_ctx c_ctx = NULL;
     canl_cred proxy_bob = NULL;
     X509_REQ *req = NULL;
     int retval = GRST_RET_OK;
+    int ret = 0;
 
     if (strcmp(user_dn, "cache") == 0)
         return GRST_RET_FAILED;
@@ -2254,13 +2268,13 @@ int GRSTx509MakeProxyRequest(char **reqtxt, char *proxydir,
     free(user_dn_enc);
     user_dn_enc = NULL;
 
-    keypair = canl_cred_get_keypair();
-    if (!keypair) {
+    ret = canl_cred_save_priv_key(c_ctx, proxy_bob, &pkey);
+    if (ret) {
         retval = 15;
         goto end;
     }
 
-    if (!PEM_write_RSAPrivateKey(fp, keypair, NULL, NULL, 0, NULL, NULL)) {
+    if (!PEM_write_PrivateKey(fp, pkey, NULL, NULL, 0, NULL, NULL)) {
         retval = 3;
         goto end;
     }
@@ -2286,7 +2300,7 @@ int GRSTx509MakeProxyRequest(char **reqtxt, char *proxydir,
     (*reqtxt)[ptrlen] = '\0';
 end:
     if (proxy_bob)
-        canl_cred_free(ctx, proxy_bob);
+        canl_cred_free(c_ctx, proxy_bob);
     if (reqmem)
         BIO_free(reqmem);
     if (req)
@@ -2574,7 +2588,6 @@ int GRSTx509CacheProxy(char *proxydir, char *delegation_id,
     int retval = GRST_RET_FAILED;
     char *user_dn_enc, *prvkeyfile, *proxyfile;
     STACK_OF(X509) *certstack;
-    FILE *ifp = NULL;
     canl_ctx c_ctx = NULL;
     canl_cred proxy_bob = NULL;
 
@@ -2620,17 +2633,12 @@ int GRSTx509CacheProxy(char *proxydir, char *delegation_id,
     prvkeyfile = GRSTx509CachedProxyKeyFind(proxydir, delegation_id, user_dn);
     if (prvkeyfile == NULL)
         goto end;
-    if ((ifp = fopen(prvkeyfile, "r")) == NULL)
-        goto end;
 
     /* insert proxy private key into canl structure,
        read from private key file */
-    ret = canl_cred_load_priv_key_file(c_ctx, proxy_bob, ifp);
+    ret = canl_cred_load_priv_key_file(c_ctx, proxy_bob, prvkeyfile, NULL, NULL);
     if (ret)
         goto end;
-    if (fclose(ifp) !=0)
-        goto end;
-    ifp = NULL;
     unlink(prvkeyfile);
     free(prvkeyfile);
     prvkeyfile = NULL;
@@ -2645,7 +2653,7 @@ end:
     if (proxyfile)
         free(proxyfile);
     if (proxy_bob)
-        canl_cred_free(ctx, proxy_bob);
+        canl_cred_free(c_ctx, proxy_bob);
     if (certstack)
         sk_X509_free(certstack);
     if (prvkeyfile)
@@ -2654,8 +2662,6 @@ end:
         free(user_dn_enc);
     if (c_ctx)
         canl_free_ctx(c_ctx);
-    if (ifp)
-        fclose(ifp);
 
     return retval;
 }

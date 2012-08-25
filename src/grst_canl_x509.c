@@ -1695,7 +1695,7 @@ int GRSTx509MakeProxyCert(char **proxychain, FILE *debugfp,
 /// errors are output to that file pointer. The proxy will expired in
 /// the given number of minutes starting from the current time.
 {
-  char *ptr, *certchain, s[41];
+  char *ptr = NULL, *certchain = NULL;
   static unsigned char pci_str[] = { 0x30, 0x0c, 0x30, 0x0a, 0x06, 0x08,
     0x2b, 0x06, 0x01, 0x05, 0x05, 0x07, 0x15, 0x01, 0 },
     kyu_str[] = { 0x03, 0x02, 0x03, 
@@ -1703,325 +1703,266 @@ int GRSTx509MakeProxyCert(char **proxychain, FILE *debugfp,
                   X509v3_KU_KEY_ENCIPHERMENT  | 
                   X509v3_KU_KEY_AGREEMENT, 
                   0 };
-  int i, ncerts, any_rfc_proxies = 0;
-  long serial = 1234, ptrlen;
-  EVP_PKEY *pkey, *CApkey;
-  const EVP_MD *digest;
-  X509 *certs[GRST_MAX_CHAIN_LEN];
-  X509_REQ *req;
-  X509_NAME *name, *CAsubject, *newsubject;
-  X509_NAME_ENTRY *ent;
-  ASN1_OBJECT *pci_obj = NULL, *kyu_obj;
-  ASN1_OCTET_STRING *pci_oct, *kyu_oct;
-  X509_EXTENSION *pci_ex, *kyu_ex;
-  FILE *fp;
-  BIO *reqmem, *certmem;
-  time_t notAfter;
+  int i = 0, ncerts = 0, any_rfc_proxies = 0;
+  long ptrlen = 0;
+    EVP_PKEY *pkey = NULL, *signer_pkey = NULL;
+    X509 *certs[GRST_MAX_CHAIN_LEN];
+    X509_REQ *req = NULL;
+    ASN1_OBJECT *pci_obj = NULL, *kyu_obj = NULL;
+    ASN1_OCTET_STRING *pci_oct = NULL, *kyu_oct = NULL;
+    FILE *fp = NULL;
+    BIO *reqmem = NULL, *certmem = NULL;
+    time_t notAfter;
+    canl_ctx ctx = NULL;
+    int retval = 1, ret = 0;
+    canl_cred proxy_cert = NULL, signer = NULL;
 
-  /* read in the request */
-  reqmem = BIO_new(BIO_s_mem());
-  BIO_puts(reqmem, reqtxt);
-    
-  if (!(req = PEM_read_bio_X509_REQ(reqmem, NULL, NULL, NULL)))
-    {
-      mpcerror(debugfp,
-              "GRSTx509MakeProxyCert(): error reading request from BIO memory\n");
-      BIO_free(reqmem);
-      return GRST_RET_FAILED;
+    ctx = canl_create_ctx();
+    if (ctx == NULL) {
+        fprintf(debugfp, "GRSTx509MakeProxyCert(): Failed to create"
+               " caNl library context\n");
+        return 1;
     }
     
-  BIO_free(reqmem);
+    /* read in the request */
+    reqmem = BIO_new(BIO_s_mem());
+    BIO_puts(reqmem, reqtxt);
 
-  /* verify signature on the request */
-  if (!(pkey = X509_REQ_get_pubkey(req)))
-    {
-      mpcerror(debugfp,
-              "GRSTx509MakeProxyCert(): error getting public key from request\n");
-      
-      X509_REQ_free(req);
-      return GRST_RET_FAILED;
+    if (!(req = PEM_read_bio_X509_REQ(reqmem, NULL, NULL, NULL))) {
+        fprintf(debugfp, "GRSTx509MakeProxyCert(): error reading"
+                " request from BIO memory\n");
+        goto end;
     }
-
-  if (X509_REQ_verify(req, pkey) != 1)
-    {
-      mpcerror(debugfp,
-            "GRSTx509MakeProxyCert(): error verifying signature on certificate\n");
-
-      X509_REQ_free(req);
-      return GRST_RET_FAILED;
-    }
+    BIO_free(reqmem);
+    reqmem = NULL;
     
-  /* read in the signing certificate */
-  if (!(fp = fopen(cert, "r")))
-    {
-      mpcerror(debugfp,
-            "GRSTx509MakeProxyCert(): error opening signing certificate file\n");
-
-      X509_REQ_free(req);
-      return GRST_RET_FAILED;
-    }    
-
-  for (ncerts = 1; ncerts < GRST_MAX_CHAIN_LEN; ++ncerts)
-   if ((certs[ncerts] = PEM_read_X509(fp, NULL, NULL, NULL)) == NULL) break;
-
-  if (ncerts == 1) /* zeroth cert with be new proxy cert */
-    {
-      mpcerror(debugfp,
-            "GRSTx509MakeProxyCert(): error reading signing certificate file\n");
-
-      X509_REQ_free(req);
-      return GRST_RET_FAILED;
-    }    
-
-  fclose(fp);
-  
-  CAsubject = X509_get_subject_name(certs[1]);
-
-  /* read in the CA private key */
-  if (!(fp = fopen(key, "r")))
-    {
-      mpcerror(debugfp,
-            "GRSTx509MakeProxyCert(): error reading signing private key file\n");
-
-      X509_REQ_free(req);
-      return GRST_RET_FAILED;
-    }    
-
-  if (!(CApkey = PEM_read_PrivateKey(fp, NULL, NULL, NULL)))
-    {
-      mpcerror(debugfp,
-            "GRSTx509MakeProxyCert(): error reading signing private key in file\n");
-
-      X509_REQ_free(req);
-      return GRST_RET_FAILED;
-    }    
-
-  fclose(fp);
-  
-  /* get subject name */
-  if (!(name = X509_REQ_get_subject_name(req)))
-    {
-      mpcerror(debugfp,
-            "GRSTx509MakeProxyCert(): error getting subject name from request\n");
-
-      X509_REQ_free(req);
-      return GRST_RET_FAILED;
-    }    
-
-  /* create new certificate */
-  if (!(certs[0] = X509_new()))
-    {
-      mpcerror(debugfp,
-            "GRSTx509MakeProxyCert(): error creating X509 object\n");
-
-      X509_REQ_free(req);
-      return GRST_RET_FAILED;
-    }    
-
-  /* set version number for the certificate (X509v3) and the serial number   
-     
-     We now use 2 = v3 for the GSI proxy, rather than the old Globus 
-     behaviour of 3 = v4. See Savannah Bug #53721 */
-     
-  if (X509_set_version(certs[0], 2L) != 1)
-    {
-      mpcerror(debugfp,
-            "GRSTx509MakeProxyCert(): error setting certificate version\n");
-
-      X509_REQ_free(req);
-      return GRST_RET_FAILED;
-    }    
-
-  ASN1_INTEGER_set(X509_get_serialNumber(certs[0]), (long) time(NULL));
-
-  if (!(name = X509_get_subject_name(certs[1])))
-    {
-      mpcerror(debugfp,
-      "GRSTx509MakeProxyCert(): error getting subject name from CA certificate\n");
-
-      X509_REQ_free(req);
-      return GRST_RET_FAILED;
-    }    
-
-  if (X509_set_issuer_name(certs[0], name) != 1)
-    {
-      mpcerror(debugfp,
-      "GRSTx509MakeProxyCert(): error setting issuer name of certificate\n");
-
-      X509_REQ_free(req);
-      return GRST_RET_FAILED;
-    }    
-
-  /* set public key in the certificate */
-  if (X509_set_pubkey(certs[0], pkey) != 1)
-    {
-      mpcerror(debugfp,
-      "GRSTx509MakeProxyCert(): error setting public key of the certificate\n");
-
-      X509_REQ_free(req);
-      return GRST_RET_FAILED;
-    }    
-
-  /* set duration for the certificate */
-  if (!(X509_gmtime_adj(X509_get_notBefore(certs[0]), -GRST_BACKDATE_SECONDS)))
-    {
-      mpcerror(debugfp,
-      "GRSTx509MakeProxyCert(): error setting beginning time of the certificate\n");
-
-      X509_REQ_free(req);
-      return GRST_RET_FAILED;
-    }    
-
-  if (!(X509_gmtime_adj(X509_get_notAfter(certs[0]), 60 * minutes)))
-    {
-      mpcerror(debugfp,
-      "GRSTx509MakeProxyCert(): error setting ending time of the certificate\n");
-
-      X509_REQ_free(req);
-      return GRST_RET_FAILED;
+    /* load req into canl cred. context */
+    ret = canl_cred_new(ctx, &proxy_cert);
+    if (ret) {
+        fprintf(debugfp, "GRSTx509MakeProxyCert(): caNl cred. context"
+                " cannot be created: %s\n", canl_get_error_message(ctx));
+        goto end;
     }
-    
-  /* go through chain making sure this proxy is not longer lived */
+    ret = canl_cred_load_req(ctx, proxy_cert, req);
+    if (ret) {
+        fprintf(stderr, "GRSTx509MakeProxyCert(): Failed to load certificate "
+                "request container: %s\n", canl_get_error_message(ctx));
+        goto end;
+    }
 
-  pci_obj = OBJ_txt2obj(GRST_PROXYCERTINFO_OID, 0);
+    /*TODO MP Should proxy sognature verification be in caN???*/
+    /* verify signature on the request */
+    if (!(pkey = X509_REQ_get_pubkey(req))) {
+        mpcerror(debugfp, "GRSTx509MakeProxyCert(): error getting public"
+                " key from request\n");
+    }
 
-  notAfter = 
-     GRSTasn1TimeToTimeT(ASN1_STRING_data(X509_get_notAfter(certs[0])), 0);
-     
-  for (i=1; i < ncerts; ++i)
-     {
-       if (notAfter > 
-           GRSTasn1TimeToTimeT(ASN1_STRING_data(X509_get_notAfter(certs[i])),
-                               0))
-         {
-           notAfter = 
-            GRSTasn1TimeToTimeT(ASN1_STRING_data(X509_get_notAfter(certs[i])),
-                                0);
-            
-           ASN1_UTCTIME_set(X509_get_notAfter(certs[0]), notAfter);
-         }
-         
-       if (X509_get_ext_by_OBJ(certs[i], pci_obj, -1) > 0) 
-         any_rfc_proxies = 1;
-     }
+    if (X509_REQ_verify(req, pkey) != 1) {
+        mpcerror(debugfp, "GRSTx509MakeProxyCert(): error verifying signature"
+                " on certificate\n");
+        goto end;
+    }
+    EVP_PKEY_free(pkey);
+    pkey = NULL;
+    X509_REQ_free(req);
+    req = NULL;
+
+    /* read in the signing certificate */
+    if (!(fp = fopen(cert, "r"))) {
+        mpcerror(debugfp, "GRSTx509MakeProxyCert(): error opening"
+                " signing certificate file\n");
+        goto end;
+    }
+    /* load req signer cert into caNl cred. context*/
+    ret = canl_cred_new(ctx, &signer);
+    if (ret) {
+        fprintf(debugfp, "GRSTx509MakeProxyCert(): caNl cred. context"
+                " cannot be created: %s\n", canl_get_error_message(ctx));
+        goto end;
+    }
+
+    for (ncerts = 1; ncerts < GRST_MAX_CHAIN_LEN; ++ncerts)
+        if ((certs[ncerts] = PEM_read_X509(fp, NULL, NULL, NULL)) == NULL)
+            break;
+    /* zeroth cert will be new proxy cert */
+    if (ncerts == 1) {
+        mpcerror(debugfp, "GRSTx509MakeProxyCert(): error reading"
+                " signing certificate file\n");
+        goto end;
+    }
+    fclose(fp);
+    fp = NULL;
+
+    /* read in the signer certificate*/
+    ret = canl_cred_load_cert_file(ctx, signer, certs[1]);
+    if (ret){
+        fprintf(stderr, "[DELEGATION] Cannot load signer's certificate"
+                ": %s\n", canl_get_error_message(ctx));
+        goto end;
+    }
+
+
+    /* read in the signer private key */
+    if (!(fp = fopen(key, "r"))) {
+        mpcerror(debugfp, "GRSTx509MakeProxyCert(): error reading" 
+                " signing private key file\n");
+        goto end;
+    }    
+
+    if (!(signer_pkey = PEM_read_PrivateKey(fp, NULL, NULL, NULL))) {
+        mpcerror(debugfp, "GRSTx509MakeProxyCert(): error reading "
+                "signing private key in file\n");
+        goto end;
+    }    
+    fclose(fp);
+    fp = NULL;
+    canl_cred_load_priv_key(ctx, signer, signer_pkey);
+    EVP_PKEY_free(signer_pkey);
+    signer_pkey = NULL;
+
+    /*TODO MP Compare with VOMS in caNl (orig gridsite proxyver = 2L)*/
+    /* set version number for the certificate (X509v3) and the serial number
+       We now use 2 = v3 for the GSI proxy, rather than the old Globus
+       behaviour of 3 = v4. See Savannah Bug #53721 */
+
+    /* TODO MP what about serial numbers? Should caNl provide API function for
+     * setting custom serial number?*/
+    /*  ASN1_INTEGER_set(X509_get_serialNumber(certs[0]), (long) time(NULL));*/
+
+    /* TODO MP use some default timeout?*/
+    if (minutes >= 0) {
+        ret = canl_cred_set_lifetime(ctx, proxy_cert, 60 * minutes);
+        if (ret)
+            fprintf(debugfp, "[DELEGATION] Failed set new cert lifetime"
+                    ": %s\n", canl_get_error_message(ctx));
+    }
+
+    /* go through chain making sure this proxy is not longer lived */
+
+    pci_obj = OBJ_txt2obj(GRST_PROXYCERTINFO_OID, 0);
+
+    /* TODO MP is this necessary? caNl test if new proxy timeout
+     * is longer than signer cert proxy timeout */
+    notAfter = 
+        GRSTasn1TimeToTimeT(ASN1_STRING_data(X509_get_notAfter(certs[0])), 0);
+
+    for (i=1; i < ncerts; ++i) {
+        if (notAfter > GRSTasn1TimeToTimeT(ASN1_STRING_data(
+                        X509_get_notAfter(certs[i])),0)) {
+            notAfter = GRSTasn1TimeToTimeT(ASN1_STRING_data(
+                        X509_get_notAfter(certs[i])),0);
+
+            ASN1_UTCTIME_set(X509_get_notAfter(certs[0]), notAfter);
+        }
+        if (X509_get_ext_by_OBJ(certs[i], pci_obj, -1) > 0) 
+            any_rfc_proxies = 1;
+    }
 
    /* if any earlier proxies are RFC 3820, then new proxy must be 
       an RFC 3820 proxy too with the required extensions */ 
-   if (any_rfc_proxies)
-    {
-      /* key usage */
-      kyu_obj = OBJ_txt2obj(GRST_KEYUSAGE_OID, 0);
-      kyu_ex = X509_EXTENSION_new();
-      
-      X509_EXTENSION_set_object(kyu_ex, kyu_obj);
-      ASN1_OBJECT_free(kyu_obj);
-      X509_EXTENSION_set_critical(kyu_ex, 1);
+    if (any_rfc_proxies) {
+        X509_EXTENSION *pci_ex = NULL, *kyu_ex = NULL;
+        /* key usage */
+        kyu_obj = OBJ_txt2obj(GRST_KEYUSAGE_OID, 0);
+        kyu_ex = X509_EXTENSION_new();
 
-      kyu_oct = ASN1_OCTET_STRING_new();
-      ASN1_OCTET_STRING_set(kyu_oct, kyu_str, strlen(kyu_str));
-      X509_EXTENSION_set_data(kyu_ex, kyu_oct);
-      ASN1_OCTET_STRING_free(kyu_oct);
-      
-      X509_add_ext(certs[0], kyu_ex, -1);
-      X509_EXTENSION_free(kyu_ex);
+        X509_EXTENSION_set_object(kyu_ex, kyu_obj);
+        ASN1_OBJECT_free(kyu_obj);
+        X509_EXTENSION_set_critical(kyu_ex, 1);
 
-      /* proxy certificate info */
-      pci_ex = X509_EXTENSION_new();
-      
-      X509_EXTENSION_set_object(pci_ex, pci_obj);
-      X509_EXTENSION_set_critical(pci_ex, 1);
+        kyu_oct = ASN1_OCTET_STRING_new();
+        ASN1_OCTET_STRING_set(kyu_oct, kyu_str, strlen(kyu_str));
+        X509_EXTENSION_set_data(kyu_ex, kyu_oct);
+        ASN1_OCTET_STRING_free(kyu_oct);
 
-      pci_oct = ASN1_OCTET_STRING_new();
-      ASN1_OCTET_STRING_set(pci_oct, pci_str, strlen(pci_str));
-      X509_EXTENSION_set_data(pci_ex, pci_oct);
-      ASN1_OCTET_STRING_free(pci_oct);
-      
-      X509_add_ext(certs[0], pci_ex, -1);
-      X509_EXTENSION_free(pci_ex);
+        X509_add_ext(certs[0], kyu_ex, -1);
+        canl_cred_set_extension(ctx, proxy_cert, kyu_ex);
+        X509_EXTENSION_free(kyu_ex);
+
+        /* proxy certificate info */
+        pci_ex = X509_EXTENSION_new();
+        X509_EXTENSION_set_object(pci_ex, pci_obj);
+        X509_EXTENSION_set_critical(pci_ex, 1);
+
+        pci_oct = ASN1_OCTET_STRING_new();
+        ASN1_OCTET_STRING_set(pci_oct, pci_str, strlen(pci_str));
+        X509_EXTENSION_set_data(pci_ex, pci_oct);
+        ASN1_OCTET_STRING_free(pci_oct);
+
+        canl_cred_set_extension(ctx, proxy_cert, kyu_ex);
+        X509_EXTENSION_free(pci_ex);
     }
-  ASN1_OBJECT_free(pci_obj);
+    ASN1_OBJECT_free(pci_obj);
+    pci_obj = NULL;
 
-  /* set issuer and subject name of the cert from the req and the CA */
+    /* Sign the proxy */
+    ret = canl_cred_sign_proxy(ctx, signer, proxy_cert);
+    if (ret){
+        fprintf(stderr, "[DELEGATION] Cannot sign new proxy"
+                ": %s\n", canl_get_error_message(ctx));
+        goto end;
+    }
 
-  if (any_rfc_proxies) /* user CN=number rather than CN=proxy */
-    {
-       snprintf(s, sizeof(s), "%ld", (long) time(NULL));
-       ent = X509_NAME_ENTRY_create_by_NID(NULL, OBJ_txt2nid("commonName"), 
-                                      MBSTRING_ASC, s, -1);
-    }    
-  else ent = X509_NAME_ENTRY_create_by_NID(NULL, OBJ_txt2nid("commonName"), 
-                                      MBSTRING_ASC, "proxy", -1);
+    ret = canl_cred_save_cert(ctx, proxy_cert, &certs[0]);
+    if (ret) {
+        fprintf(stderr, "GRSTx509MakeProxyCert(): Cannot save new cert file"
+                ": %s\n", canl_get_error_message(ctx));
+        goto end;
+    }
+    canl_free_ctx(ctx);
+    ctx = NULL;
 
-  newsubject = X509_NAME_dup(CAsubject);
+    /* store the completed certificate chain */
+    certchain = strdup("");
+    for (i=0; i < ncerts; ++i) {
+        certmem = BIO_new(BIO_s_mem());
 
-  X509_NAME_add_entry(newsubject, ent, -1, 0);
+        if (PEM_write_bio_X509(certmem, certs[i]) != 1) {
+            mpcerror(debugfp, "GRSTx509MakeProxyCert(): error writing"
+                    " certificate to memory BIO\n");            
+            goto end;
+        }
+        ptrlen = BIO_get_mem_data(certmem, &ptr);
+        certchain = realloc(certchain, strlen(certchain) + ptrlen + 1);
+        strncat(certchain, ptr, ptrlen);
 
-  if (X509_set_subject_name(certs[0], newsubject) != 1)
-    {
-      mpcerror(debugfp,
-      "GRSTx509MakeProxyCert(): error setting subject name of certificate\n");
+        BIO_free(certmem);
+        certmem = NULL;
+        X509_free(certs[i]);
+        certs[i] = NULL;
+    }
+    ncerts = 0;
+    *proxychain = certchain;  
+    retval = GRST_RET_OK;
 
-      X509_REQ_free(req);
-      return GRST_RET_FAILED;
-    }    
-    
-  X509_NAME_free(newsubject);
-  X509_NAME_ENTRY_free(ent);
-
-  /* sign the certificate with the signing private key */
-  if (EVP_PKEY_type(CApkey->type) == EVP_PKEY_RSA)
-    digest = EVP_md5();
-  else
-    {
-      mpcerror(debugfp,
-      "GRSTx509MakeProxyCert(): error checking signing private key for a valid digest\n");
-
-      X509_REQ_free(req);
-      return GRST_RET_FAILED;
-    }    
-
-  if (!(X509_sign(certs[0], CApkey, digest)))
-    {
-      mpcerror(debugfp,
-      "GRSTx509MakeProxyCert(): error signing certificate\n");
-
-      X509_REQ_free(req);
-      return GRST_RET_FAILED;
-    }    
-
-  /* store the completed certificate chain */
-
-  certchain = strdup("");
-
-  for (i=0; i < ncerts; ++i)
-     {
-       certmem = BIO_new(BIO_s_mem());
-
-       if (PEM_write_bio_X509(certmem, certs[i]) != 1)
-         {
-           mpcerror(debugfp,
-            "GRSTx509MakeProxyCert(): error writing certificate to memory BIO\n");            
-
-           X509_REQ_free(req);
-           return GRST_RET_FAILED;
-         }
-
-       ptrlen = BIO_get_mem_data(certmem, &ptr);
-  
-       certchain = realloc(certchain, strlen(certchain) + ptrlen + 1);
-       
-       strncat(certchain, ptr, ptrlen);
-    
-       BIO_free(certmem);
-       X509_free(certs[i]);
-     }
-  
-  EVP_PKEY_free(pkey);
-  EVP_PKEY_free(CApkey);
-  X509_REQ_free(req);
-      
-  *proxychain = certchain;  
-  return GRST_RET_OK;
+end:
+    if (reqmem)
+        BIO_free(reqmem);
+    if (pkey)
+        EVP_PKEY_free(pkey);
+    if (signer_pkey)
+        EVP_PKEY_free(signer_pkey);
+    if (req)
+        X509_REQ_free(req);
+    if (pci_obj)
+        ASN1_OBJECT_free(pci_obj);
+    if (fp) {
+        fclose(fp);
+        fp = NULL;
+    }
+    if (certmem)
+        BIO_free(certmem);
+    if (ctx)
+        canl_free_ctx(ctx);
+    for (i=0; i < ncerts; ++i) {
+        if (certs[i])
+            X509_free(certs[i]);
+    }
+    if (proxy_cert)
+        canl_cred_free(ctx, proxy_cert);
+    if (signer)
+        canl_cred_free(ctx, signer);
+    return retval;
 }
 
 /// Find a proxy file in the proxy cache

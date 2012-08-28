@@ -18,12 +18,12 @@ fi
 
 if [ x"$project" = x"emi1" ]; then
 	shared_name="shared"
-	shared_provide="libs"
-	shared_obsoletes="gridsite-libs < $PATCH_VERSION"
+	shared_provide_name="libs"
+	shared_obsoletes="gridsite-libs%{?_isa} < $PATCH_VERSION"
 else
 	shared_name="libs"
-	shared_provide="shared"
-	shared_obsoletes="gridsite-shared <= $PATCH_VERSION"
+	shared_provide_name="shared"
+	shared_obsoletes="gridsite-shared%{?_isa} <= $PATCH_VERSION"
 fi
 
 # test to see if gsoap-devel (or stdsoap2.h and libgsoapssl) is installed
@@ -65,10 +65,10 @@ Vendor: GridPP
 Buildrequires: libxml2-devel,curl-devel,httpd-devel,openssl-devel,pkgconfig
 Buildrequires: doxygen${gsoapdep}${fusedep}${globusdep}
 Packager: Andrew McNab <Andrew.McNab@manchester.ac.uk>
-Provides: gridsite-apache = %{version}-%{release}
-Obsoletes: gridsite-apache <= 1.7.21
-Provides: gridsite-services = %{version}-%{release}
-Obsoletes: gridsite-services <= 1.7.21
+Provides: gridsite-apache%{?_isa} = %{version}-%{release}
+Obsoletes: gridsite-apache%{?_isa} <= 1.7.21
+Provides: gridsite-services%{?_isa} = %{version}-%{release}
+Obsoletes: gridsite-services%{?_isa} <= 1.7.21
 
 %description
 GridSite adds GSI, VOMS and GACL support to Apache 2.0 (mod_gridsite),
@@ -84,7 +84,7 @@ See http://www.gridsite.org/ for details.
 Group: Development/Libraries
 Summary: GridSite shared library and core documentation
 Obsoletes: $shared_obsoletes
-Provides: gridsite-$shared_provide = %{version}-%{release}
+Provides: gridsite-$shared_provide_name%{?_isa} = %{version}-%{release}
 
 %description $shared_name
 GridSite shared library and core documentation

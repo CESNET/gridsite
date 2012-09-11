@@ -3454,49 +3454,6 @@ static int mod_gridsite_perm_handler(request_rec *r)
     return retcode;
 }
 
-int GRST_X509_check_issued_wrapper(X509_STORE_CTX *ctx, X509 *x, X509 *issuer)
-/* We change the default callback to use our wrapper and discard errors
-   due to GSI proxy chains (ie where users certs act as CAs) */
-{
-    int ret;
-    ret = X509_check_issued(issuer, x);
-    if (ret == X509_V_OK)
-                return 1;
-         
-    /* Non self-signed certs without signing are ok if they passed
-           the other checks inside X509_check_issued. Is this enough? */
-    if ((ret == X509_V_ERR_KEYUSAGE_NO_CERTSIGN) &&
-        (X509_NAME_cmp(X509_get_subject_name(issuer),
-                           X509_get_subject_name(x)) != 0)) return 1;
- 
-    /* If we haven't asked for issuer errors don't set ctx */
-#if OPENSSL_VERSION_NUMBER < 0x00908000
-    if (!(ctx->flags & X509_V_FLAG_CB_ISSUER_CHECK)) return 0;
-#else
-    if (!(ctx->param->flags & X509_V_FLAG_CB_ISSUER_CHECK)) return 0;
-#endif 
-  
-    ctx->error = ret;
-    ctx->current_cert = x;
-    ctx->current_issuer = issuer;
-    return ctx->verify_cb(0, ctx);
-}
-
-/* Later OpenSSL versions add a second pointer ... */
-int GRST_verify_cert_wrapper(X509_STORE_CTX *ctx, void *p)
-
-/* Earlier ones have a single argument ... */
-// int GRST_verify_cert_wrapper(X509_STORE_CTX *ctx)
-
-/* Before 0.9.7 we cannot change the check_issued callback directly in
-   the X509_STORE, so we must insert it in another callback that gets
-   called early enough */
-{
-   ctx->check_issued = GRST_X509_check_issued_wrapper;
-
-   return X509_verify_cert(ctx);
-}
-
 #if AP_MODULE_MAGIC_AT_LEAST(20051115,0)
 /*
     Include this here until libgridsite functions can be used

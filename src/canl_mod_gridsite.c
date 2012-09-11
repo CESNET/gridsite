@@ -108,6 +108,9 @@
 
 #include "gridsite.h"
 
+#include <canl.h>
+#include <canl_ssl.h>
+
 #ifndef IPV6_ADD_MEMBERSHIP
 #ifdef  IPV6_JOIN_GROUP
 #define IPV6_ADD_MEMBERSHIP IPV6_JOIN_GROUP
@@ -4315,6 +4318,14 @@ static int mod_gridsite_server_post_config(apr_pool_t *pPool,
    char            *path;   
    const char *userdata_key   = "sitecast_init";
    const char *insecure_reneg = "SSLInsecureRenegotiation";
+   canl_ctx c_ctx = NULL;
+
+   c_ctx = canl_create_ctx();
+   if (!c_ctx){
+           ap_log_error(APLOG_MARK, APLOG_CRIT, status, main_server,
+              "mod_gridsite: Failed to create caNl context.");
+       return HTTP_INTERNAL_SERVER_ERROR;
+   }
 
    apr_pool_userdata_get((void **) &procnew, userdata_key, 
                          main_server->process->pool);
@@ -4395,21 +4406,13 @@ static int mod_gridsite_server_post_config(apr_pool_t *pPool,
           {
             ctx = SSLSrvConfigRec_server(sc)->ssl_ctx;
 
-            /* in 0.9.7 we could set the issuer-checking callback directly */
-//          ctx->cert_store->check_issued = GRST_X509_check_issued_wrapper;
-     
-            /* but in case 0.9.6 we do it indirectly with another wrapper */
-            SSL_CTX_set_cert_verify_callback(ctx, 
-                                             GRST_verify_cert_wrapper,
-                                             (void *) NULL);
-
-            /* whatever version, we can set the SSLVerify wrapper properly */
-            SSL_CTX_set_verify(ctx, ctx->verify_mode, 
-                               GRST_callback_SSLVerify_wrapper);
+            /* Use default caNl callbacks to verify certificates*/
+            canl_ssl_ctx_set_clb(c_ctx, ctx, ctx->verify_mode);
 
             if (main_server->loglevel >= APLOG_DEBUG)
                  ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, main_server,
-                      "Set mod_ssl verify callbacks to GridSite wrappers");
+                      "Set mod_ssl verify callbacks to GridSite wrappers: %s",
+                      canl_get_error_message(c_ctx));
           }
       }
 
@@ -4419,6 +4422,7 @@ static int mod_gridsite_server_post_config(apr_pool_t *pPool,
    apr_dir_make_recursive(path, APR_UREAD | APR_UWRITE | APR_UEXECUTE, pPool);
    chown(path, unixd_config.user_id, unixd_config.group_id);
 
+   canl_free_ctx(c_ctx);
    return OK;
 }
 

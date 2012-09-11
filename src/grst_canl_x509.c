@@ -1794,7 +1794,7 @@ int GRSTx509MakeProxyCert(char **proxychain, FILE *debugfp,
     fp = NULL;
 
     /* read in the signer certificate*/
-    ret = canl_cred_load_cert_file(ctx, signer, certs[1]);
+    ret = canl_cred_load_cert_file(ctx, signer, cert);
     if (ret){
         fprintf(stderr, "[DELEGATION] Cannot load signer's certificate"
                 ": %s\n", canl_get_error_message(ctx));

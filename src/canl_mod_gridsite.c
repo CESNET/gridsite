@@ -3673,41 +3673,11 @@ int GRST_callback_SSLVerify_wrapper(int ok, X509_STORE_CTX *ctx)
 
 #if AP_MODULE_MAGIC_AT_LEAST(20051115,0)
     /*
-     * Log verification information
-     */
-    if (s->loglevel >= APLOG_DEBUG) 
-      {
-        X509 *cert  = X509_STORE_CTX_get_current_cert(ctx);
-        char *sname = X509_NAME_oneline(X509_get_subject_name(cert), NULL, 0);
-        char *iname = X509_NAME_oneline(X509_get_issuer_name(cert),  NULL, 0);
-
-        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                     "Certificate Verification: "
-                     "depth: %d, subject: %s, issuer: %s",
-                     errdepth,
-                     sname ? sname : "-unknown-",
-                     iname ? iname : "-unknown-");
-
-        if (sname) OPENSSL_free(sname);
-
-        if (iname) OPENSSL_free(iname);
-      } 
-
-    /*
      * Check for optionally acceptable non-verifiable issuer situation
      */
-        verify = mctx->auth.verify_mode;
+   verify = mctx->auth.verify_mode;
 
-    if (verify == SSL_CVERIFY_NONE) 
-      {
-        /*
-         * SSLProxyVerify is either not configured or set to "none".
-         * (this callback doesn't happen in the server context if SSLVerify
-         *  is not configured or set to "none")
-         */
-        return TRUE;
-      }
-
+   /* TODO MP Could it be done by caNl callback? Is this necessary?*/
    if (ssl_verify_error_is_optional(errnum) &&
         (verify == SSL_CVERIFY_OPTIONAL_NO_CA))
     {
@@ -3719,52 +3689,6 @@ int GRST_callback_SSLVerify_wrapper(int ok, X509_STORE_CTX *ctx)
         sslconn->verify_info = "GENEROUS";
         ok = TRUE;
     }
-
-    /*
-     * Additionally perform CRL-based revocation checks
-     */
-   if (ok) 
-     {
-        if (!(ok = GRST_ssl_callback_SSLVerify_CRL(ok, ctx, conn))) 
-          {
-            errnum = X509_STORE_CTX_get_error(ctx);
-          }
-     }
-
-    /*
-     * If we already know it's not ok, log the real reason
-     */
-    if (!ok) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
-                     "Certificate Verification: Error (%d): %s",
-                     errnum, X509_verify_cert_error_string(errnum));
-
-        if (sslconn->client_cert) {
-            X509_free(sslconn->client_cert);
-            sslconn->client_cert = NULL;
-        }
-        sslconn->client_dn = NULL;
-        sslconn->verify_error = X509_verify_cert_error_string(errnum);
-    }
-
-    /*
-     * Finally check the depth of the certificate verification
-     */
-        depth = mctx->auth.verify_depth;
-
-    if (errdepth > depth) 
-      {
-        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
-                     "Certificate Verification: Certificate Chain too long "
-                     "(chain has %d certificates, but maximum allowed are "
-                     "only %d)",
-                     errdepth, depth);
-
-        errnum = X509_V_ERR_CERT_CHAIN_TOO_LONG;
-        sslconn->verify_error = X509_verify_cert_error_string(errnum);
-
-        ok = FALSE;
-      }
 
 #endif
 
@@ -3798,22 +3722,6 @@ int GRST_callback_SSLVerify_wrapper(int ok, X509_STORE_CTX *ctx)
         errnum = X509_V_OK;
         X509_STORE_CTX_set_error(ctx, errnum);
      }
-
-#ifdef X509_V_ERR_PROXY_CERTIFICATES_NOT_ALLOWED
-   /*
-    * Skip X509_V_ERR_PROXY_CERTIFICATES_NOT_ALLOWED, since they are!
-    */
-   if (errnum == X509_V_ERR_PROXY_CERTIFICATES_NOT_ALLOWED)
-     {
-        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                    "Skip Proxy Certificates Not Allowed error");
-
-        sslconn->verify_error = NULL;
-        ok = TRUE;
-        errnum = X509_V_OK;
-        X509_STORE_CTX_set_error(ctx, errnum);
-     }
-#endif
 
    /*
     * New style GSI Proxy handling, with critical ProxyCertInfo

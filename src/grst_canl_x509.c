@@ -75,6 +75,12 @@
 #define GRST_MAX_CHAIN_LEN	9
 #define GRST_BACKDATE_SECONDS	300
 
+int
+GRSTasn1FindField(const char *oid, char *coords,
+        char *asn1string,
+        struct GRSTasn1TagList taglist[], int lasttag,
+        int *result);
+
 /// Compare X509 Distinguished Name strings
 int GRSTx509NameCmp(char *a, char *b)
 ///
@@ -155,7 +161,7 @@ int GRSTx509IsCA(X509 *cert)
 ///
 /// Return GRST_RET_OK if true; GRST_RET_FAILED if not.
 {
-   int idret, purpose_id;
+   int purpose_id;
 
    purpose_id = X509_PURPOSE_get_by_sname("sslclient");
 
@@ -253,17 +259,14 @@ static int GRSTx509VerifyVomsSig(time_t *time1_time, time_t *time2_time,
 #define GRST_ASN1_COORDS_VOMS_INFO "-1-1-%d-1"
 #define GRST_ASN1_COORDS_VOMS_HASH "-1-1-%d-2-1"
 #define GRST_ASN1_COORDS_VOMS_SIG  "-1-1-%d-3"
-   int            ret, ihash, isig, iinfo;
+   int           ihash, isig, iinfo;
    char          *certpath, *certpath2, acvomsdn[200], dn_coords[200],
-                  info_coords[200], sig_coords[200], hash_coords[200],
-                 *p;
-   unsigned char *q;
+                  info_coords[200], sig_coords[200], hash_coords[200];
+   unsigned char *p;
    DIR           *vomsDIR, *vomsDIR2;
    struct dirent *vomsdirent, *vomsdirent2;
    X509          *cert;
-   EVP_PKEY      *prvkey;
    FILE          *fp;
-   EVP_MD_CTX     ctx;
    EVP_MD	 *md_type = NULL;
    struct stat    statbuf;
    time_t         voms_service_time1 = GRST_MAX_TIME_T, voms_service_time2 = 0,
@@ -438,8 +441,7 @@ static int GRSTx509VerifyVomsSigCert(time_t *time1_time, time_t *time2_time,
 #define GRST_ASN1_COORDS_VOMS_SIG  "-1-1-%d-3"
    int            ret, isig, iinfo, chain_errors = GRST_RET_OK,
                   cadn_len, vomsdn_len, lsc_found = 0, ihash;
-   char          *lscpath, dn_coords[200],
-                  info_coords[200], sig_coords[200], *p, *cacertpath,
+   char          *lscpath, *p, *cacertpath,
                  *vodir, *vomscert_cadn, *vomscert_vomsdn, 
                  *lsc_cadn, *lsc_vomsdn;
    unsigned char *q;
@@ -447,9 +449,7 @@ static int GRSTx509VerifyVomsSigCert(time_t *time1_time, time_t *time2_time,
    DIR           *voDIR;
    struct dirent *vodirent;
    X509          *cacert = NULL, *vomscert = NULL;
-   EVP_PKEY      *prvkey;
    FILE          *fp;
-   EVP_MD_CTX     ctx;
    struct stat    statbuf;
    time_t         tmp_time;
    ASN1_OBJECT   *hash_obj = NULL;
@@ -1040,7 +1040,7 @@ int GRSTx509ChainLoadCheck(GRSTx509Chain **chain,
                CA: this is really for lousy CAs that dont create 
                proper v3 root certificates */
                 
-            if (i == depth) IsCA == TRUE;
+            if (i == depth) IsCA = TRUE;
             else IsCA = (GRSTx509IsCA(cert) == GRST_RET_OK);
 
             /* If any forebear certificate is not allowed to sign we must 
@@ -1164,7 +1164,7 @@ int GRSTx509CheckChain(int *first_non_ca, X509_STORE_CTX *ctx)
    int prevIsCA;                /* Holds whether previous cert in chain is 
                                    allowed to sign */
    int prevIsLimited;		/* previous cert was proxy and limited */
-   int i,j;                     /* Iteration variables */
+   int i;                       /* Iteration variables */
    char *cert_DN;               /* Pointer to current-certificate-in-chain's 
                                    DN */
    char *issuer_DN;             /* Pointer to 
@@ -1197,7 +1197,7 @@ int GRSTx509CheckChain(int *first_non_ca, X509_STORE_CTX *ctx)
         prevIsCA=IsCA;
 
         /* Check for X509 certificate and point to it with 'cert' */
-        if (cert = sk_X509_value(certstack, i))
+        if ((cert = sk_X509_value(certstack, i)))
           {
             /* we check times and reject immediately if invalid */
           
@@ -1269,7 +1269,7 @@ int GRSTx509CheckChain(int *first_non_ca, X509_STORE_CTX *ctx)
        if (prevIsLimited) return X509_V_ERR_INVALID_CA;
         /* we do not accept proxies signed by limited proxies */
      
-       if (cert = sk_X509_value(certstack, 0)) 
+       if ((cert = sk_X509_value(certstack, 0))) 
          {
            /* Load DN & length of DN and either its issuer or the
               first-bad-issuer-in-chain */
@@ -1354,10 +1354,9 @@ int GRSTx509ParseVomsExt(int *lastcred, int maxcreds, size_t credlen,
 #define GRST_ASN1_COORDS_TIME1   "-1-1-%d-1-6-1"
 #define GRST_ASN1_COORDS_TIME2   "-1-1-%d-1-6-2"
    ASN1_OCTET_STRING *asn1data;
-   char              *asn1string, acissuerdn[200], acvomsdn[200],
+   char              *asn1string, acissuerdn[200],
                       dn_coords[200], fqan_coords[200], time1_coords[200],
                       time2_coords[200], serial_coords[200];
-   unsigned char     *p;
    long               asn1length;
    int                lasttag=-1, itag, i, acnumber = 1;
    char              *acissuerserial = NULL;
@@ -1471,7 +1470,6 @@ int GRSTx509GetVomsCreds(int *lastcred, int maxcreds, size_t credlen,
    char s[80], *ucserial;
    unsigned char  *ucuser, *ucissuer;
    X509_EXTENSION *ex;
-   ASN1_STRING    *asn1str;
    X509           *cert;
    time_t          time1_time = 0, time2_time = 0, uctime1_time, uctime2_time;
 
@@ -1586,7 +1584,7 @@ int GRSTx509CompactCreds(int *lastcred, int maxcreds, size_t credlen,
 /// Function returns GRST_RET_OK on success, or GRST_RET_FAILED if
 /// some inconsistency found in certificate.
 {   
-   int   i, j, delegation = 0;
+   int   i, delegation = 0;
    char  credtemp[credlen+1];
    X509 *cert, *usercert = NULL, *gsiproxycert = NULL;
 
@@ -2046,7 +2044,6 @@ int GRSTx509CreateProxyRequest(char **reqtxt, char **keytxt, char *ocspurl)
 /// Returns GRST_RET_OK on success, non-zero otherwise. Request string
 /// and private key are PEM encoded strings
 {
-    int              i = 0;
     char            *ptr = 0;
     size_t           ptrlen = 0;
     EVP_PKEY        *pkey = NULL;
@@ -2134,8 +2131,7 @@ int GRSTx509MakeProxyRequest(char **reqtxt, char *proxydir,
 /// is PEM encoded, and the key is stored in the temporary cache under
 /// proxydir
 {
-    int i = 0;
-    char *docroot = NULL, *prvkeyfile = NULL, *ptr = NULL, *user_dn_enc = NULL;
+    char *prvkeyfile = NULL, *ptr = NULL, *user_dn_enc = NULL;
     size_t ptrlen = 0;
     FILE *fp = NULL;
     EVP_PKEY *pkey = NULL;
@@ -2264,7 +2260,7 @@ int GRSTx509ProxyDestroy(char *proxydir, char *delegation_id, char *user_dn)
 ///  were not found.)
 {
   int              ret = GRST_RET_OK;
-  char            *docroot, *filename, *user_dn_enc;
+  char             *filename, *user_dn_enc;
 
   if (strcmp(user_dn, "cache") == 0) return GRST_RET_FAILED;
     
@@ -2397,7 +2393,7 @@ char *GRSTx509MakeDelegationID(void)
 /// values of the compact credentials exported by mod_gridsite
 { 
   unsigned char hash_delegation_id[EVP_MAX_MD_SIZE];        
-  int  size_needed = 0, i, delegation_id_len;
+  int  i, delegation_id_len;
   char cred_name[14], *cred_value, *delegation_id;
   const EVP_MD *m;
   EVP_MD_CTX ctx;

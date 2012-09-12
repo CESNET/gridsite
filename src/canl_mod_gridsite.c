@@ -155,12 +155,6 @@ struct sitecast_sockets {
     int max_fd;
 } sitecast_sockets;
 
-#if AP_MODULE_MAGIC_AT_LEAST(20051115,0)
-/* SSL_app_data2_idx is private in Apache 2.2 mod_ssl but can be
-   determined at init time, and then recorded here */
-int GRST_SSL_app_data2_idx = -1;
-#endif
-
 typedef struct
 {
    int			auth;
@@ -3669,11 +3663,8 @@ int GRST_callback_SSLVerify_wrapper(int ok, X509_STORE_CTX *ctx)
    int errnum          = X509_STORE_CTX_get_error(ctx);
    int errdepth        = X509_STORE_CTX_get_error_depth(ctx);
    int returned_ok;
-   int first_non_ca;
 #if AP_MODULE_MAGIC_AT_LEAST(20051115,0)
-   request_rec *r      = (request_rec *) SSL_get_ex_data(ssl, GRST_SSL_app_data2_idx);
    SSLSrvConfigRec *sc = (SSLSrvConfigRec *) ap_get_module_config(s->module_config, &ssl_module);
-   SSLDirConfigRec *dc = r ? (SSLDirConfigRec *) ap_get_module_config(r->per_dir_config, &ssl_module) : NULL;
    modssl_ctx_t *mctx  = sslconn->is_proxy ? SSLSrvConfigRec_proxy(sc) : SSLSrvConfigRec_server(sc);
    int verify, depth;
 #endif
@@ -3705,14 +3696,7 @@ int GRST_callback_SSLVerify_wrapper(int ok, X509_STORE_CTX *ctx)
     /*
      * Check for optionally acceptable non-verifiable issuer situation
      */
-    if (dc && (dc->nVerifyClient != SSL_CVERIFY_UNSET)) 
-      {
-        verify = dc->nVerifyClient;
-      }
-    else 
-      {
         verify = mctx->auth.verify_mode;
-      }
 
     if (verify == SSL_CVERIFY_NONE) 
       {
@@ -3766,14 +3750,7 @@ int GRST_callback_SSLVerify_wrapper(int ok, X509_STORE_CTX *ctx)
     /*
      * Finally check the depth of the certificate verification
      */
-    if (dc && (dc->nVerifyDepth != UNSET)) 
-      {
-        depth = dc->nVerifyDepth;
-      }
-    else 
-      {
         depth = mctx->auth.verify_depth;
-      }
 
     if (errdepth > depth) 
       {
@@ -4325,17 +4302,6 @@ static int mod_gridsite_server_post_config(apr_pool_t *pPool,
    ap_add_version_component(pPool,
                             apr_psprintf(pPool, "mod_gridsite/%s", VERSION));
 
-#if AP_MODULE_MAGIC_AT_LEAST(20051115,0)
-   /* establish value of SSL_app_data2_idx and record it */
-   GRST_SSL_app_data2_idx = SSL_get_ex_new_index(0,
-                                  "Dummy Application Data for mod_gridsite",
-                                   NULL, NULL, NULL) - 1;
-   ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, main_server,
-              "mod_gridsite: GRST_SSL_app_data2_idx=%d", 
-              GRST_SSL_app_data2_idx);
-#endif
-
-  
    /* look for a SSLInsecureRenegotiation flag - if it exists then the mod_ssl
       internal variable 'SSLSrvConfigRec' is different */
    while ( ssl_module.cmds[i].name && !mod_ssl_with_insecure_reneg)

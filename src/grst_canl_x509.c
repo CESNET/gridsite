@@ -120,6 +120,7 @@ int GRSTx509NameCmp(char *a, char *b)
 
 
 /// Check critical extensions
+/*TODO MBD*/
 int GRSTx509KnownCriticalExts(X509 *cert)
 ///
 /// Returning GRST_RET_OK if all of extensions are known to us or 

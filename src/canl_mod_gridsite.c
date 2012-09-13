@@ -3492,29 +3492,6 @@ int GRST_callback_SSLVerify_wrapper(int ok, X509_STORE_CTX *ctx)
         X509_STORE_CTX_set_error(ctx, errnum);
      }
 
-   /*
-    * New style GSI Proxy handling, with critical ProxyCertInfo
-    * extension: we use GRSTx509KnownCriticalExts() to check this
-    */
-#ifndef X509_V_ERR_UNHANDLED_CRITICAL_EXTENSION
-#define X509_V_ERR_UNHANDLED_CRITICAL_EXTENSION 34
-#endif
-   if (errnum == X509_V_ERR_UNHANDLED_CRITICAL_EXTENSION)
-     {
-       if (GRSTx509KnownCriticalExts(X509_STORE_CTX_get_current_cert(ctx))
-                                                              == GRST_RET_OK)
-         {
-            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                     "GRSTx509KnownCriticalExts() accepts previously "
-                     "Unhandled Critical Extension (GSI Proxy?)");
-
-            sslconn->verify_error = NULL;
-            ok = TRUE;
-            errnum = X509_V_OK;
-            X509_STORE_CTX_set_error(ctx, errnum);
-         }
-     }
-
 #if AP_MODULE_MAGIC_AT_LEAST(20051115,0)
    returned_ok = ok;
 #else

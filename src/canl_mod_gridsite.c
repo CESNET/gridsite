@@ -104,7 +104,7 @@
 
 #include <openssl/x509v3.h>
 
-#include "mod_ssl-private.h"
+#include "canl_mod_ssl-private.h"
 
 #include "gridsite.h"
 
@@ -3458,34 +3458,8 @@ int GRST_callback_SSLVerify_wrapper(int ok, X509_STORE_CTX *ctx)
    int errnum          = X509_STORE_CTX_get_error(ctx);
    int errdepth        = X509_STORE_CTX_get_error_depth(ctx);
    int returned_ok;
-#if AP_MODULE_MAGIC_AT_LEAST(20051115,0)
-   SSLSrvConfigRec *sc = (SSLSrvConfigRec *) ap_get_module_config(s->module_config, &ssl_module);
-   modssl_ctx_t *mctx  = sslconn->is_proxy ? SSLSrvConfigRec_proxy(sc) : SSLSrvConfigRec_server(sc);
-   int verify;
-#endif
    STACK_OF(X509) *certstack;
    GRSTx509Chain *grst_chain;
-
-#if AP_MODULE_MAGIC_AT_LEAST(20051115,0)
-    /*
-     * Check for optionally acceptable non-verifiable issuer situation
-     */
-   verify = mctx->auth.verify_mode;
-
-   /* TODO MP Could it be done by caNl callback? Is this necessary?*/
-   if (ssl_verify_error_is_optional(errnum) &&
-        (verify == SSL_CVERIFY_OPTIONAL_NO_CA))
-    {
-        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                     "Certificate Verification: Verifiable Issuer is "
-                     "configured as optional, therefore we're accepting "
-                     "the certificate");
-
-        sslconn->verify_info = "GENEROUS";
-        ok = TRUE;
-    }
-
-#endif
 
    /*
     * GSI Proxy user-cert-as-CA handling:

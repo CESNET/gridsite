@@ -80,12 +80,17 @@ endif
 
 # caNl adoption part
 # caNl library and headers have to be in standard system places.
+# Print all warnings
 ifeq ($(GRIDSITE_WITH_CANL),yes)
 GRST_X509_FILE=grst_canl_x509.c
 MOD_GRIDSITE_FILE=canl_mod_gridsite.c
+MOD_SSLPRIVATE_HEADER=canl_mod_ssl-private.h
 MYCANLLDFLAGS=-lcanl_c
+MYCFLAGS += -Wall
 else
+MOD_GRIDSITE_FILE=mod_gridsite.c
 GRST_X509_FILE=grst_x509.c
+MOD_SSLPRIVATE_HEADER=mod_ssl-private.h
 MYCANLLDFLAGS=
 endif
 
@@ -282,7 +287,8 @@ gridsite-copy.cgi: gridsite-copy.c libgridsite.so.$(VERSION)
             $(CURL_CFLAGS) $(CURL_LIBS) \
             $(MYFCGILIBS) -lgridsite
 
-mod_gridsite.so: ${MOD_GRIDSITE_FILE} mod_ssl-private.h libgridsite.so.$(VERSION)
+mod_gridsite.so: ${MOD_GRIDSITE_FILE} ${MOD_SSLPRIVATE_HEADER} \
+                 libgridsite.so.$(VERSION)
 	gcc -g $(MYCFLAGS) -shared -Wl,-soname=gridsite_module \
            -I/usr/kerberos/include \
            $(XML2_CFLAGS) -lcrypto -lssl ${MYCANLLDFLAGS} \

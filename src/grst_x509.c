@@ -2165,6 +2165,7 @@ int GRSTx509CreateProxyRequest(char **reqtxt, char **keytxt, char *ocspurl)
   BIO_free(reqmem);
 
   X509_REQ_free(certreq);
+  EVP_PKEY_free(pkey);
   
   return 0;
 }
@@ -2267,6 +2268,7 @@ int GRSTx509MakeProxyRequest(char **reqtxt, char *proxydir,
   BIO_free(reqmem);
 
   X509_REQ_free(certreq);
+  EVP_PKEY_free(pkey);
   
   return 0;
 }

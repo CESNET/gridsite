@@ -3461,37 +3461,6 @@ int GRST_callback_SSLVerify_wrapper(int ok, X509_STORE_CTX *ctx)
    STACK_OF(X509) *certstack;
    GRSTx509Chain *grst_chain;
 
-   /*
-    * GSI Proxy user-cert-as-CA handling:
-    * we skip Invalid CA errors at this stage, since we will check this
-    * again at errdepth=0 for the full chain using GRSTx509ChainLoadCheck
-    */
-   if (errnum == X509_V_ERR_INVALID_CA)
-     {
-        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                    "Skip Invalid CA error in case a GSI Proxy");
-
-        sslconn->verify_error = NULL;
-        ok = TRUE;
-        errnum = X509_V_OK;
-        X509_STORE_CTX_set_error(ctx, errnum);
-     }
-
-   /*
-    * Skip X509_V_ERR_INVALID_PURPOSE at this stage, since we will check 
-    * the full chain using GRSTx509ChainLoadCheck at errdepth=0
-    */
-   if (errnum == X509_V_ERR_INVALID_PURPOSE)
-     {
-        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                    "Skip Invalid Purpose error");
-
-        sslconn->verify_error = NULL;
-        ok = TRUE;
-        errnum = X509_V_OK;
-        X509_STORE_CTX_set_error(ctx, errnum);
-     }
-
 #if AP_MODULE_MAGIC_AT_LEAST(20051115,0)
    returned_ok = ok;
 #else
@@ -3515,22 +3484,10 @@ int GRST_callback_SSLVerify_wrapper(int ok, X509_STORE_CTX *ctx)
 					 "/etc/grid-security/vomsdir");
 
         if (errnum != X509_V_OK)
-          {
-            ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
-                     "Invalid certificate chain reported by "
-                     "GRSTx509CheckChain()");
-
-            sslconn->verify_error = X509_verify_cert_error_string(errnum);
             ok = FALSE;
-          }
         else 
-          {
-            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, "Valid certificate"
-                              " chain reported by GRSTx509ChainLoadCheck()");
-
             /* Put result of GRSTx509ChainLoadCheck into connection notes */
             GRST_save_ssl_creds(conn, grst_chain);
-          }
           
         GRSTx509ChainFree(grst_chain);
      }

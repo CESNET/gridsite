@@ -81,17 +81,20 @@ endif
 # caNl adoption part
 # caNl library and headers have to be in standard system places.
 # Print all warnings
-ifeq ($(GRIDSITE_WITH_CANL),yes)
-GRST_X509_FILE=grst_canl_x509.c
-MOD_GRIDSITE_FILE=canl_mod_gridsite.c
-MOD_SSLPRIVATE_HEADER=canl_mod_ssl-private.h
-MYCANLLDFLAGS=-lcanl_c
-MYCFLAGS += -Wall
-else
+ifeq ($(GRIDSITE_WITH_CANL),no)
 MOD_GRIDSITE_FILE=mod_gridsite.c
 GRST_X509_FILE=grst_x509.c
 MOD_SSLPRIVATE_HEADER=mod_ssl-private.h
 MYCANLLDFLAGS=
+else
+GRST_X509_FILE=grst_canl_x509.c
+MOD_GRIDSITE_FILE=canl_mod_gridsite.c
+MOD_SSLPRIVATE_HEADER=canl_mod_ssl-private.h
+MYCANLLDFLAGS=-lcanl_c
+endif
+
+ifeq ($(WALL),yes)
+MYCFLAGS += -Wall
 endif
 
 #

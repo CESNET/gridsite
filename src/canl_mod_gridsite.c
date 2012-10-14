@@ -84,6 +84,7 @@
 #include <unixd.h>
 
 #include <stdio.h>
+#include <unistd.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>              
@@ -462,7 +463,7 @@ int html_format(request_rec *r, mod_gridsite_dir_cfg *conf)
     try to do GridSite formatting of .html files (NOT .shtml etc)
 */
 {
-    int    i, fd, errstatus;
+    int   fd;
     char  *buf, *p, *file, *s, *head_formatted, *header_formatted,
           *body_formatted, *admin_formatted, *footer_formatted;
     size_t length;
@@ -641,8 +642,8 @@ int html_dir_list(request_rec *r, mod_gridsite_dir_cfg *conf)
     by GridSiteHtmlFormat/conf->format
 */
 {
-    int    i, fd, n, nn;
-    char  *buf, *p, *s, *head_formatted, *header_formatted,
+    int   fd, n, nn;
+    char  *p, *s, *head_formatted, *header_formatted,
           *body_formatted, *admin_formatted, *footer_formatted, *temp,
            modified[999], *d_namepath, *indexheaderpath, *indexheadertext,
            *encoded, *escaped;
@@ -848,7 +849,6 @@ char *make_passcode_file(request_rec *r, mod_gridsite_dir_cfg *conf,
     int           i;
     char         *filetemplate, *notename_i, *grst_cred_i, *cookievalue=NULL;
     apr_uint64_t  gridauthcookie;
-    apr_table_t  *env;
     apr_file_t   *fp;
 
     /* create random for use in GRIDHTTP_PASSCODE cookies and file name */
@@ -1251,7 +1251,6 @@ static void recurse4dirlist(char *dirname, time_t *dirs_time,
    DIR           *oneDIR;
    struct dirent *onedirent;
    struct tm      mtime_tm;
-   size_t         length;
    struct stat    statbuf;
 
    if ((stat(dirname, &statbuf) != 0) ||
@@ -1325,7 +1324,7 @@ static int mod_gridsite_dnlistsuri_dir_handler(request_rec *r,
 */
 {
     int            enclen, fullurilen, fd;
-    char          *fulluri, *encfulluri, *dn_list_ptr, *dirname, *unencname,
+    char          *fulluri, *encfulluri, *dn_list_ptr, *dirname,
                   *body, *oneline, *p, *s,
                   *head_formatted, *header_formatted, *footer_formatted,
                   *permstr = NULL;
@@ -2411,8 +2410,8 @@ int GRST_load_ssl_creds(SSL *ssl, conn_rec *conn)
 
 void GRST_save_ssl_creds(conn_rec *conn, GRSTx509Chain *grst_chain)
 {
-   int          i, lastcred, lowest_voms_delegation = 65535;
-   char         envname[14], *tempfile = NULL, *encoded,
+   int          i, lowest_voms_delegation = 65535;
+   char        *tempfile = NULL, *encoded,
                *sessionfile, session_id[(SSL_MAX_SSL_SESSION_ID_LENGTH+1)*2];
    apr_file_t  *fp = NULL;
    SSL         *ssl;
@@ -2673,16 +2672,16 @@ static int mod_gridsite_perm_handler(request_rec *r)
     int          retcode = DECLINED, i, j, n, file_is_acl = 0, cc_delegation,
                  destination_is_acl = 0, ishttps = 0, nist_loa, delegation,
                  from_cookie = 0;
-    char        *dn, *p, *q, envname1[30], envname2[30], 
+    char        *p, *q, envname1[30], envname2[30], 
                 *grst_cred_auri_0 = NULL, *dir_path,
-                *remotehost, s[99], *grst_cred_auri_i, *cookies, *file, *https,
-                *cookiefile, oneline[1025], *key_i, *decoded,
+                *remotehost, *grst_cred_auri_i, *cookies, *file,
+                *cookiefile, oneline[1025], *decoded,
                 *destination = NULL, *destination_uri = NULL, *querytmp, 
                 *destination_prefix = NULL, *destination_translated = NULL,
                 *aclpath = NULL, *grst_cred_valid_0 = NULL, *grst_cred_valid_i,
                 *gridauthpasscode = NULL;
     const char  *content_type;
-    time_t       now, notbefore, notafter;
+    time_t      notbefore, notafter;
     apr_table_t *env;
     apr_finfo_t  cookiefile_info;
     apr_file_t  *fp;
@@ -2693,8 +2692,6 @@ static int mod_gridsite_perm_handler(request_rec *r)
     GRSTgaclAcl     *acl = NULL;
     mod_gridsite_dir_cfg *cfg;
     SSLConnRec      *sslconn;
-    STACK_OF(X509)  *certstack;
-    X509	    *peercert;
 
     cfg = (mod_gridsite_dir_cfg *)
                     ap_get_module_config(r->per_dir_config, &gridsite_module);
@@ -3452,9 +3449,6 @@ int GRST_callback_SSLVerify_wrapper(int ok, X509_STORE_CTX *ctx)
 {
    SSL *ssl            = (SSL *) X509_STORE_CTX_get_app_data(ctx);
    conn_rec *conn      = (conn_rec *) SSL_get_app_data(ssl);
-   server_rec *s       = conn->base_server;
-   SSLConnRec *sslconn = 
-         (SSLConnRec *) ap_get_module_config(conn->conn_config, &ssl_module);
    int errnum          = X509_STORE_CTX_get_error(ctx);
    int errdepth        = X509_STORE_CTX_get_error_depth(ctx);
    int returned_ok;

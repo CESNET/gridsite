@@ -444,8 +444,6 @@ install: apidoc install-lib
 	cp -f urlencode $(prefix)/bin
 	cp -f findproxyfile $(prefix)/bin
 	cp -f real-gridsite-admin.cgi $(prefix)/sbin
-	cp -f gridsite-copy.cgi $(prefix)/sbin
-	cp -f gridsite-storage.cgi $(prefix)/sbin
 	cp -f ../CHANGES ../README ../INSTALL ../LICENSE ../VERSION \
                $(prefix)/share/doc/gridsite-$(MINOR_VERSION)
 	cp -f ../doc/index.html ../doc/*.conf ../doc/*.sh ../doc/*.spec \
@@ -457,7 +455,7 @@ install: apidoc install-lib
          cp -f ../doc/$$i $(prefix)/share/doc/gridsite-$(MINOR_VERSION) ; \
          cp -f ../doc/$$i $(prefix)/share/man/man1 ; \
          gzip -f $(prefix)/share/man/man1/$$i ; done
-	for i in mod_gridsite.8 gsexec.8 ; do \
+	for i in mod_gridsite.8 ; do \
 	 cp -f ../doc/$$i.html $(prefix)/share/doc/gridsite-$(MINOR_VERSION) ; \
          cp -f ../doc/$$i $(prefix)/share/doc/gridsite-$(MINOR_VERSION) ; \
          cp -f ../doc/$$i $(prefix)/share/man/man8 ; \
@@ -470,7 +468,6 @@ install: apidoc install-lib
 	ln -sf htcp $(prefix)/bin/htmv
 	ln -sf htcp $(prefix)/bin/htping
 	ln -sf htcp $(prefix)/bin/htfind
-	cp -f gsexec $(prefix)/sbin
 	cp -f mod_gridsite.so $(prefix)/$(libdir)/$(httpd_name)/modules
 
 install-lib:

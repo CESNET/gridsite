@@ -34,9 +34,7 @@ echo "3.0 (quilt)" > source/format
 cat > gridsite.install <<EOF
 usr/lib/apache2/modules/mod_gridsite.so
 usr/sbin/real-gridsite-admin.cgi
-usr/sbin/gridsite-copy.cgi
 usr/sbin/gridsite-delegation.cgi
-usr/sbin/gridsite-storage.cgi
 EOF
 cat > gridsite.manpages <<EOF
 doc/gridsite-delegation.8
@@ -74,14 +72,6 @@ doc/urlencode.1
 doc/findproxyfile.1
 EOF
 
-# gsexec
-cat > gridsite-gsexec.install <<EOF
-usr/sbin/gsexec
-EOF
-cat > gridsite-gsexec.manpages <<EOF
-doc/gsexec.8
-EOF
-
 # service-clients
 cat > gridsite-service-clients.install <<EOF
 usr/bin/htproxyput
@@ -98,19 +88,6 @@ doc/htproxytime.1
 doc/htproxyunixtime.1
 doc/htproxyrenew.1
 doc/htproxyinfo.1
-EOF
-
-# slashgrid
-cat > gridsite-slashgrid.dirs <<EOF
-etc/init.d
-EOF
-cat > gridsite-slashgrid.install <<EOF
-usr/sbin/slashgrid
-etc/rc.d/init.d/slashgrid etc/init.d
-var/spool/slashgrid
-EOF
-cat > gridsite-slashgrid.manpages <<EOF
-doc/slashgrid.8
 EOF
 
 # shared

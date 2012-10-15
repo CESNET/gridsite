@@ -562,6 +562,7 @@ dist:
 	cp -f Makefile grst*.c htcp.c slashgrid.c slashgrid.init \
                  urlencode.c findproxyfile.c gaclexample.c mod_gridsite*.c \
                  htproxyput.c grst_admin.h mod_ssl-private.h \
+                 canl_mod_gridsite.c canl_mod_ssl-private.h \
                  gsexec.c gsexec.h gridsite-copy.c gridsite-storage.c \
                  delegation.h \
                  roffit make-gridsite-spec make-debian-files \

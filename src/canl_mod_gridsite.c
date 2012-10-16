@@ -3455,36 +3455,31 @@ int GRST_callback_SSLVerify_wrapper(int ok, X509_STORE_CTX *ctx)
    STACK_OF(X509) *certstack;
    GRSTx509Chain *grst_chain;
 
-#if AP_MODULE_MAGIC_AT_LEAST(20051115,0)
-   returned_ok = ok;
-#else
-   returned_ok = ssl_callback_SSLVerify(ok, ctx);
-#endif
+   /* Call caNl callback directly */
+   returned_ok = canl_direct_pv_clb(NULL, ctx, ok);
 
    /* in case ssl_callback_SSLVerify changed it */
    errnum = X509_STORE_CTX_get_error(ctx); 
 
    if ((errdepth == 0) && (errnum == X509_V_OK))
-   /*
-    * We've now got the last certificate - the identity being used for
-    * this connection. At this point we check the whole chain for valid
-    * CAs or, failing that, GSI-proxy validity using GRSTx509CheckChain.
-    */
-     {
-        certstack = (STACK_OF(X509) *) X509_STORE_CTX_get_chain(ctx);
+       /*
+        * We've now got the last certificate - the identity being used for
+        * this connection. At this point we check the whole chain for valid
+        * CAs or, failing that, GSI-proxy validity using GRSTx509CheckChain.
+        */
+   {
+       certstack = (STACK_OF(X509) *) X509_STORE_CTX_get_chain(ctx);
 
-        errnum = GRSTx509ChainLoadCheck(&grst_chain, certstack, NULL,
-					 "/etc/grid-security/certificates",
-					 "/etc/grid-security/vomsdir");
+       errnum = GRSTx509ChainLoad(&grst_chain, certstack, NULL,
+               "/etc/grid-security/certificates",
+               "/etc/grid-security/vomsdir");
 
-        if (errnum != X509_V_OK)
-            ok = FALSE;
-        else 
-            /* Put result of GRSTx509ChainLoadCheck into connection notes */
-            GRST_save_ssl_creds(conn, grst_chain);
-          
-        GRSTx509ChainFree(grst_chain);
-     }
+       if (returned_ok)
+           /* Put result of GRSTx509ChainLoadCheck into connection notes */
+           GRST_save_ssl_creds(conn, grst_chain);
+       if (grst_chain)
+           GRSTx509ChainFree(grst_chain);
+   }
 
    return returned_ok;
 }
@@ -3935,7 +3930,8 @@ static int mod_gridsite_server_post_config(apr_pool_t *pPool,
             ctx = SSLSrvConfigRec_server(sc)->ssl_ctx;
 
             /* Use default caNl callbacks to verify certificates*/
-            canl_ssl_ctx_set_clb(c_ctx, ctx, ctx->verify_mode);
+            canl_ssl_ctx_set_clb(c_ctx, ctx, ctx->verify_mode,
+                    GRST_callback_SSLVerify_wrapper);
 
             if (main_server->loglevel >= APLOG_DEBUG)
                  ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, main_server,

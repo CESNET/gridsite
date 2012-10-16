@@ -895,7 +895,7 @@ int do_finds(char *sources[],
   struct sockaddr from;
   socklen_t fromlen;
 #define MAXBUF 8192  
-  char *request, response[MAXBUF], *p;
+  char *request, response[MAXBUF];
   GRSThtcpMessage msg;
   struct timeval start_timeval, wait_timeval;
   struct grst_sitecast_group sitecast_groups[HTCP_SITECAST_GROUPS];
@@ -1014,7 +1014,7 @@ int translate_sitecast_url(char **source_ptr,
   struct sockaddr from;
   socklen_t fromlen;
 #define MAXBUF 8192  
-  char *request, response[MAXBUF], *p;
+  char *request, response[MAXBUF];
   GRSThtcpMessage msg;
   struct timeval start_timeval, wait_timeval;
   struct grst_sitecast_group sitecast_groups[HTCP_SITECAST_GROUPS];

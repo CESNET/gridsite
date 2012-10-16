@@ -839,20 +839,9 @@ static int GRSTx509ChainVomsAdd(GRSTx509Cert **grst_cert,
       
    return GRST_RET_OK;
 }
-
-/// Check certificate chain for GSI proxy acceptability.
-int GRSTx509ChainLoadCheck(GRSTx509Chain **chain, 
+int GRSTx509ChainLoad(GRSTx509Chain **chain,
                            STACK_OF(X509) *certstack, X509 *lastcert,
                            char *capath, char *vomsdir)
-///
-/// Returns GRST_RET_OK if valid; OpenSSL X509 errors otherwise.
-///
-/// The GridSite version handles old and new style Globus proxies, and
-/// proxies derived from user certificates issued with "X509v3 Basic
-/// Constraints: CA:FALSE" (eg UK e-Science CA)
-///
-/// TODO: we do not yet check ProxyCertInfo and ProxyCertPolicy extensions
-///       (although via GRSTx509KnownCriticalExts() we can accept them.)
 {
    X509 *cert;                  /* Points to the current cert in the loop */
    X509 *cacert = NULL;         /* The CA root cert */
@@ -1139,29 +1128,62 @@ int GRSTx509ChainLoadCheck(GRSTx509Chain **chain,
    return GRST_RET_OK;
 }
 
+/// Check certificate chain for GSI proxy acceptability.
+int GRSTx509ChainLoadCheck(GRSTx509Chain **chain, 
+                           STACK_OF(X509) *certstack, X509 *lastcert,
+                           char *capath, char *vomsdir)
+///
+/// Returns GRST_RET_OK if valid; caNl errors otherwise.
+///
+/// The GridSite version handles old and new style Globus proxies, and
+/// proxies derived from user certificates issued with "X509v3 Basic
+/// Constraints: CA:FALSE" (eg UK e-Science CA)
+///
+/// TODO: we do not yet check ProxyCertInfo and ProxyCertPolicy extensions
+///       (although via GRSTx509KnownCriticalExts() we can accept them.)
+{
+    canl_ctx cctx = NULL;
+    int err = 0;
+
+    cctx = canl_create_ctx();
+    if (cctx == NULL)
+        return GRST_RET_FAILED;
+
+    /* Use caNl to check the certificate*/
+    err = canl_verify_chain(cctx, NULL, certstack, capath);
+
+    /* Then fetch info about chain into grst structures */
+    GRSTx509ChainLoad(chain, certstack, lastcert, capath, vomsdir);
+
+    canl_free_ctx(cctx);
+
+    return err;
+}
+
 /* Check certificate chain for GSI proxy acceptability. */
 int GRSTx509CheckChain(int *first_non_ca, X509_STORE_CTX *store_ctx)
-/* Returns X509_V_OK/GRST_RET_OK if valid; OpenSSL X509 errors otherwise.
+/* Returns X509_V_OK/GRST_RET_OK if valid; caNl errors otherwise.
    We do not check chain links between certs here: this is done by
    GRST_check_issued/X509_check_issued in mod_ssl's ssl_engine_init.c */
 {
-   canl_err_code  ret = 0;      /* Canl error code */
-   
-   canl_ctx cctx = NULL;
-   cctx = canl_create_ctx();
-   if (cctx == NULL)
-       return GRST_RET_FAILED;
+    canl_err_code ret = 0;      /* Canl error code */
 
-   /* Check for context */
-   if (!store_ctx)
-       return X509_V_ERR_INVALID_CA; /* TODO really not clever*/
- 
-   /* Verify chain using caNl, without openssl part */
-   ret = canl_verify_chain_wo_ossl(cctx, NULL, store_ctx);
-   if (ret)
-       return X509_V_ERR_INVALID_CA;
+    canl_ctx cctx = NULL;
 
-   return X509_V_OK; /* this is also GRST_RET_OK, of course - by choice */
+    /* Look for the store context */
+    if (!store_ctx)
+        return X509_V_ERR_INVALID_CA; /* TODO really not clever*/
+
+    cctx = canl_create_ctx();
+    if (cctx == NULL)
+        return GRST_RET_FAILED;
+
+    /* Verify chain using caNl, without openssl part */
+    ret = canl_verify_chain_wo_ossl(cctx, NULL, store_ctx);
+
+    canl_free_ctx(cctx);
+
+    return ret; /* this is also GRST_RET_OK, of course - by choice */
 }
 
 /// Example VerifyCallback routine

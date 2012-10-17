@@ -1,3 +1,8 @@
+- ==== GridSite version 2.0.0 ====
+* Wed Oct 17 2012 Marcel Poul <marcel.poul@cern.ch>
+- Internals rewritten to use caNl
+* Wed Oct 17 2012 František Dvořák <valtri@civ.zcu.cz>
+- Unused tools removed
 - ==== GridSite version 1.7.22 ====
 * Tue Jul 24 2012 František Dvořák <valtri@civ.zcu.cz>
 - Proper obsoletes in rpm packages (versioned, not platform dependent)

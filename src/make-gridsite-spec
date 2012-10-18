@@ -49,9 +49,14 @@ Source: %{name}-%{version}.src.tar.gz
 BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
 URL: http://www.gridsite.org/
 Vendor: GridPP
-BuildRequires: libxml2-devel%{?_isa},curl-devel%{?_isa},httpd-devel%{?_isa},openssl-devel%{?_isa},pkgconfig
+BuildRequires: libxml2-devel%{?_isa},httpd-devel%{?_isa},openssl-devel%{?_isa},pkgconfig
 BuildRequires: doxygen${gsoapdep}${globusdep}
 BuildRequires: canl-c-devel%{?_isa}
+%if %{?fedora}%{!?fedora:0} >= 10 || %{?rhel}%{!?rhel:0} >= 6
+BuildRequires:  libcurl-devel%{?_isa}
+%else
+BuildRequires:  curl-devel%{?_isa}
+%endif
 Packager: Andrew McNab <Andrew.McNab@manchester.ac.uk>
 Provides: gridsite-apache = %{version}-%{release}
 Obsoletes: gridsite-apache <= 1.7.21

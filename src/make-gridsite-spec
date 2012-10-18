@@ -57,6 +57,7 @@ BuildRequires:  libcurl-devel%{?_isa}
 %else
 BuildRequires:  curl-devel%{?_isa}
 %endif
+BuildRequires: libtool
 Packager: Andrew McNab <Andrew.McNab@manchester.ac.uk>
 Provides: gridsite-apache = %{version}-%{release}
 Obsoletes: gridsite-apache <= 1.7.21
@@ -174,16 +175,9 @@ fi
 cat <<EOF >>gridsite.spec
 
 %files $shared_name
-%attr(-, root, root) %{_prefix}/%{_lib}/libgridsite.so.%{version}
-%attr(-, root, root) %{_prefix}/%{_lib}/libgridsite.so.${MINOR_VERSION:-1.x}
-%attr(-, root, root) %{_prefix}/%{_lib}/libgridsite.so.${MAJOR_VERSION:-1}
-%attr(-, root, root) %{_prefix}/%{_lib}/libgridsite_globus.so.%{version}
-%attr(-, root, root) %{_prefix}/%{_lib}/libgridsite_globus.so.${MINOR_VERSION:-1.x}
-%attr(-, root, root) %{_prefix}/%{_lib}/libgridsite_globus.so.${MAJOR_VERSION:-1}
-%attr(-, root, root) %{_prefix}/%{_lib}/libgridsite_nossl.so.%{version}
-%attr(-, root, root) %{_prefix}/%{_lib}/libgridsite_nossl.so.${MINOR_VERSION:-1.x}
-%attr(-, root, root) %{_prefix}/%{_lib}/libgridsite_nossl.so.${MAJOR_VERSION:-1}
-%attr(-, root, root) %{_prefix}/share/doc/gridsite-${MINOR_VERSION:-1.x}
+%attr(-, root, root) %{_prefix}/%{_lib}/libgridsite.so.*
+%attr(-, root, root) %{_prefix}/%{_lib}/libgridsite_globus.so.*
+%attr(-, root, root) %{_prefix}/%{_lib}/libgridsite_nossl.so.*
 
 %files devel
 %attr(-, root, root) %{_prefix}/include/gridsite.h

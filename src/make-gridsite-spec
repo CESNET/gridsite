@@ -132,14 +132,14 @@ rm -rf \$RPM_BUILD_ROOT
 
 cd src
 
-make install prefix=\$RPM_BUILD_ROOT/%{_prefix} libdir=%{_lib}
+make install prefix=%{_prefix} libdir=%{_lib} DESTDIR=\$RPM_BUILD_ROOT
 EOF
 
 if [ $have_gsoap ] ; then
 
 cat <<EOF >>gridsite.spec
 
-make install-ws prefix=\$RPM_BUILD_ROOT/%{_prefix}
+make install-ws prefix=%{_prefix} libdir=%{_lib} DESTDIR=\$RPM_BUILD_ROOT
 EOF
 fi
 

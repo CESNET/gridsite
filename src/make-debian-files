@@ -91,7 +91,7 @@ doc/htproxyinfo.1
 EOF
 
 # shared
-cat > libgridsite${MINOR_VERSION}.docs <<EOF
+cat > libgridsite2.docs <<EOF
 CHANGES
 INSTALL
 README
@@ -101,7 +101,7 @@ doc/fuse.spec
 doc/gsoap-devel.spec
 doc/build-apache2.sh
 EOF
-cat > libgridsite${MINOR_VERSION}.install <<EOF
+cat > libgridsite2.install <<EOF
 usr/lib/lib*.so.*
 EOF
 

@@ -26,7 +26,7 @@ Depends: \${shlibs:Depends}, \${misc:Depends}
 Description: GridSite mod_gridsite module and CGI binaries for Apache httpd
  GridSite Apache module and CGI binaries.
 
-Package: libgridsite${MINOR_VERSION}
+Package: libgridsite2
 Section: libs
 Architecture: any
 Depends: \${shlibs:Depends}, \${misc:Depends}, libssl-dev
@@ -39,7 +39,7 @@ Description: GridSite libraries and documentation
 Package: libgridsite-dev
 Section: libdevel
 Architecture: any
-Depends: libgridsite${MINOR_VERSION} (= \${binary:Version}),
+Depends: libgridsite2 (= \${binary:Version}),
          \${misc:Depends}
 Description: GridSite static libraries and headers
  Development files for GridSite - .a libraries and .h headers.

@@ -422,6 +422,9 @@ clean:
 	rm -vf gsexec urlencode htcp htcp-static findproxyfile showx509exts slashgrid fuse-test gaclexample xacmlexample htproxyput gsoap-test
 	rm -vf gridsite-openssl.pc gridsite-globus.pc
 
+distclean:
+	rm -rfv ../dist ../debian ../gridsite-*.tar.gz $(MYRPMDIR)
+
 #
 # Install
 #
@@ -615,4 +618,4 @@ wtf:
 #	ls -lR /usr/local/
 #	ls -lR $(GSOAPDIR)
 
-.PHONY: build build-lib apidoc clean install install-lib install-slashgrid install-ws dist htcp-bin rpm deb wtf post-install-debian
+.PHONY: build build-lib apidoc clean distclean install install-lib install-slashgrid install-ws dist htcp-bin rpm deb wtf post-install-debian

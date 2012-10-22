@@ -423,7 +423,7 @@ clean:
 	rm -vf gridsite-openssl.pc gridsite-globus.pc
 
 distclean:
-	rm -rfv ../dist ../debian ../gridsite-*.tar.gz $(MYRPMDIR)
+	rm -rfv ../dist ../gridsite-*.tar.gz $(MYRPMDIR)
 
 #
 # Install

@@ -179,7 +179,7 @@ grst_htcp.lo: grst_htcp.c ../interface/gridsite.h
 
 ifdef OPENSSL_GLOBUS_LIBS
 
-libgridsite_globus.a: libgridsite_globus.la:
+libgridsite_globus.a: libgridsite_globus.la
 
 libgridsite_globus.la: $(GRIDSITE_GLOBUS_OBJS)
 	$(LINK) -rpath $(prefix)/$(libdir) $(version_info) \
@@ -608,7 +608,7 @@ deb: deb-prepare
 	cp -rf ../debian/ $(MYRPMDIR)/gridsite-$(PATCH_VERSION)/
 	(cd $(MYRPMDIR)/gridsite-$(PATCH_VERSION) && \
 	pwd && \
-	dpkg-buildpackage -S -d -uc -us)
+	dpkg-buildpackage -S -d -nc -uc -us)
 
 wtf: 
 	pwd

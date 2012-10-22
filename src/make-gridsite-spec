@@ -175,6 +175,7 @@ fi
 cat <<EOF >>gridsite.spec
 
 %files $shared_name
+%attr(-, root, root) %{_prefix}/share/doc/gridsite-${MINOR_VERSION:-1.x}
 %attr(-, root, root) %{_prefix}/%{_lib}/libgridsite.so.*
 %attr(-, root, root) %{_prefix}/%{_lib}/libgridsite_globus.so.*
 %attr(-, root, root) %{_prefix}/%{_lib}/libgridsite_nossl.so.*

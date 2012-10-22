@@ -1,3 +1,12 @@
+- ==== GridSite version 2.0.1 ====
+* Fri Oct 22 2012 František Dvořák <valtri@civ.zcu.cz>
+- one more update of the packaging for Debian
+* Fri Oct 19 2012 František Dvořák <valtri@civ.zcu.cz>
+- update of the packaging for Debian due to major version bump
+- add DESTDIR to install target
+* Thu Oct 18 2012 František Dvořák <valtri@civ.zcu.cz>
+- fix packaging for SL6 and Fedora (curl-devel -> libcurl-devel)
+- big library versions cleanup, using libtool to compile and link
 - ==== GridSite version 2.0.0 ====
 * Wed Oct 17 2012 Marcel Poul <marcel.poul@cern.ch>
 - Internals rewritten to use caNl

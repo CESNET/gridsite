@@ -1,4 +1,7 @@
-- ==== GridSite version 1.7.22 ====
+- ==== GridSite version 1.7.24 ====
+* Tue Oct 30 2012 Zdenek Sustr <sustr4@cesnet.cz>
+- Fixed Memory Leak
+- ==== GridSite version 1.7.23 ====
 * Tue Oct 09 2012 Zdenek Sustr <sustr4@cesnet.cz>
 - Fixed Memory Leak
 - Packaging fixes for SL6

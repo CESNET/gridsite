@@ -3891,7 +3891,7 @@ static int mod_gridsite_server_post_config(apr_pool_t *pPool,
             ctx = SSLSrvConfigRec_server(sc)->ssl_ctx;
 
             /* Use default caNl callbacks to verify certificates*/
-            canl_ssl_ctx_set_clb(c_ctx, ctx, ctx->verify_mode);
+            canl_ssl_ctx_set_clb(c_ctx, ctx, ctx->verify_mode, NULL);
 
             if (main_server->loglevel >= APLOG_DEBUG)
                  ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, main_server,

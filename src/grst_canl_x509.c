@@ -1593,7 +1593,6 @@ int GRSTx509MakeProxyCert(char **proxychain, FILE *debugfp,
     ASN1_OCTET_STRING *pci_oct = NULL, *kyu_oct = NULL;
     FILE *fp = NULL;
     BIO *reqmem = NULL, *certmem = NULL;
-    time_t notAfter;
     canl_ctx ctx = NULL;
     int retval = 1, ret = 0;
     canl_cred proxy_cert = NULL, signer = NULL;
@@ -1724,20 +1723,9 @@ int GRSTx509MakeProxyCert(char **proxychain, FILE *debugfp,
 
     /* TODO MP is this necessary? caNl test if new proxy timeout
      * is longer than signer cert proxy timeout */
-    notAfter = 
-        GRSTasn1TimeToTimeT(ASN1_STRING_data(X509_get_notAfter(certs[0])), 0);
-
-    for (i=1; i < ncerts; ++i) {
-        if (notAfter > GRSTasn1TimeToTimeT(ASN1_STRING_data(
-                        X509_get_notAfter(certs[i])),0)) {
-            notAfter = GRSTasn1TimeToTimeT(ASN1_STRING_data(
-                        X509_get_notAfter(certs[i])),0);
-
-            ASN1_UTCTIME_set(X509_get_notAfter(certs[0]), notAfter);
-        }
+    for (i=1; i < ncerts; ++i)
         if (X509_get_ext_by_OBJ(certs[i], pci_obj, -1) > 0) 
             any_rfc_proxies = 1;
-    }
 
    /* if any earlier proxies are RFC 3820, then new proxy must be 
       an RFC 3820 proxy too with the required extensions */ 
@@ -1756,7 +1744,6 @@ int GRSTx509MakeProxyCert(char **proxychain, FILE *debugfp,
         X509_EXTENSION_set_data(kyu_ex, kyu_oct);
         ASN1_OCTET_STRING_free(kyu_oct);
 
-        X509_add_ext(certs[0], kyu_ex, -1);
         canl_cred_set_extension(ctx, proxy_cert, kyu_ex);
         X509_EXTENSION_free(kyu_ex);
 

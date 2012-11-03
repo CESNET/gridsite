@@ -1,4 +1,4 @@
-gridsite (${PATCH_VERSION}-`echo ${RELEASE_VERSION}`) unstable; urgency=low
+gridsite (${PATCH_VERSION}-`echo ${RELEASE_VERSION}`) stable; urgency=low
 
   * Local package
   * Automatically generated package

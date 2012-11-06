@@ -1,3 +1,6 @@
+- ==== GridSite version 2.0.2 ====
+* Tue Nov 06 2012 Zdeněk Šustr <sustr4@cesnet.cz>
+- Certificates made available in the GRST structure
 - ==== GridSite version 2.0.1 ====
 * Fri Oct 22 2012 František Dvořák <valtri@civ.zcu.cz>
 - one more update of the packaging for Debian

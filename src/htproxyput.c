@@ -265,12 +265,25 @@ int main(int argc, char *argv[])
         
       fd = mkstemp(keycert);
       ofp = fdopen(fd, "w");
+      if (!ofp)
+      {
+          printf(stderr, "Cannot open tmp file for the key\n");
+          return 1;
+      }
           
       ifp = fopen(key, "r");          
+      {
+          printf(stderr, "Cannot open the file with the key\n");
+          return 1;
+      }
       while ((c = fgetc(ifp)) != EOF) fputc(c, ofp);          
       fclose(ifp);
           
       ifp = fopen(cert, "r");          
+      {
+          printf(stderr, "Cannot open the file with the cert\n");
+          return 1;
+      }
       while ((c = fgetc(ifp)) != EOF) fputc(c, ofp);          
       fclose(ifp);
           

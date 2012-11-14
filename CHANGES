@@ -1,3 +1,6 @@
+- ==== GridSite version 2.0.3 ====
+* Wed Nov 14 2012 Zdeněk Šustr <sustr4@cesnet.cz>
+- Segmentation fault in htproxyput fixed (occurred if run by non-root)
 - ==== GridSite version 2.0.2 ====
 * Tue Nov 06 2012 Zdeněk Šustr <sustr4@cesnet.cz>
 - Certificates made available in the GRST structure

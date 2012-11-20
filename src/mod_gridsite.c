@@ -3879,6 +3879,37 @@ int GRST_callback_SSLVerify_wrapper(int ok, X509_STORE_CTX *ctx)
 #endif
 
    /*
+    * Allow path length violations if we have a proxy cert.
+    */
+   if (errnum == X509_V_ERR_PATH_LENGTH_EXCEEDED)
+     {
+        //ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+        //            "Checking to see if we should ignore the path length exceeded error");
+        int proxy_path_length = 0, i;
+        for (i = 0; i < ctx->last_untrusted; i++)
+          {
+             int ret;
+             X509 *x = sk_X509_value(ctx->chain, i);
+             if ((i == errdepth) && (x->ex_pathlen != -1)
+               && (i <= (x->ex_pathlen + proxy_path_length)))
+               {  // Can violate the path length by proxy_path_length.
+                  ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                    "Skip path length violation error.");
+                  sslconn->verify_error == NULL;
+                  ok = TRUE;
+                  errnum = X509_V_ERR_INVALID_CA; // Oddly enough, setting the error to X509_V_OK will cause later errors.  This causes an ignore.
+                  X509_STORE_CTX_set_error(ctx, errnum); break;
+               }
+             if (X509_check_ca(x) == 0)
+               { // Not a CA - maybe a proxy cert?
+                 // Since gridsite accepts legacy proxies, we don't check
+                 // if (x->ex_flags & EXFLAG_PROXY) is set.
+                  proxy_path_length++;
+               }
+          }
+     }
+
+   /*
     * New style GSI Proxy handling, with critical ProxyCertInfo
     * extension: we use GRSTx509KnownCriticalExts() to check this
     */

@@ -127,6 +127,24 @@ with GridSite and Grid Security credentials.
 
 See http://www.gridsite.org/ for details.
 
+EOF
+
+if [ x"$project" = x"emi1" ]; then
+cat <<EOF >>gridsite.spec
+%package apache
+Group: System Environment/Daemons
+Summary: GridSite mod_gridsite module for Apache httpd
+
+%description apache
+GridSite Apache module and CGI binaries. This is helper package to fix upgrade
+from upstream gridsite 1.7.19.
+
+See http://www.gridsite.org/ for details.
+
+EOF
+fi
+
+cat <<EOF >>gridsite.spec
 %prep
 
 %setup -q
@@ -322,6 +340,18 @@ See http://www.gridsite.org/ for details.
 %attr(-, root, root) %{_prefix}/share/doc/gridsite-${MINOR_VERSION:-1.x}/htproxyinfo.1
 
 EOF
+
+if [ x"$project" = x"emi1" ]; then
+cat <<EOF >>gridsite.spec
+%files apache
+%attr(-, root, root) %{_prefix}/share/man/man8/mod_gridsite.8.gz
+%attr(-, root, root) %{_prefix}/%{_lib}/httpd/modules/mod_gridsite.so
+%attr(-, root, root) %{_prefix}/sbin/real-gridsite-admin.cgi
+%attr(-, root, root) %{_prefix}/sbin/gridsite-copy.cgi
+%attr(-, root, root) %{_prefix}/sbin/gridsite-storage.cgi
+
+EOF
+fi
 
 LC_TIME=C cat >> gridsite.spec <<EOF
 %changelog

@@ -1,4 +1,7 @@
 - ==== GridSite version 1.7.24 ====
+* Mon Dec 03 2012 Zdenek Sustr <sustr4@cesnet.cz>
+- Allowing exceptions for length constraints in proxy certificates (GGUS #87573)
+- ==== GridSite version 1.7.24 ====
 * Tue Oct 30 2012 Zdenek Sustr <sustr4@cesnet.cz>
 - Fixed Memory Leak
 - ==== GridSite version 1.7.23 ====

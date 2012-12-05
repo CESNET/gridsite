@@ -60,3 +60,11 @@ Architecture: any
 Depends: \${shlibs:Depends}, \${misc:Depends}
 Description: GridSite WS htproxyput
  GridSite WS delegation client, htproxyput
+
+Package: gridsite-dbg
+Section: debug
+Architecture: any
+Priority: extra
+Depends: libgridsite2 (= \${binary:Version}), \${misc:Depends}
+Description: Debugging symbols for GridSite
+ This package contains debugging symbols for GridSite library and programs.

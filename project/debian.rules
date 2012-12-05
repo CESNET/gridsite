@@ -7,4 +7,4 @@ override_dh_auto_install:
 	\$(MAKE) -C src prefix=/usr httpd_name=apache2 DESTDIR=\$(shell pwd)/debian/tmp install install-ws post-install-debian
 
 %:
-	dh -Smakefile -Dsrc \$@
+	dh -Smakefile -Dsrc --dbg-package=gridsite-dbg \$@

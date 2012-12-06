@@ -133,6 +133,7 @@ rm -rf \$RPM_BUILD_ROOT
 cd src
 
 make install prefix=%{_prefix} libdir=%{_lib} DESTDIR=\$RPM_BUILD_ROOT
+rm -f \$RPM_BUILD_ROOT/%{_libdir}/*.a
 EOF
 
 if [ $have_gsoap ] ; then
@@ -176,16 +177,16 @@ cat <<EOF >>gridsite.spec
 
 %files $shared_name
 %attr(-, root, root) %{_prefix}/share/doc/gridsite-${MINOR_VERSION:-1.x}
-%attr(-, root, root) %{_prefix}/%{_lib}/libgridsite.so.*
-%attr(-, root, root) %{_prefix}/%{_lib}/libgridsite_globus.so.*
-%attr(-, root, root) %{_prefix}/%{_lib}/libgridsite_nossl.so.*
+%attr(-, root, root) %{_prefix}/%{_lib}/libgridsite.so.2
+%attr(-, root, root) %{_prefix}/%{_lib}/libgridsite.so.2.*
+%attr(-, root, root) %{_prefix}/%{_lib}/libgridsite_globus.so.2
+%attr(-, root, root) %{_prefix}/%{_lib}/libgridsite_globus.so.2.*
+%attr(-, root, root) %{_prefix}/%{_lib}/libgridsite_nossl.so.2
+%attr(-, root, root) %{_prefix}/%{_lib}/libgridsite_nossl.so.2.*
 
 %files devel
 %attr(-, root, root) %{_prefix}/include/gridsite.h
 %attr(-, root, root) %{_prefix}/include/gridsite-gacl.h
-%attr(-, root, root) %{_prefix}/%{_lib}/libgridsite.a
-%attr(-, root, root) %{_prefix}/%{_lib}/libgridsite_globus.a
-%attr(-, root, root) %{_prefix}/%{_lib}/libgridsite_nossl.a
 %attr(-, root, root) %{_prefix}/%{_lib}/libgridsite.so
 %attr(-, root, root) %{_prefix}/%{_lib}/libgridsite_globus.so
 %attr(-, root, root) %{_prefix}/%{_lib}/libgridsite_nossl.so

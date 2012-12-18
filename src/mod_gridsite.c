@@ -3699,6 +3699,128 @@ int GRST_ssl_callback_SSLVerify_CRL(int ok, X509_STORE_CTX *ctx, conn_rec *c)
 }
 #endif
 
+
+int GRST_isRFC3820Proxy(X509 *cert) {
+    int  i;
+    char s[80];
+    X509_EXTENSION *ex;
+
+    /* Check by OID */
+    for (i = 0; i < X509_get_ext_count(cert); i++) {
+        ex = X509_get_ext(cert, i);
+
+        if (X509_EXTENSION_get_object(ex)) {
+            OBJ_obj2txt(s, sizeof(s), X509_EXTENSION_get_object(ex), 1);
+            if (strcmp(s, GRST_PROXYCERTINFO_OID) == 0) {
+                return 1;
+            }
+        }
+    }
+    return 0;
+}
+
+int GRST_verifyPathLenConstraints(STACK_OF(X509) *chain, server_rec *s, int original_errnum)
+{
+    X509 *cert = NULL;
+    int i, j, depth, c;
+    char *cert_subjectdn = NULL;
+
+    int ca_path_len_countdown    = -1;
+    int proxy_path_len_countdown = -1;
+
+    /* No chain, no game */
+    if (!chain)
+    {
+        return X509_V_ERR_CERT_REJECTED;
+    }
+
+    /* Go through the list, from the CA(s) down through the EEC to the final delegation */
+    depth = sk_X509_num (chain);
+    for (i=depth-1; i >= 0; --i)
+    {
+        if ((cert = sk_X509_value(chain, i)))
+        {
+            if (cert_subjectdn) OPENSSL_free(cert_subjectdn);
+            cert_subjectdn = X509_NAME_oneline(X509_get_subject_name(cert), NULL, 0);
+
+            /* CA certs: check CA Path Length Constraint */
+            if (X509_check_ca(cert) == 0)
+            {
+                /* Exceeded CA Path Length ? */
+                if (ca_path_len_countdown == 0)
+                {
+                    ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
+                                 "CA Path Length Constraint exceeded on depth %d for "
+                                 "certificate \"%s\". No CA certifcates were expected at this stage.",
+                                 i, cert_subjectdn);
+                    if (cert_subjectdn) OPENSSL_free(cert_subjectdn);
+                    return original_errnum;
+                }
+
+                /* Store pathlen, override when small, otherwise keep the smallest */
+                if (cert->ex_pathlen != -1)
+                {
+                    /* Update when ca_path_len_countdown is the initial value
+                     * or when the PathLenConstraint is smaller then the
+                     * remembered ca_path_len_countdown */
+                    if ((ca_path_len_countdown == -1) || (cert->ex_pathlen < ca_path_len_countdown))
+                    {
+                        ca_path_len_countdown = cert->ex_pathlen;
+                    } 
+                    else 
+                    {
+                        /* If a path length was already issuesd, lower ca_path_len_countdown */
+                        if (ca_path_len_countdown != -1)
+                            ca_path_len_countdown--;
+                    }
+                }
+                else
+                {
+                    /* If a path length was already issuesd, lower ca_path_len_countdown */
+                    if (ca_path_len_countdown != -1)
+                        ca_path_len_countdown--;
+                }
+            }
+            /* Useful for RFC3820 proxies only */
+            else if (GRST_isRFC3820Proxy(cert))
+            {
+                /* Exceeded CA Path Length ? */
+                if (proxy_path_len_countdown == 0) {
+                    ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
+                                 "Proxy Path Length Constraint exceeded on depth %d of %d for "
+                                 "certificate \"%s\". No CA certifcates were expected at this stage.",
+                                 i, depth, cert_subjectdn);
+                    if (cert_subjectdn) OPENSSL_free(cert_subjectdn);
+                    return original_errnum;
+                }
+
+                /* Store pathlen, override when small, otherwise keep the smallest */
+                if (cert->ex_pcpathlen != -1) {
+                    /* Update when proxy_path_len_countdown is the initial value
+                     * or when the PathLenConstraint is smaller then the
+                     * remembered proxy_path_len_countdown */
+                    if ((proxy_path_len_countdown == -1) || (cert->ex_pcpathlen < proxy_path_len_countdown)) {
+                        proxy_path_len_countdown = cert->ex_pcpathlen;
+                    } else {
+                        /* If a path length was already issuesd, lower ca_path_len_countdown */
+                        if (proxy_path_len_countdown != -1)
+                            proxy_path_len_countdown--;
+                    }
+                } else {
+                    /* If a path length was already issued, lower ca_path_len_countdown */
+                    if (proxy_path_len_countdown != -1) {
+                        proxy_path_len_countdown--;
+                    }
+
+                }
+            }
+        }
+    }
+    if (cert_subjectdn) OPENSSL_free(cert_subjectdn);
+    return X509_V_OK;
+}
+
+
 int GRST_callback_SSLVerify_wrapper(int ok, X509_STORE_CTX *ctx)
 {
    SSL *ssl            = (SSL *) X509_STORE_CTX_get_app_data(ctx);
@@ -3719,6 +3841,7 @@ int GRST_callback_SSLVerify_wrapper(int ok, X509_STORE_CTX *ctx)
 #endif
    STACK_OF(X509) *certstack;
    GRSTx509Chain *grst_chain;
+
 
 #if AP_MODULE_MAGIC_AT_LEAST(20051115,0)
     /*
@@ -3879,6 +4002,29 @@ int GRST_callback_SSLVerify_wrapper(int ok, X509_STORE_CTX *ctx)
 #endif
 
    /*
+    * Check certificate chain on path lengths when a path length constraint is triggered
+    */
+   if ((errnum == X509_V_ERR_PATH_LENGTH_EXCEEDED) ||
+           (errnum == X509_V_ERR_PROXY_PATH_LENGTH_EXCEEDED))
+   {
+       ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+               "Detected X509_V_ERR_PATH_LENGTH_EXCEEDED or "
+               "X509_V_ERR_PROXY_PATH_LENGTH_EXCEEDED error. Starting evaluation...");
+       errnum = GRST_verifyPathLenConstraints(X509_STORE_CTX_get_chain(ctx), s, errnum);
+       if (errnum == X509_V_OK)
+       {
+          ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                       "Certificate chain path length contraints evaluation "
+                       "concluded the chain is OK.");
+          sslconn->verify_error == NULL;
+          errnum = X509_V_ERR_INVALID_CA; // Oddly enough, setting the error to X509_V_OK will cause later errors.  This causes an ignore.
+          X509_STORE_CTX_set_error(ctx, errnum);
+          ok = TRUE;
+       }
+   }
+
+#if 0
+   /*
     * Allow path length violations if we have a proxy cert.
     */
    if (errnum == X509_V_ERR_PATH_LENGTH_EXCEEDED)
@@ -3908,6 +4054,7 @@ int GRST_callback_SSLVerify_wrapper(int ok, X509_STORE_CTX *ctx)
                }
           }
      }
+#endif
 
    /*
     * New style GSI Proxy handling, with critical ProxyCertInfo

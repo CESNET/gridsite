@@ -60,9 +60,9 @@ BuildRequires:  curl-devel%{?_isa}
 BuildRequires: libtool
 Packager: Andrew McNab <Andrew.McNab@manchester.ac.uk>
 Provides: gridsite-apache = %{version}-%{release}
-Obsoletes: gridsite-apache <= 1.7.21
+Obsoletes: gridsite-apache < %{version}-%{release}
 Provides: gridsite-services = %{version}-%{release}
-Obsoletes: gridsite-services <= 1.7.21
+Obsoletes: gridsite-services < %{version}-%{release}
 
 %description
 GridSite adds GSI, VOMS and GACL support to Apache 2.0 (mod_gridsite),

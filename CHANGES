@@ -1,3 +1,8 @@
+- ==== GridSite version 2.0.4 ====
+* Mon Jan 21 2013 Zdeněk Šustr <sustr4@cesnet.cz>
+* When constructing a list of FQANs, a reference to the proxy is stored in the chain that contains the attribute (GGUS #79096)
+* Avoid looking up remote IP, it is available in the Apache context
+* Flapping yum update fixed
 - ==== GridSite version 2.0.3 ====
 * Wed Nov 14 2012 Zdeněk Šustr <sustr4@cesnet.cz>
 - Segmentation fault in htproxyput fixed (occurred if run by non-root)

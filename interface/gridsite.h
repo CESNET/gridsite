@@ -208,9 +208,6 @@ typedef struct { GRSTx509Cert *firstcert; } GRSTx509Chain;
 #ifndef GRST_NO_OPENSSL
 int GRSTx509CertLoad(GRSTx509Cert *, X509 *);
 int GRSTx509ChainLoadCheck(GRSTx509Chain **, STACK_OF(X509) *, X509 *, char *, char *);
-/* For mod_gridsite.so only */
-int GRSTx509ChainLoad(GRSTx509Chain **, STACK_OF(X509) *,
- X509 *, char *, char *);
 #endif
 int GRSTx509ChainFree(GRSTx509Chain *);
 
@@ -406,9 +403,7 @@ int GRSTx509CompactCreds(int *, int, size_t, char *, STACK_OF(X509) *, char *, X
 char *GRSTx509CachedProxyFind(char *, char *, char *);
 char *GRSTx509FindProxyFileName(void);
 int GRSTx509MakeProxyCert(char **, FILE *, char *, char *, char *, int);
-#ifndef GRST_NO_OPENSSL
-char *GRSTx509CachedProxyKeyFind(char *, char *, char *, STACK_OF(X509) *);
-#endif 
+char *GRSTx509CachedProxyKeyFind(char *, char *, char *);
 int GRSTx509ProxyDestroy(char *, char *, char *);
 int GRSTx509ProxyGetTimes(char *, char *, char *, time_t *, time_t *);
 int GRSTx509CreateProxyRequest(char **, char **, char *);

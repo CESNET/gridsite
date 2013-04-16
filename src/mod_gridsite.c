@@ -105,6 +105,7 @@
 #include <openssl/x509v3.h>
 
 #include "mod_ssl-private.h"
+#include "mod_ap-compat.h"
 
 #include "gridsite.h"
 
@@ -2075,7 +2076,7 @@ static const char *mod_gridsite_take2_cmds(cmd_parms *a, void *cfg,
     
     if (strcasecmp(a->cmd->name, "GridSiteUserGroup") == 0)
     {
-      if (!(unixd_config.suexec_enabled))
+      if (!(ap_unixd_config.suexec_enabled))
           return "Using GridSiteUserGroup will "
                  "require rebuilding Apache with suexec support!";
     
@@ -3050,9 +3051,9 @@ static int mod_gridsite_perm_handler(request_rec *r)
 
     /* finally add IP credential */
     
-    if (r->connection->remote_ip)
+    if (GRST_AP_CLIENT_IP(r->connection))
       {
-        cred = GRSTgaclCredCreate("ip:", r->connection->remote_ip);
+        cred = GRSTgaclCredCreate("ip:", GRST_AP_CLIENT_IP(r->connection));
         GRSTgaclCredSetNotAfter(cred, GRST_MAX_TIME_T);
 
         if (user == NULL) user = GRSTgaclUserNew(cred);
@@ -3576,7 +3577,7 @@ int GRST_ssl_callback_SSLVerify_CRL(int ok, X509_STORE_CTX *ctx, conn_rec *c)
          * Log information about CRL
          * (A little bit complicated because of ASN.1 and BIOs...)
          */
-        if (s->loglevel >= APLOG_DEBUG) {
+        if (GRST_AP_LOGLEVEL(s) >= APLOG_DEBUG) {
             char buff[512]; /* should be plenty */
             BIO *bio = BIO_new(BIO_s_mem());
 
@@ -3673,7 +3674,7 @@ int GRST_ssl_callback_SSLVerify_CRL(int ok, X509_STORE_CTX *ctx, conn_rec *c)
             ASN1_INTEGER *sn = revoked->serialNumber;
 
             if (!ASN1_INTEGER_cmp(sn, X509_get_serialNumber(cert))) {
-                if (s->loglevel >= APLOG_DEBUG) {
+                if (GRST_AP_LOGLEVEL(s) >= APLOG_DEBUG) {
                     char *cp = X509_NAME_oneline(issuer, NULL, 0);
                     char *serial = i2s_ASN1_INTEGER(NULL,sn);
 
@@ -3847,7 +3848,7 @@ int GRST_callback_SSLVerify_wrapper(int ok, X509_STORE_CTX *ctx)
     /*
      * Log verification information
      */
-    if (s->loglevel >= APLOG_DEBUG) 
+    if (GRST_AP_LOGLEVEL(s) >= APLOG_DEBUG)
       {
         X509 *cert  = X509_STORE_CTX_get_current_cert(ctx);
         char *sname = X509_NAME_oneline(X509_get_subject_name(cert), NULL, 0);
@@ -4552,7 +4553,7 @@ static int mod_gridsite_server_post_config(apr_pool_t *pPool,
             SSL_CTX_set_verify(ctx, ctx->verify_mode, 
                                GRST_callback_SSLVerify_wrapper);
 
-            if (main_server->loglevel >= APLOG_DEBUG)
+            if (GRST_AP_LOGLEVEL(main_server) >= APLOG_DEBUG)
                  ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, main_server,
                       "Set mod_ssl verify callbacks to GridSite wrappers");
           }
@@ -4562,7 +4563,7 @@ static int mod_gridsite_server_post_config(apr_pool_t *pPool,
 
    path = ap_server_root_relative(pPool, sessionsdir);
    apr_dir_make_recursive(path, APR_UREAD | APR_UWRITE | APR_UEXECUTE, pPool);
-   chown(path, unixd_config.user_id, unixd_config.group_id);
+   chown(path, ap_unixd_config.user_id, ap_unixd_config.group_id);
 
    return OK;
 }

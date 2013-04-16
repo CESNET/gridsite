@@ -106,6 +106,7 @@
 #include <openssl/x509v3.h>
 
 #include "canl_mod_ssl-private.h"
+#include "mod_ap-compat.h"
 
 #include "gridsite.h"
 
@@ -2071,7 +2072,7 @@ static const char *mod_gridsite_take2_cmds(cmd_parms *a, void *cfg,
     
     if (strcasecmp(a->cmd->name, "GridSiteUserGroup") == 0)
     {
-      if (!(unixd_config.suexec_enabled))
+      if (!(ap_unixd_config.suexec_enabled))
           return "Using GridSiteUserGroup will "
                  "require rebuilding Apache with suexec support!";
     
@@ -3044,9 +3045,9 @@ static int mod_gridsite_perm_handler(request_rec *r)
 
     /* finally add IP credential */
     
-    if (r->connection->remote_ip)
+    if (GRST_AP_CLIENT_IP(r->connection))
       {
-        cred = GRSTgaclCredCreate("ip:", r->connection->remote_ip);
+        cred = GRSTgaclCredCreate("ip:", GRST_AP_CLIENT_IP(r->connection));
         GRSTgaclCredSetNotAfter(cred, GRST_MAX_TIME_T);
 
         if (user == NULL) user = GRSTgaclUserNew(cred);
@@ -3933,7 +3934,7 @@ static int mod_gridsite_server_post_config(apr_pool_t *pPool,
             canl_ssl_ctx_set_clb(c_ctx, ctx, ctx->verify_mode,
                     GRST_callback_SSLVerify_wrapper);
 
-            if (main_server->loglevel >= APLOG_DEBUG)
+            if (GRST_AP_LOGLEVEL(main_server) >= APLOG_DEBUG)
                  ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, main_server,
                       "Set mod_ssl verify callbacks to GridSite wrappers: %s",
                       canl_get_error_message(c_ctx));
@@ -3944,7 +3945,7 @@ static int mod_gridsite_server_post_config(apr_pool_t *pPool,
 
    path = ap_server_root_relative(pPool, sessionsdir);
    apr_dir_make_recursive(path, APR_UREAD | APR_UWRITE | APR_UEXECUTE, pPool);
-   chown(path, unixd_config.user_id, unixd_config.group_id);
+   chown(path, ap_unixd_config.user_id, ap_unixd_config.group_id);
 
    canl_free_ctx(c_ctx);
    return OK;
@@ -3961,8 +3962,16 @@ static int mod_gridsite_log_func(char *file, int line, int level,
    vasprintf(&mesg, fmt, ap);
    va_end(ap);
 
+/*
+ * since >=2.3.6: added module_index argument to ap_log_error()
+ */
+#if GRST_AP_VERSION < 20306
    ap_log_error(file, line, level, 
                 0, mod_gridsite_log_func_server, "%s", mesg);
+#else
+   ap_log_error(file, line, APLOG_NO_MODULE, level,
+                0, mod_gridsite_log_func_server, "%s", mesg);
+#endif
    
    free(mesg);
    return 0;

@@ -103,6 +103,8 @@ ifeq ($(WALL),yes)
 MYCFLAGS += -Wall
 endif
 
+CFLAGS=-g -O2
+
 CC=gcc
 COMPILE=libtool --mode=compile $(CC) $(CFLAGS)
 LINK=libtool --mode=link $(CC) $(LDFLAGS)
@@ -228,14 +230,14 @@ gridsite-copy.cgi: gridsite-copy.lo libgridsite.la
 
 mod_gridsite.so: ${MOD_GRIDSITE_FILE} ${MOD_SSLPRIVATE_HEADER} \
                  libgridsite.la
-	gcc -g $(MYCFLAGS) -shared -Wl,-soname=gridsite_module \
+	gcc $(CFLAGS) $(MYCFLAGS) -shared -Wl,-soname=gridsite_module \
            -I/usr/kerberos/include \
            $(XML2_CFLAGS) -lcrypto -lssl ${MYCANLLDFLAGS} \
            -DVERSION=\"$(VERSION)\" -o mod_gridsite.so \
            ${MOD_GRIDSITE_FILE} -L./.libs -lgridsite
 
 mod_gridsite_example.so: mod_gridsite_example.c 
-	gcc -g -shared -Wl,-soname=gridsite_example_module \
+	gcc $(CFLAGS) -shared -Wl,-soname=gridsite_example_module \
 	   -fPIC $(HTTPD_FLAGS) \
            -DVERSION=\"$(VERSION)\" -o mod_gridsite_example.so \
            mod_gridsite_example.c 
@@ -266,7 +268,7 @@ slashgrid: slashgrid.lo libgridsite.la
 
 # This target is used by make-gridsite-spec to test for FUSE include+libs
 fuse-test: fuse-test.c
-	gcc -g -lfuse fuse-test.c \
+	gcc $(CFLAGS) -lfuse fuse-test.c \
           $(MYCFLAGS) $(MYLDFLAGS) $(XML2_CFLAGS) \
           -D_FILE_OFFSET_BITS=64 -D_REENTRANT -DFUSE_USE_VERSION=22
 
@@ -308,7 +310,7 @@ DelegationService.wsdl: delegation.h
 
 gridsite-delegation.cgi: grst-delegation.c delegation.h \
                          DelegationService.wsdl libgridsite.la
-	gcc -g $(MYCFLAGS) $(MYLDFLAGS) -o gridsite-delegation.cgi \
+	gcc $(CFLAGS) $(MYCFLAGS) $(MYLDFLAGS) -o gridsite-delegation.cgi \
             grst-delegation.c \
             -I/usr/kerberos/include -I. $(GSOAP_CFLAGS) \
             -I$(GRIDSITEDIR)/include \
@@ -319,10 +321,10 @@ gridsite-delegation.cgi: grst-delegation.c delegation.h \
  #           -lgridsite
 
 htproxyput: htproxyput.c delegation.h DelegationService.wsdl libgridsite.la
-	gcc -g $(MYCFLAGS) $(MYLDFLAGS) -o htproxyput \
+	gcc $(CFLAGS) $(MYCFLAGS) $(MYLDFLAGS) -o htproxyput \
             htproxyput.c \
             -I/usr/kerberos/include -I. \
-            -g -DVERSION=\"$(VERSION)\" \
+            -DVERSION=\"$(VERSION)\" \
             $(GSOAPSSL_CFLAGS) \
             -I$(GRIDSITEDIR)/include \
             -L./.libs \
@@ -332,10 +334,10 @@ htproxyput: htproxyput.c delegation.h DelegationService.wsdl libgridsite.la
 
 # This target is used by make-gridsite-spec to test for gSOAP include+libs
 gsoap-test: gsoap-test.c 
-	gcc -g $(MYCFLAGS) $(MYLDFLAGS) -o gsoap-test \
+	gcc $(CFLAGS) $(MYCFLAGS) $(MYLDFLAGS) -o gsoap-test \
             gsoap-test.c \
             -I/usr/kerberos/include -I. \
-            -g -DVERSION=\"$(VERSION)\" \
+            -DVERSION=\"$(VERSION)\" \
             $(GSOAPSSL_CFLAGS) \
             -I$(GRIDSITEDIR)/include \
             $(STDSOAP2) -L$(GRIDSITEDIR)/$(libdir) \

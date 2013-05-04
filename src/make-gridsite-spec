@@ -108,13 +108,13 @@ See http://www.gridsite.org/ for details.
 
 %build
 cd src
-make prefix=%{_prefix}
+CFLAGS="%{optflags}" LDFLAGS="%{?__global_ldflags}" make prefix=%{_prefix}
 
 EOF
 
 if [ $have_gsoap ] ; then
 cat <<EOF >>gridsite.spec
-make prefix=%{_prefix} gridsite-delegation.cgi htproxyput
+CFLAGS="%{optflags}" LDFLAGS="%{?__global_ldflags}" make prefix=%{_prefix} gridsite-delegation.cgi htproxyput
 
 EOF
 fi

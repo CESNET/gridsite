@@ -105,22 +105,14 @@ int ns__getProxyReq(struct soap *soap,
   int   i;
   char *p, *user_dn, *docroot, *proxydir, *request;
   
-  if ((user_dn = get_dn()) == NULL) return SOAP_ERR;
-
   if ((delegation_id == NULL) || (*delegation_id == '\0')) 
-                               delegation_id = GRSTx509MakeDelegationID();
-  else for (i=0; delegation_id[i] != '\0'; ++i)
-          {
-            if (!isalnum(delegation_id[i]) && 
-                (delegation_id[i] != '.') &&
-                (delegation_id[i] != ',') &&
-                (delegation_id[i] != '_')) 
-              {
-                delegation_id = NULL;
-                break;
-              }
-          }
-  
+      delegation_id = GRSTx509MakeDelegationID();
+  else 
+      if (!GRST_is_id_safe(delegation_id))
+          return SOAP_ERR;
+
+  if ((user_dn = get_dn()) == NULL) return SOAP_ERR;
+      
   docroot = getenv("DOCUMENT_ROOT");
   asprintf(&proxydir, "%s/%s", docroot, GRST_PROXYCACHE);
 
@@ -176,22 +168,14 @@ int ns__putProxy(struct soap *soap, char *delegation_id,
 { 
   int   fd, c, len = 0, i;
   char *docroot, *proxydir, *p, *user_dn;
+
+  if ((delegation_id == NULL) || (*delegation_id == '\0')) 
+      delegation_id = GRSTx509MakeDelegationID();
+  else 
+      if (!GRST_is_id_safe(delegation_id))
+          return SOAP_ERR;
   
   if ((user_dn = get_dn()) == NULL) return SOAP_ERR;
-  
-  if ((delegation_id == NULL) || (*delegation_id == '\0')) 
-                               delegation_id = GRSTx509MakeDelegationID();
-  else for (i=0; delegation_id[i] != '\0'; ++i)
-          {
-            if (!isalnum(delegation_id[i]) && 
-                (delegation_id[i] != '.') &&
-                (delegation_id[i] != ',') &&
-                (delegation_id[i] != '_')) 
-              {
-                delegation_id = NULL;
-                break;
-              }
-          }
   
   docroot = getenv("DOCUMENT_ROOT");
   asprintf(&proxydir, "%s/%s", docroot, GRST_PROXYCACHE);
@@ -218,33 +202,15 @@ int ns__renewProxyReq(struct soap *soap,
 { 
   int   i;
   char *p, *user_dn, *docroot, *proxydir, *request;
-  
+
+  if (delegation_id == NULL || *delegation_id == '\0')
+      return SOAP_ERR;
+
+  if (!GRST_is_id_safe(delegation_id))
+      return SOAP_ERR;
+
   if ((user_dn = get_dn()) == NULL) return SOAP_ERR;
   
-  if (delegation_id == NULL)
-    {
-      free(user_dn);
-      return SOAP_ERR;
-    }
-    
-  for (i=0; delegation_id[i] != '\0'; ++i)
-          {
-            if (!isalnum(delegation_id[i]) && 
-                (delegation_id[i] != '.') &&
-                (delegation_id[i] != ',') &&
-                (delegation_id[i] != '_')) 
-              {
-                delegation_id = NULL;
-                break;
-              }
-          }
-  
-  if (*delegation_id == '\0')
-    {
-      free(user_dn);
-      return SOAP_ERR;
-    }
-    
   docroot = getenv("DOCUMENT_ROOT");
   asprintf(&proxydir, "%s/%s", docroot, GRST_PROXYCACHE);
 
@@ -271,10 +237,14 @@ int ns__getTerminationTime(struct soap *soap,
   char *p, *user_dn, *docroot, *proxydir;
   time_t start, finish;
 
+  if ((delegation_id == NULL) || (*delegation_id == '\0')) 
+      delegation_id = GRSTx509MakeDelegationID();
+  else 
+      if (!GRST_is_id_safe(delegation_id))
+          return SOAP_ERR;
+
   if ((user_dn = get_dn()) == NULL) return SOAP_ERR;  
 
-  delegation_id = GRSTx509MakeDelegationID();
-  
   docroot = getenv("DOCUMENT_ROOT");
   asprintf(&proxydir, "%s/%s", docroot, GRST_PROXYCACHE);
 
@@ -300,22 +270,14 @@ int ns__destroy(struct soap *soap,
 {
   int   fd, c, len = 0, i;
   char *docroot, *proxydir, *p, *client_dn, *user_dn;
+
+  if ((delegation_id == NULL) || (*delegation_id == '\0')) 
+      delegation_id = GRSTx509MakeDelegationID();
+  else 
+      if (!GRST_is_id_safe(delegation_id))
+          return SOAP_ERR;
   
   if ((user_dn = get_dn()) == NULL) return SOAP_ERR;  
-  
-  if ((delegation_id == NULL) || (*delegation_id == '\0')) 
-                               delegation_id = GRSTx509MakeDelegationID();
-  else for (i=0; delegation_id[i] != '\0'; ++i)
-          {
-            if (!isalnum(delegation_id[i]) && 
-                (delegation_id[i] != '.') &&
-                (delegation_id[i] != ',') &&
-                (delegation_id[i] != '_')) 
-              {
-                delegation_id = NULL;
-                break;
-              }
-          }
   
   docroot = getenv("DOCUMENT_ROOT");
   asprintf(&proxydir, "%s/%s", docroot, GRST_PROXYCACHE);

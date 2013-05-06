@@ -2035,6 +2035,9 @@ char *GRSTx509CachedProxyFind(char *proxydir, char *delegation_id,
   char *user_dn_enc, *proxyfile;
   struct stat statbuf;
 
+  if (!GRST_is_id_safe(delegation_id))
+      return NULL;
+
   user_dn_enc = GRSThttpUrlEncode(user_dn);
 
   asprintf(&proxyfile, "%s/%s/%s/userproxy.pem",
@@ -2064,6 +2067,9 @@ char *GRSTx509CachedProxyKeyFind(char *proxydir, char *delegation_id,
 {
   char *user_dn_enc, *prvkeyfile;
   struct stat statbuf;
+
+  if (!GRST_is_id_safe(delegation_id))
+      return NULL;
 
   user_dn_enc = GRSThttpUrlEncode(user_dn);
 
@@ -2292,6 +2298,9 @@ int GRSTx509ProxyDestroy(char *proxydir, char *delegation_id, char *user_dn)
   char            *docroot, *filename, *user_dn_enc;
 
   if (strcmp(user_dn, "cache") == 0) return GRST_RET_FAILED;
+
+  if (!GRST_is_id_safe(delegation_id))
+      return GRST_RET_FAILED;
     
   user_dn_enc = GRSThttpUrlEncode(user_dn);
 
@@ -2338,6 +2347,9 @@ int GRSTx509ProxyGetTimes(char *proxydir, char *delegation_id, char *user_dn,
   X509  *cert;
 
   if (strcmp(user_dn, "cache") == 0) return GRST_RET_FAILED;
+
+  if (!GRST_is_id_safe(delegation_id))
+      return GRST_RET_FAILED;
     
   user_dn_enc = GRSThttpUrlEncode(user_dn);
   
@@ -2655,4 +2667,21 @@ int GRSTx509CacheProxy(char *proxydir, char *delegation_id,
   if (fclose(ofp) != 0) return GRST_RET_FAILED;
 
   return GRST_RET_OK;
+}
+
+int
+GRST_is_id_safe(const char *str)
+{
+    char *p;
+
+    if (str == NULL)
+        return 0;
+
+    for (p = (char *)str; p && *p; p++) {
+        if (!isalnum(*p) &&
+            *p != '.' && *p != ',' && *p != '_')
+            return 0;
+    }
+
+    return 1;
 }

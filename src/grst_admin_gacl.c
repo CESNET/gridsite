@@ -975,7 +975,7 @@ void check_acl_save(char *dn, GRSTgaclPerm perm, char *help_uri, char *dir_path,
 
   // save the new ACL to the temporary file in the correct format using the GridsiteACLFormat directive
 
-  if (strcasecmp(getenv("REDIRECT_GRST_ACL_FORMAT"), "XACML") ==0) GRSTxacmlAclSave(acl, dir_path_vfile);
+  if (strcasecmp(getenv("REDIRECT_GRST_ACL_FORMAT"), "XACML") ==0) GRSTxacmlAclSave(acl, dir_path_vfile, dir_uri);
   else if (strcasecmp(getenv("REDIRECT_GRST_ACL_FORMAT"), "GACL") ==0) GRSTgaclAclSave(acl, dir_path_vfile);
   else
   {

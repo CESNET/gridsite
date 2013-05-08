@@ -37,6 +37,10 @@ POSSIBILITY OF SUCH DAMAGE.
 #define VERSION "x.x.x"
 #endif
 
+#ifndef _GNU_SOURCE
+#define _GNU_SOURCE
+#endif
+
 #include <stdio.h>
 #include <time.h>
 #include <stdlib.h>

@@ -32,6 +32,10 @@
  * For more information about GridSite: http://www.gridsite.org/ *
  *---------------------------------------------------------------*/
 
+#ifndef _GNU_SOURCE
+#define _GNU_SOURCE
+#endif
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/types.h>
@@ -42,10 +46,6 @@
 #include <dirent.h>
 #include <fcntl.h>
 #include <ctype.h>
-
-#ifndef _GNU_SOURCE
-#define _GNU_SOURCE
-#endif
 #include <fnmatch.h>
 
 #include <libxml/xmlmemory.h>

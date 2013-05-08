@@ -71,6 +71,7 @@ FILE* debugfile;
 
 GRSTgaclAcl *GRSTgaclAclParse(xmlDocPtr, xmlNodePtr, GRSTgaclAcl *);
 GRSTgaclAcl *GRSTxacmlAclParse(xmlDocPtr, xmlNodePtr, GRSTgaclAcl *);
+int GRSTxacmlPermPrint(GRSTgaclPerm, FILE *);
 
 /*                                                     *
  * Functions to read in XACML 1.1 compliant format ACL *

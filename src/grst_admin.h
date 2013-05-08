@@ -50,6 +50,7 @@ void add_cred(GRSTgaclUser *user, char *dn, GRSTgaclPerm perm, char *help_uri, c
 void del_cred(GRSTgaclUser *user, char *dn, GRSTgaclPerm perm, char *help_uri, char *dir_path, char *file, char *dir_uri, char *admin_file);
 void del_entry_sure(GRSTgaclUser *user, char *dn, GRSTgaclPerm perm, char *help_uri, char *dir_path, char *file, char *dir_uri, char *admin_file);
 void del_cred_sure(GRSTgaclUser *user, char *dn, GRSTgaclPerm perm, char *help_uri, char *dir_path, char *file, char *dir_uri, char *admin_file);
+void revert_acl(GRSTgaclUser *user, char *dn, GRSTgaclPerm perm, char *help_uri, char *dir_path, char *file, char *dir_uri, char *admin_file);
 
 /*Functions producing messages*/
 //void error(char *dn, GRSTgaclPerm perm, char *help_uri, char *dir_path, char *file, char *dir_uri, char *admin_file);
@@ -59,4 +60,44 @@ void admin_continue(char *dn, GRSTgaclPerm perm, char *help_uri, char *dir_path,
 int verifypasscode();
 void outputformactionerror(char *dn, GRSTgaclPerm perm, char *help_uri,
                       char *dir_path, char *dir_uri, char *admin_file);
+char *storeuploadfile(char *boundary, int *bufferused);
+void uploadfile(char *dn, GRSTgaclPerm perm, char *help_uri, char *dir_path,
+                char *dir_uri, char *admin_file);
+void deletefileaction(char *dn, GRSTgaclPerm perm, char *help_uri,
+                      char *dir_path, char *file, char *dir_uri,
+                      char *admin_file);
+void deletefileform(char *dn, GRSTgaclPerm perm, char *help_uri, char *dir_path,
+                    char *file, char *dir_uri, char *admin_file);
+void renameform(char *dn, GRSTgaclPerm perm, char *help_uri, char *dir_path,
+	    char *file, char *dir_uri, char *admin_file);
+void editfileaction(char *dn, GRSTgaclPerm perm, char *help_uri, char *dir_path,
+                    char *file, char *dir_uri, char *admin_file);
+void create_acl(char *dn, GRSTgaclPerm perm, char *help_uri, char *dir_path,
+                    char *file, char *dir_uri, char *admin_file);
+void renameaction(char *dn, GRSTgaclPerm perm, char *help_uri, char *dir_path,
+                  char *file, char *dir_uri, char *admin_file);
+void newdirectory(char *dn, GRSTgaclPerm perm, char *help_uri, char *dir_path,
+                    char *file, char *dir_uri, char *admin_file);
+void editdnlistaction(char *dn, GRSTgaclPerm perm, char *help_uri, char *dir_path,
+                      char *file, char *dir_uri, char *admin_file);
+void printfile(char *dn, GRSTgaclPerm perm, char *help_uri, char *dir_path,
+                  char *file, char *dir_uri, char *admin_file);
+void filehistory(char *dn, GRSTgaclPerm perm, char *help_uri, char *dir_path,
+                 char *file, char *dir_uri, char *admin_file);
+void ziplist(char *dn, GRSTgaclPerm perm, char *help_uri, char *dir_path,
+             char *file, char *dir_uri, char *admin_file);
+void unzipfile(char *dn, GRSTgaclPerm perm, char *help_uri, char *dir_path,
+               char *file, char *dir_uri, char *admin_file);
+void editfileform(char *dn, GRSTgaclPerm perm, char *help_uri, char *dir_path,
+                  char *file, char *dir_uri, char *admin_file);
+void editdnlistform(char *dn, GRSTgaclPerm perm, char *help_uri, char *dir_path,
+                    char *file, char *dir_uri, char *admin_file);
+void managedir(char *dn, GRSTgaclPerm perm, char *help_uri, char *dir_path,
+               char *dir_uri, char *admin_file);
+int userisgroupadmin(GRSTgaclUser *user, char *adminrole, char *uri);
+void managednlists(GRSTgaclUser *user, char *dn, GRSTgaclPerm perm,
+                   char *help_uri, char *dir_path,
+                   char *dir_uri, char *admin_file);
 
+/* XACML */
+int GRSTxacmlAclSave(GRSTgaclAcl *acl, char *filename, char* dir_uri);

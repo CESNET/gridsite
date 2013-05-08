@@ -417,6 +417,7 @@ char *GRSTx509MakeProxyFileName(char *, STACK_OF(X509) *);
 #endif
 
 int GRSTx509CacheProxy(char *, char *, char *, char *);
+int GRST_is_id_safe(const char *);
 
 #define GRST_HEADFILE   "gridsitehead.txt"
 #define GRST_FOOTFILE   "gridsitefoot.txt"
@@ -446,6 +447,10 @@ int    GRSTasn1ParseDump(BIO *, unsigned char *, long,
 #endif
 int    GRSTasn1GetX509Name(char *, int, char *, char *,
                            struct GRSTasn1TagList taglist[], int);
+int    GRSTasn1FindField(const char *, char *,
+                   char *,
+                   struct GRSTasn1TagList taglist[], int,
+                   int *);
 
 int    GRSThtcpNOPrequestMake(char **, int *, unsigned int);
 int    GRSThtcpNOPresponseMake(char **, int *, unsigned int);

@@ -74,6 +74,8 @@
 #include <http_log.h>
 #include <http_protocol.h>
 #include <http_request.h>
+/* for ap_uname2id() */
+#include <mpm_common.h>
 
 #if AP_MODULE_MAGIC_AT_LEAST(20051115,0)
 #ifndef _LARGEFILE64_SOURCE
@@ -84,6 +86,7 @@
 #include <unixd.h>
 
 #include <stdio.h>
+#include <unistd.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>              

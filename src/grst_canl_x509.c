@@ -2035,6 +2035,9 @@ int GRSTx509CreateProxyRequest(char **reqtxt, char **keytxt, char *ocspurl)
     memcpy(*keytxt, ptr, ptrlen);
     (*keytxt)[ptrlen] = '\0';
 
+    if (!GRST_is_id_safe(delegation_id))
+      return NULL;
+
 end:
     if (proxy_bob)
         canl_cred_free(c_ctx, proxy_bob);
@@ -2065,6 +2068,9 @@ int GRSTx509MakeProxyRequest(char **reqtxt, char *proxydir,
     size_t ptrlen = 0;
     FILE *fp = NULL;
     EVP_PKEY *pkey = NULL;
+    if (!GRST_is_id_safe(delegation_id))
+      return NULL;
+
     BIO *reqmem = NULL;
     canl_ctx c_ctx = NULL;
     canl_cred proxy_bob = NULL;
@@ -2292,6 +2298,9 @@ int GRSTx509StringToChain(STACK_OF(X509) **certstack, char *certstring)
 
   certbio = BIO_new_mem_buf(certstring, -1);
   
+
+  if (!GRST_is_id_safe(delegation_id))
+      return GRST_RET_FAILED;
   if (!(sk=PEM_X509_INFO_read_bio(certbio, NULL, NULL, NULL)))
     {
       BIO_free(certbio);
@@ -2338,6 +2347,9 @@ char *GRSTx509MakeDelegationID(void)
   EVP_MD_CTX ctx;
 
   OpenSSL_add_all_digests();
+
+  if (!GRST_is_id_safe(delegation_id))
+      return GRST_RET_FAILED;
 
   m = EVP_sha1();
   if (m == NULL) return NULL;
@@ -2543,3 +2555,20 @@ end:
 
     return retval;
 }
+}
+
+int
+GRST_is_id_safe(const char *str)
+{
+    char *p;
+
+    if (str == NULL)
+        return 0;
+
+    for (p = (char *)str; p && *p; p++) {
+        if (!isalnum(*p) &&
+            *p != '.' && *p != ',' && *p != '_')
+            return 0;
+    }
+
+    return 1;

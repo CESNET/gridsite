@@ -2060,7 +2060,8 @@ int GRSTx509MakeProxyRequest(char **reqtxt, char *proxydir,
 /// is PEM encoded, and the key is stored in the temporary cache under
 /// proxydir
 {
-    char *prvkeyfile = NULL, *ptr = NULL, *user_dn_enc = NULL;
+    char *prvkeyfile = NULL, *ptr = NULL, *user_dn_enc = NULL, 
+         *pk_tmp_name = NULL;
     size_t ptrlen = 0;
     FILE *fp = NULL;
     EVP_PKEY *pkey = NULL;
@@ -2122,9 +2123,17 @@ int GRSTx509MakeProxyRequest(char **reqtxt, char *proxydir,
         goto end;
     }
 
-    if ((fp = mkstemp(prvkeyfile)) == -1)
+    pk_tmp_name = mktemp(prvkeyfile);
+
+    if (pk_tmp_name == NULL || pk_tmp_name[0] == '\0' )
     {
         retval = 14;
+        goto end;
+    }
+
+    fp = fopen(pk_tmp_name, "w+");
+    if (fp == NULL){
+        retval = 24;
         goto end;
     }
 

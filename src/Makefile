@@ -89,27 +89,16 @@ offset=0
 version_info:=-version-info $(shell \
 	perl -e '$$,=":"; @F=split "\\.","$(PATCH_VERSION)"; print $$F[0]+$$F[1]+${offset},$$F[2],$$F[1]' )
 
-ifdef OPENSSL_GLOBUS_LIBS
-PC_FILES=gridsite-openssl.pc gridsite-globus.pc
-else
 PC_FILES=gridsite-openssl.pc
-endif
 
 # caNl adoption part
 # caNl library and headers have to be in standard system places.
-# Print all warnings
-ifeq ($(GRIDSITE_WITH_CANL),no)
-MOD_GRIDSITE_FILE=mod_gridsite.c
-GRST_X509_OBJS=grst_x509.lo
-MOD_SSLPRIVATE_HEADER=mod_ssl-private.h
-MYCANLLDFLAGS=
-else
 GRST_X509_OBJS=grst_canl_x509.lo
 MOD_GRIDSITE_FILE=canl_mod_gridsite.c
 MOD_SSLPRIVATE_HEADER=canl_mod_ssl-private.h
 MYCANLLDFLAGS=$(CANL_C_LIBS)
-endif
 
+# Print all warnings
 ifeq ($(WALL),yes)
 MYCFLAGS += -Wall
 endif
@@ -120,7 +109,6 @@ LINK=libtool --mode=link $(CC) $(LDFLAGS)
 INSTALL=libtool --mode=install install
 
 GRIDSITE_OBJS=grst_err.lo $(GRST_X509_OBJS) grst_gacl.lo grst_xacml.lo grst_http.lo grst_asn1.lo grst_htcp.lo
-GRIDSITE_GLOBUS_OBJS=grst_err_globus.lo grst_x509_globus.lo grst_gacl_globus.lo grst_xacml_globus.lo  grst_http_globus.lo grst_asn1_globus.lo grst_htcp_globus.lo
 GRIDSITE_NOSSL_OBJS=grst_err_nossl.lo grst_gacl_nossl.lo grst_http_nossl.lo grst_xacml_nossl.lo grst_htcp_nossl.lo
 
 #
@@ -147,10 +135,6 @@ grst_err.lo: grst_err.c ../interface/gridsite.h
 	    -I/usr/kerberos/include \
 	    -c $< -o $@
 
-grst_x509.lo: grst_x509.c ../interface/gridsite.h
-	$(COMPILE)  $(MYCFLAGS) \
-            -I/usr/kerberos/include -c $< -o $@
-
 grst_canl_x509.lo: grst_canl_x509.c ../interface/gridsite.h
 	$(COMPILE)  $(MYCFLAGS) $(CANL_C_CFLAGS) \
             -I/usr/kerberos/include -c $< -o $@
@@ -175,53 +159,12 @@ grst_htcp.lo: grst_htcp.c ../interface/gridsite.h
 	$(COMPILE)  $(MYCFLAGS) \
             -I/usr/kerberos/include -c $< -o $@
 
-# Then build versions using Globus OpenSSL if configured
-
-ifdef OPENSSL_GLOBUS_LIBS
-
-libgridsite_globus.a: libgridsite_globus.la
-
-libgridsite_globus.la: $(GRIDSITE_GLOBUS_OBJS)
-	$(LINK) -rpath $(prefix)/$(libdir) $(version_info) \
-         -o $@ $+  $(XML2_LIBS) $(OPENSSL_GLOBUS_LIBS)
-
-grst_err_globus.lo: grst_err.c ../interface/gridsite.h
-	$(COMPILE)  $(MYCFLAGS) $(OPENSSL_GLOBUS_FLAGS) \
-	    -I/usr/kerberos/include -c $< -o $@
-
-grst_x509_globus.lo: grst_x509.c ../interface/gridsite.h
-	$(COMPILE)  $(MYCFLAGS) $(OPENSSL_GLOBUS_FLAGS) \
-            -I/usr/kerberos/include -c $< -o $@
-
-grst_gacl_globus.lo: grst_gacl.c ../interface/gridsite.h
-	$(COMPILE)  $(MYCFLAGS) $(OPENSSL_GLOBUS_FLAGS) \
-            -I/usr/kerberos/include $(XML2_CFLAGS) -c $< -o $@
-
-grst_xacml_globus.lo: grst_xacml.c ../interface/gridsite.h
-	$(COMPILE)  $(MYCFLAGS) $(OPENSSL_GLOBUS_FLAGS) \
-            -I/usr/kerberos/include $(XML2_CFLAGS) -c $< -o $@
-
-grst_http_globus.lo: grst_http.c ../interface/gridsite.h
-	$(COMPILE)  $(MYCFLAGS) $(OPENSSL_GLOBUS_FLAGS) \
-            -I/usr/kerberos/include -c $< -o $@
-
-grst_asn1_globus.lo: grst_asn1.c ../interface/gridsite.h
-	$(COMPILE)  $(MYCFLAGS) $(OPENSSL_GLOBUS_FLAGS) \
-            -I/usr/kerberos/include -c $< -o $@
-
-grst_htcp_globus.lo: grst_htcp.c ../interface/gridsite.h
-	$(COMPILE)  $(MYCFLAGS) $(OPENSSL_GLOBUS_FLAGS) \
-            -I/usr/kerberos/include -c $< -o $@
-
-else
-
+# globus soname for compatibility
 libgridsite_globus.a: libgridsite_globus.la
 
 libgridsite_globus.la: $(GRIDSITE_OBJS)
 	$(LINK) -rpath $(prefix)/$(libdir) $(version_info) \
          -o $@ $+ -lcrypto ${MYCANLLDFLAGS} $(XML2_LIBS)
-
-endif
 
 # then build versions without OpenSSL
 
@@ -420,7 +363,7 @@ clean:
 	rm -vf fuse-test.c gsoap-test.c gridsite.spec
 	rm -vf libgridsite*.so* *.cgi mod_gridsite*.so *.a *.o *.la *.lo
 	rm -vf gsexec urlencode htcp htcp-static findproxyfile showx509exts slashgrid fuse-test gaclexample xacmlexample htproxyput gsoap-test
-	rm -vf gridsite-openssl.pc gridsite-globus.pc
+	rm -vf gridsite-openssl.pc
 
 distclean:
 	rm -rfv ../dist ../gridsite-*.tar.gz $(MYRPMDIR)
@@ -540,7 +483,7 @@ dist:
 	fi
 	cp -f Makefile grst*.c htcp.c slashgrid.c slashgrid.init \
                  urlencode.c findproxyfile.c gaclexample.c mod_gridsite*.c \
-                 htproxyput.c grst_admin.h mod_ap-compat.h mod_ssl-private.h \
+                 htproxyput.c grst_admin.h mod_ap-compat.h \
                  canl_mod_gridsite.c canl_mod_ssl-private.h \
                  gsexec.c gsexec.h gridsite-copy.c gridsite-storage.c \
                  delegation.h \

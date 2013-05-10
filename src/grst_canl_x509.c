@@ -1846,6 +1846,8 @@ char *GRSTx509CachedProxyFind(char *proxydir, char *delegation_id,
 {
   char *user_dn_enc, *proxyfile;
   struct stat statbuf;
+  if (!GRST_is_id_safe(delegation_id))    
+    return NULL;
 
   user_dn_enc = GRSThttpUrlEncode(user_dn);
 
@@ -1876,6 +1878,8 @@ char *GRSTx509CachedProxyKeyFind(char *proxydir, char *delegation_id,
 {
   char *user_dn_enc, *prvkeyfile;
   struct stat statbuf;
+  if (!GRST_is_id_safe(delegation_id))
+    return NULL;
 
   user_dn_enc = GRSThttpUrlEncode(user_dn);
 
@@ -1976,9 +1980,6 @@ int GRSTx509CreateProxyRequest(char **reqtxt, char **keytxt, char *ocspurl)
     memcpy(*keytxt, ptr, ptrlen);
     (*keytxt)[ptrlen] = '\0';
 
-    if (!GRST_is_id_safe(delegation_id))
-      return NULL;
-
 end:
     if (proxy_bob)
         canl_cred_free(c_ctx, proxy_bob);
@@ -2008,9 +2009,6 @@ int GRSTx509MakeProxyRequest(char **reqtxt, char *proxydir,
     size_t ptrlen = 0;
     FILE *fp = NULL;
     EVP_PKEY *pkey = NULL;
-    if (!GRST_is_id_safe(delegation_id))
-      return NULL;
-
     BIO *reqmem = NULL;
     canl_ctx c_ctx = NULL;
     canl_cred proxy_bob = NULL;
@@ -2139,6 +2137,9 @@ int GRSTx509ProxyDestroy(char *proxydir, char *delegation_id, char *user_dn)
   char             *filename, *user_dn_enc;
 
   if (strcmp(user_dn, "cache") == 0) return GRST_RET_FAILED;
+  
+  if (!GRST_is_id_safe(delegation_id))
+    return GRST_RET_FAILED;
     
   user_dn_enc = GRSThttpUrlEncode(user_dn);
 
@@ -2185,6 +2186,9 @@ int GRSTx509ProxyGetTimes(char *proxydir, char *delegation_id, char *user_dn,
   X509  *cert;
 
   if (strcmp(user_dn, "cache") == 0) return GRST_RET_FAILED;
+
+  if (!GRST_is_id_safe(delegation_id))
+    return GRST_RET_FAILED;
     
   user_dn_enc = GRSThttpUrlEncode(user_dn);
   
@@ -2229,9 +2233,6 @@ int GRSTx509StringToChain(STACK_OF(X509) **certstack, char *certstring)
 
   certbio = BIO_new_mem_buf(certstring, -1);
   
-
-  if (!GRST_is_id_safe(delegation_id))
-      return GRST_RET_FAILED;
   if (!(sk=PEM_X509_INFO_read_bio(certbio, NULL, NULL, NULL)))
     {
       BIO_free(certbio);
@@ -2278,9 +2279,6 @@ char *GRSTx509MakeDelegationID(void)
   EVP_MD_CTX ctx;
 
   OpenSSL_add_all_digests();
-
-  if (!GRST_is_id_safe(delegation_id))
-      return GRST_RET_FAILED;
 
   m = EVP_sha1();
   if (m == NULL) return NULL;
@@ -2484,7 +2482,6 @@ end:
 
     return retval;
 }
-}
 
 int
 GRST_is_id_safe(const char *str)
@@ -2501,3 +2498,4 @@ GRST_is_id_safe(const char *str)
     }
 
     return 1;
+}

@@ -1,6 +1,8 @@
-- ==== GridSite version 2.0.5 ====
+- ==== GridSite version 2.1.0 ====
 * Mon May 13 2013 Zdeněk Šustr <sustr4@cesnet.cz>
+* New API function: GRST_is_id_safe()
 * Fixed behavior when delegation operations overlap
+* Fixed build and packaging issues in various distributions
 - ==== GridSite version 2.0.4 ====
 * Mon Jan 21 2013 Zdeněk Šustr <sustr4@cesnet.cz>
 * When constructing a list of FQANs, a reference to the proxy is stored in the chain that contains the attribute (GGUS #79096)

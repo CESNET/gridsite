@@ -1,4 +1,8 @@
-- ==== GridSite version 1.7.24 ====
+- ==== GridSite version 1.7.26 ====
+* Fri May 24 2013 Zdenek Sustr <sustr4@cesnet.cz>
+- New API function: GRST_is_id_safe()
+- Fixed behavior when delegation operations overlap
+- ==== GridSite version 1.7.25 ====
 * Mon Dec 03 2012 Zdenek Sustr <sustr4@cesnet.cz>
 - Allowing exceptions for length constraints in proxy certificates (GGUS #87573)
 - ==== GridSite version 1.7.24 ====

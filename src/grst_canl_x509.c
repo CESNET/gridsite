@@ -2493,7 +2493,7 @@ GRST_is_id_safe(const char *str)
 
     for (p = (char *)str; p && *p; p++) {
         if (!isalnum(*p) &&
-            *p != '.' && *p != ',' && *p != '_')
+            *p != '.' && *p != ',' && *p != '_' && *p != '-')
             return 0;
     }
 

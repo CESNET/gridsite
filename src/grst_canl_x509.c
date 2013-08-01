@@ -1763,6 +1763,10 @@ int GRSTx509MakeProxyCert(char **proxychain, FILE *debugfp,
     ASN1_OBJECT_free(pci_obj);
     pci_obj = NULL;
 
+    if (any_rfc_proxies)
+        canl_cred_set_cert_type(ctx, proxy_cert, CANL_RFC);
+    else
+        canl_cred_set_cert_type(ctx, proxy_cert, CANL_EEC);
     /* Sign the proxy */
     ret = canl_cred_sign_proxy(ctx, signer, proxy_cert);
     if (ret){

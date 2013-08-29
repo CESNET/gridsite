@@ -69,7 +69,6 @@
 
 #define GRST_KEYSIZE		512
 #define GRST_PROXYCACHE		"/../proxycache/"
-#define GRST_MAX_CHAIN_LEN	9
 #define GRST_BACKDATE_SECONDS	300
 
 /// Compare X509 Distinguished Name strings
@@ -1704,7 +1703,7 @@ int GRSTx509MakeProxyCert(char **proxychain, FILE *debugfp,
   long serial = 1234, ptrlen;
   EVP_PKEY *pkey, *CApkey;
   const EVP_MD *digest;
-  X509 *certs[GRST_MAX_CHAIN_LEN];
+  X509 **certs = NULL;
   X509_REQ *req;
   X509_NAME *name, *CAsubject, *newsubject;
   X509_NAME_ENTRY *ent;
@@ -1758,8 +1757,18 @@ int GRSTx509MakeProxyCert(char **proxychain, FILE *debugfp,
       return GRST_RET_FAILED;
     }    
 
-  for (ncerts = 1; ncerts < GRST_MAX_CHAIN_LEN; ++ncerts)
-   if ((certs[ncerts] = PEM_read_X509(fp, NULL, NULL, NULL)) == NULL) break;
+  ncerts = 1;
+  while (1)
+  {
+   certs = (X509 **) realloc(certs, (sizeof(X509 *)) * ncerts);
+   if (certs == NULL)
+       mpcerror(debugfp,
+               "GRSTx509MakeProxyCert(): no memory\n");
+   if ((certs[ncerts] = PEM_read_X509(fp, NULL, NULL, NULL)) == NULL)
+       break;
+   ncerts++;
+
+  }
 
   if (ncerts == 1) /* zeroth cert with be new proxy cert */
     {
@@ -1771,6 +1780,7 @@ int GRSTx509MakeProxyCert(char **proxychain, FILE *debugfp,
     }    
 
   fclose(fp);
+  fp = NULL;
   
   CAsubject = X509_get_subject_name(certs[1]);
 
@@ -2012,7 +2022,9 @@ int GRSTx509MakeProxyCert(char **proxychain, FILE *debugfp,
        BIO_free(certmem);
        X509_free(certs[i]);
      }
-  
+
+  if (certs)
+      free (certs);
   EVP_PKEY_free(pkey);
   EVP_PKEY_free(CApkey);
   X509_REQ_free(req);

@@ -72,7 +72,6 @@
 
 #define GRST_KEYSIZE		512
 #define GRST_PROXYCACHE		"/../proxycache/"
-#define GRST_MAX_CHAIN_LEN	9
 #define GRST_BACKDATE_SECONDS	300
 
 int
@@ -1587,7 +1586,7 @@ int GRSTx509MakeProxyCert(char **proxychain, FILE *debugfp,
   int i = 0, ncerts = 0, any_rfc_proxies = 0;
   long ptrlen = 0;
     EVP_PKEY *pkey = NULL, *signer_pkey = NULL;
-    X509 *certs[GRST_MAX_CHAIN_LEN];
+    X509 **certs = NULL;
     X509_REQ *req = NULL;
     ASN1_OBJECT *pci_obj = NULL, *kyu_obj = NULL;
     ASN1_OCTET_STRING *pci_oct = NULL, *kyu_oct = NULL;
@@ -1661,9 +1660,18 @@ int GRSTx509MakeProxyCert(char **proxychain, FILE *debugfp,
         goto end;
     }
 
-    for (ncerts = 1; ncerts < GRST_MAX_CHAIN_LEN; ++ncerts)
+    ncerts = 1;
+    while (1)
+    {
+        certs = (X509 **) realloc(certs, (sizeof(X509 *)) * ncerts);
+        if (certs == NULL)
+            mpcerror(debugfp,
+                "GRSTx509MakeProxyCert(): no memory\n");
         if ((certs[ncerts] = PEM_read_X509(fp, NULL, NULL, NULL)) == NULL)
             break;
+        ncerts++;
+    }
+
     /* zeroth cert will be new proxy cert */
     if (ncerts == 1) {
         mpcerror(debugfp, "GRSTx509MakeProxyCert(): error reading"
@@ -1834,6 +1842,8 @@ end:
         canl_cred_free(ctx, proxy_cert);
     if (signer)
         canl_cred_free(ctx, signer);
+    if (certs)
+        free (certs);
     return retval;
 }
 

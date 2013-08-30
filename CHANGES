@@ -1,3 +1,6 @@
+- ==== GridSite version 1.7.28 ====
+* Fri Aug 30 2013 Zdenek Sustr <sustr4@cesnet.cz>
+- Maximum cert chain length determined dynamically, no hard-coded limit
 - ==== GridSite version 1.7.27 ====
 * Fri Jul 19 2013 Zdenek Sustr <sustr4@cesnet.cz>
 - Function GRST_is_id_safe() extended to accept dashes

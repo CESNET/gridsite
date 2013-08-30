@@ -1760,7 +1760,7 @@ int GRSTx509MakeProxyCert(char **proxychain, FILE *debugfp,
   ncerts = 1;
   while (1)
   {
-   certs = (X509 **) realloc(certs, (sizeof(X509 *)) * ncerts);
+   certs = (X509 **) realloc(certs, (sizeof(X509 *)) * (ncerts+1));
    if (certs == NULL)
        mpcerror(debugfp,
                "GRSTx509MakeProxyCert(): no memory\n");

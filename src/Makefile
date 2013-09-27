@@ -354,7 +354,7 @@ DelegationSoapBinding.wsdl: delegation.h
 	$(GSOAPDIR)/bin/soapcpp2 -c delegation.h
 
 gridsite-delegation.cgi: grst-delegation.c delegation.h \
-                         DelegationService.wsdl libgridsite.so.$(VERSION)
+                         DelegationSoapBinding.wsdl libgridsite.so.$(VERSION)
 	gcc -g $(MYCFLAGS) $(MYLDFLAGS) -o gridsite-delegation.cgi \
             grst-delegation.c \
             -I/usr/kerberos/include -I. $(GSOAP_CFLAGS) \
@@ -364,7 +364,7 @@ gridsite-delegation.cgi: grst-delegation.c delegation.h \
             -L$(GRIDSITEDIR)/$(libdir)  $(GSOAP_LIBS) \
             -lgridsite
 
-htproxyput: htproxyput.c delegation.h DelegationService.wsdl libgridsite.so.$(VERSION)
+htproxyput: htproxyput.c delegation.h DelegationSoapBinding.wsdl libgridsite.so.$(VERSION)
 	gcc -g $(MYCFLAGS) $(MYLDFLAGS) -o htproxyput \
             htproxyput.c \
             -I/usr/kerberos/include -I. \

@@ -87,7 +87,7 @@ endif
 offset=0
 
 version_info:=-version-info $(shell \
-	perl -e '$$,=":"; @F=split "\\.","$(PATCH_VERSION)"; print $$F[0]+$$F[1]+${offset},$$F[2],$$F[1]' )
+	perl -e '$$,=":"; @F=split "\\.","$(PATCH_VERSION)"; print $$F[0]+$$F[1]+$(offset),$$F[2],$$F[1]' )
 
 PC_FILES=gridsite-openssl.pc
 
@@ -130,7 +130,7 @@ libgridsite.a: libgridsite.la
 
 libgridsite.la: $(GRIDSITE_OBJS)
 	$(LINK) -rpath $(prefix)/$(libdir) $(version_info) \
-          -o $@ $+ -lcrypto ${MYCANLLDFLAGS} $(XML2_LIBS)
+          -o $@ $+ -lcrypto $(MYCANLLDFLAGS) $(XML2_LIBS)
 
 grst_err.lo: grst_err.c ../interface/gridsite.h
 	$(COMPILE)  $(MYCFLAGS) \
@@ -166,7 +166,7 @@ libgridsite_globus.a: libgridsite_globus.la
 
 libgridsite_globus.la: $(GRIDSITE_OBJS)
 	$(LINK) -rpath $(prefix)/$(libdir) $(version_info) \
-         -o $@ $+ -lcrypto ${MYCANLLDFLAGS} $(XML2_LIBS)
+         -o $@ $+ -lcrypto $(MYCANLLDFLAGS) $(XML2_LIBS)
 
 # then build versions without OpenSSL
 
@@ -228,17 +228,19 @@ htcp-static: htcp.lo libgridsite.a
 gridsite-copy.cgi: gridsite-copy.lo libgridsite.la
 	$(LINK) -o $@ $< -L. $(CURL_LIBS) $(MYFCGILIBS) -lgridsite
 
-mod_gridsite.so: ${MOD_GRIDSITE_FILE} ${MOD_SSLPRIVATE_HEADER} \
+mod_gridsite.so: $(MOD_GRIDSITE_FILE) $(MOD_SSLPRIVATE_HEADER) \
                  libgridsite.la
-	gcc $(CFLAGS) $(MYCFLAGS) -shared -Wl,-soname=gridsite_module \
+	$(CC) $(CFLAGS) $(MYCFLAGS) $(LDFLAGS) \
+           -shared -Wl,-soname=gridsite_module \
            -I/usr/kerberos/include \
-           $(XML2_CFLAGS) -lcrypto -lssl ${MYCANLLDFLAGS} \
+           $(XML2_CFLAGS) -lcrypto -lssl $(MYCANLLDFLAGS) \
            -DVERSION=\"$(VERSION)\" -o mod_gridsite.so \
-           ${MOD_GRIDSITE_FILE} -L./.libs -lgridsite
+           $(MOD_GRIDSITE_FILE) -L./.libs -lgridsite
 
 mod_gridsite_example.so: mod_gridsite_example.c 
-	gcc $(CFLAGS) -shared -Wl,-soname=gridsite_example_module \
-	   -fPIC $(HTTPD_FLAGS) \
+	$(CC) $(CFLAGS) $(LDFLAGS) \
+           -shared -Wl,-soname=gridsite_example_module \
+           -fPIC $(HTTPD_FLAGS) \
            -DVERSION=\"$(VERSION)\" -o mod_gridsite_example.so \
            mod_gridsite_example.c 
 
@@ -268,7 +270,7 @@ slashgrid: slashgrid.lo libgridsite.la
 
 # This target is used by make-gridsite-spec to test for FUSE include+libs
 fuse-test: fuse-test.c
-	gcc $(CFLAGS) -lfuse fuse-test.c \
+	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ -lfuse fuse-test.c \
           $(MYCFLAGS) $(MYLDFLAGS) $(XML2_CFLAGS) \
           -D_FILE_OFFSET_BITS=64 -D_REENTRANT -DFUSE_USE_VERSION=22
 
@@ -305,28 +307,24 @@ ifndef GRIDSITEDIR
 endif
 
 
-DelegationService.wsdl: delegation.h
+DelegationSoapBinding.wsdl: delegation.h
 	$(GSOAPDIR)/bin/soapcpp2 -c delegation.h
 
 gridsite-delegation.cgi: grst-delegation.c delegation.h \
-                         DelegationService.wsdl libgridsite.la
-	gcc $(CFLAGS) $(MYCFLAGS) $(MYLDFLAGS) -o gridsite-delegation.cgi \
+                         DelegationSoapBinding.wsdl libgridsite.la
+	$(CC) $(CFLAGS) $(MYCFLAGS) $(LDFLAGS) $(MYLDFLAGS) -o $@ \
             grst-delegation.c \
             -I/usr/kerberos/include -I. $(GSOAP_CFLAGS) \
-            -I$(GRIDSITEDIR)/include \
             -DVERSION=\"$(VERSION)\" -L./.libs \
             soapC.c soapServer.c \
             $(GSOAP_LIBS) -lgridsite
-#            -L$(GRIDSITEDIR)/$(libdir)  $(GSOAP_LIBS) \
- #           -lgridsite
 
-htproxyput: htproxyput.c delegation.h DelegationService.wsdl libgridsite.la
-	gcc $(CFLAGS) $(MYCFLAGS) $(MYLDFLAGS) -o htproxyput \
+htproxyput: htproxyput.c delegation.h DelegationSoapBinding.wsdl libgridsite.la
+	$(CC) $(CFLAGS) $(MYCFLAGS) $(LDFLAGS) $(MYLDFLAGS) -o $@ \
             htproxyput.c \
             -I/usr/kerberos/include -I. \
             -DVERSION=\"$(VERSION)\" \
             $(GSOAPSSL_CFLAGS) \
-            -I$(GRIDSITEDIR)/include \
             -L./.libs \
             $(STDSOAP2) \
             soapC.c soapClient.c $(GSOAPSSL_LIBS) \
@@ -334,25 +332,22 @@ htproxyput: htproxyput.c delegation.h DelegationService.wsdl libgridsite.la
 
 # This target is used by make-gridsite-spec to test for gSOAP include+libs
 gsoap-test: gsoap-test.c 
-	gcc $(CFLAGS) $(MYCFLAGS) $(MYLDFLAGS) -o gsoap-test \
+	$(CC) $(CFLAGS) $(MYCFLAGS) $(LDFLAGS) $(MYLDFLAGS) -o $@ \
             gsoap-test.c \
             -I/usr/kerberos/include -I. \
             -DVERSION=\"$(VERSION)\" \
             $(GSOAPSSL_CFLAGS) \
-            -I$(GRIDSITEDIR)/include \
-            $(STDSOAP2) -L$(GRIDSITEDIR)/$(libdir) \
+            $(STDSOAP2) \
             $(GSOAPSSL_LIBS) -lz -lssl -lcrypto $(XML2_LIBS) -lm
 
 gridsite-storage.lo: gridsite-storage.c
 	$(COMPILE) -o $@ -c $<  $(MYCFLAGS) \
             -I/usr/kerberos/include -I.\
-            -I$(GRIDSITEDIR)/include \
             -DVERSION=\"$(VERSION)\" -L. \
             $(CURL_CFLAGS)
 
 gridsite-storage.cgi: gridsite-storage.lo libgridsite.la
 	$(LINK) $(MYLDFLAGS) -o $@ $< \
-            -L$(GRIDSITEDIR)/$(libdir) \
             -lgridsite $(CURL_LIBS)
 
 %.pc: %.pc.in

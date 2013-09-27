@@ -350,7 +350,7 @@ ifndef GRIDSITEDIR
 endif
 
 
-DelegationService.wsdl: delegation.h
+DelegationSoapBinding.wsdl: delegation.h
 	$(GSOAPDIR)/bin/soapcpp2 -c delegation.h
 
 gridsite-delegation.cgi: grst-delegation.c delegation.h \

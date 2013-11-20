@@ -70,7 +70,7 @@
 
 #include "gridsite.h"
 
-#define GRST_KEYSIZE		512
+#define GRST_KEYSIZE		1024
 #define GRST_PROXYCACHE		"/../proxycache/"
 #define GRST_BACKDATE_SECONDS	300
 

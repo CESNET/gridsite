@@ -74,6 +74,11 @@
 #define GRST_PROXYCACHE		"/../proxycache/"
 #define GRST_BACKDATE_SECONDS	300
 
+static int GRSTx509CreateProxyRequest_int(char **reqtxt, char **keytxt, 
+        char *ocspurl, int keysize);
+static int GRSTx509MakeProxyRequest_int(char **reqtxt, char *proxydir, 
+        char *delegation_id, char *user_dn, int keysize);
+
 int
 GRSTasn1FindField(const char *oid, char *coords,
         char *asn1string,
@@ -1926,11 +1931,36 @@ static void mkdir_printf(mode_t mode, char *fmt, ...)
   free(path);
 }
 
-/// Create a X.509 request for a GSI proxy and its private key
+/* wrap GRSTx509CreateProxyRequest_int.
+ *  This funcion should
+ *  be used instead of deprecated GRSTx509CreateProxyRequest.
+ *  In future major versions of gridsite, GRSTx509CreateProxyRequest
+ *  may be removed.
+ *  Out: reqtxt - proxy request
+ *       keytxt - new key   
+ *  In
+ *       ocspurl - URL of the OCSP server (may not be implemented now)
+ *       keysize - size of the new key (0 default value, 1-4096 otherwise)  
+ *     */
+int GRSTx509CreateProxyRequestKS(char **reqtxt, char **keytxt, char *ocspurl, int keysize)
+{
+    if (keysize >= 0)
+        return GRSTx509CreateProxyRequest_int(reqtxt, keytxt, ocspurl, keysize);
+    else
+        return 1;
+}
+
+/* Deprecated, should use GRSTx509CreateProxyRequestKS instead.*/
 int GRSTx509CreateProxyRequest(char **reqtxt, char **keytxt, char *ocspurl)
+/// Create a X.509 request for a GSI proxy and its private key
+{
 ///
 /// Returns GRST_RET_OK on success, non-zero otherwise. Request string
 /// and private key are PEM encoded strings
+    return GRSTx509CreateProxyRequest_int(reqtxt, keytxt, ocspurl, GRST_KEYSIZE);
+}
+
+int GRSTx509CreateProxyRequest_int(char **reqtxt, char **keytxt, char *ocspurl, int keysize)
 {
     char            *ptr = 0;
     size_t           ptrlen = 0;
@@ -1955,7 +1985,7 @@ int GRSTx509CreateProxyRequest(char **reqtxt, char **keytxt, char *ocspurl)
     }
 
     /*use caNl to generate a X509 request*/
-    ret = canl_cred_new_req(c_ctx, proxy_bob, GRST_KEYSIZE);
+    ret = canl_cred_new_req(c_ctx, proxy_bob, keysize);
     if (ret) {
         retval = 12;
         goto end;
@@ -2011,9 +2041,45 @@ end:
     return retval;
 }
 
-/// Make and store a X.509 request for a GSI proxy
+
+/* wrap GRSTx509MakeProxyRequest_int.
+ *  This funcion should
+ *  be used instead of deprecated GRSTx509MakeProxyRequest.
+ *  In future major versions of gridsite, GRSTx509MakeProxyRequest
+ *  may be removed.
+ *  Out: reqtxt - proxy request
+ *  In:  proxydir - Directory for the proxy key to store 
+ *       delegation_id - id of the delegated proxy
+ *       user_dn - user DN (other then "cache")
+ *       keysize - size of the new key (0 default value, 1-4096 otherwise)  
+ *     */
+int GRSTx509MakeProxyRequestKS(char **reqtxt, char *proxydir, 
+                             char *delegation_id, char *user_dn, int keysize)
+{
+    if (keysize >= 0)
+        return GRSTx509MakeProxyRequest_int(reqtxt, proxydir, 
+            delegation_id, user_dn, keysize);
+    else
+        return 1;
+}
+
+/* Deprecated, should use GRSTx509CreateProxyRequestKS instead.*/
 int GRSTx509MakeProxyRequest(char **reqtxt, char *proxydir, 
-                             char *delegation_id, char *user_dn)
+        char *delegation_id, char * user_dn)
+/// Create a X.509 request for a GSI proxy and its private key
+{
+///
+/// Returns GRST_RET_OK on success, non-zero otherwise. Request string
+/// and private key are PEM encoded strings
+    return GRSTx509MakeProxyRequest_int(reqtxt, proxydir, 
+            delegation_id, user_dn, GRST_KEYSIZE);
+}
+
+
+
+/// Make and store a X.509 request for a GSI proxy
+int GRSTx509MakeProxyRequest_int(char **reqtxt, char *proxydir, 
+                             char *delegation_id, char *user_dn, int keysize)
 ///
 /// Returns GRST_RET_OK on success, non-zero otherwise. Request string
 /// is PEM encoded, and the key is stored in the temporary cache under

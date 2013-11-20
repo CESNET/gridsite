@@ -409,8 +409,13 @@ int GRSTx509MakeProxyCert(char **, FILE *, char *, char *, char *, int);
 char *GRSTx509CachedProxyKeyFind(char *, char *, char *);
 int GRSTx509ProxyDestroy(char *, char *, char *);
 int GRSTx509ProxyGetTimes(char *, char *, char *, time_t *, time_t *);
+/*use GRSTx509CreateProxyRequestKS instead*/
 int GRSTx509CreateProxyRequest(char **, char **, char *);
+int GRSTx509CreateProxyRequestKS(char **reqtxt, char **keytxt, char *ocspurl, int keysize);
+/*use GRSTx509MakeProxyRequestKS istead*/
 int GRSTx509MakeProxyRequest(char **, char *, char *, char *);
+int GRSTx509MakeProxyRequestKS(char **reqtxt, char *proxydir,
+                             char *delegation_id, char *user_dn, int keysize);
 
 char *GRSTx509MakeDelegationID(void);
 

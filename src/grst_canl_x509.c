@@ -2134,7 +2134,7 @@ int GRSTx509MakeProxyRequest_int(char **reqtxt, char *proxydir,
     }
 
     /*use caNl to generate X509 request*/
-    ret = canl_cred_new_req(c_ctx, proxy_bob, GRST_KEYSIZE);
+    ret = canl_cred_new_req(c_ctx, proxy_bob, keysize);
     if (ret) {
         retval = 12;
         goto end;

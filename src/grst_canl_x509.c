@@ -1944,8 +1944,10 @@ static void mkdir_printf(mode_t mode, char *fmt, ...)
  *     */
 int GRSTx509CreateProxyRequestKS(char **reqtxt, char **keytxt, char *ocspurl, int keysize)
 {
-    if (keysize >= 0)
+    if (keysize > 0)
         return GRSTx509CreateProxyRequest_int(reqtxt, keytxt, ocspurl, keysize);
+    else if (keysize == 0)
+        return GRSTx509CreateProxyRequest_int(reqtxt, keytxt, ocspurl, GRST_KEYSIZE);
     else
         return 1;
 }
@@ -2056,9 +2058,12 @@ end:
 int GRSTx509MakeProxyRequestKS(char **reqtxt, char *proxydir, 
                              char *delegation_id, char *user_dn, int keysize)
 {
-    if (keysize >= 0)
+    if (keysize > 0)
         return GRSTx509MakeProxyRequest_int(reqtxt, proxydir, 
             delegation_id, user_dn, keysize);
+    else if (keysize == 0)
+        return GRSTx509MakeProxyRequest_int(reqtxt, proxydir,
+            delegation_id, user_dn, GRST_KEYSIZE);
     else
         return 1;
 }

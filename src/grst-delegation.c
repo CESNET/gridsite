@@ -119,8 +119,8 @@ int ns__getProxyReq(struct soap *soap,
   if ((user_dn != NULL) && 
       (user_dn[0] != '\0') && 
       (delegation_id != NULL) &&
-      (GRSTx509MakeProxyRequest(&request, proxydir,
-                                delegation_id, user_dn) == 0))
+      (GRSTx509MakeProxyRequestKS(&request, proxydir,
+                                delegation_id, user_dn, 0) == 0))
     {
       response->getProxyReqReturn = request;
     
@@ -147,8 +147,8 @@ int ns__getNewProxyReq(struct soap *soap,
   if ((user_dn != NULL) && 
       (user_dn[0] != '\0') && 
       (delegation_id != NULL) &&
-      (GRSTx509MakeProxyRequest(&request, proxydir,
-                                delegation_id, user_dn) == 0))
+      (GRSTx509MakeProxyRequestKS(&request, proxydir,
+                                delegation_id, user_dn, 0) == 0))
     {
       response->getNewProxyReqReturn = malloc(sizeof(struct ns__NewProxyReq));      
       response->getNewProxyReqReturn->proxyRequest = request;
@@ -217,8 +217,8 @@ int ns__renewProxyReq(struct soap *soap,
   if ((user_dn != NULL) && 
       (user_dn[0] != '\0') && 
       (delegation_id != NULL) &&
-      (GRSTx509MakeProxyRequest(&request, proxydir,
-                                delegation_id, user_dn) == 0))
+      (GRSTx509MakeProxyRequestKS(&request, proxydir,
+                                delegation_id, user_dn, 0) == 0))
     {
       response->_renewProxyReqReturn = request;
     

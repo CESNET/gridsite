@@ -492,7 +492,7 @@ int main(int argc, char *argv[])
     for (ii=0; ii < 1000; ++ii)
 #endif
     {
-      if (GRSTx509CreateProxyRequest(&reqtxt, &keytxt, NULL) != GRST_RET_OK)
+      if (GRSTx509CreateProxyRequestKS(&reqtxt, &keytxt, NULL, 0) != GRST_RET_OK)
         {
           fprintf(stderr, "Failed to create internal proxy cert request\n");
           return 1;

@@ -1,3 +1,7 @@
+- ==== GridSite version 2.2.0 ====
+* Mon Dec 2 2013 Zdenek Sustr <sustr4@cesnet.cz>
+- Default key size for proxies is now 1024 rather than 512 b
+- API is extended with functions, which allow developers to request custom key size (GH Issue #8)
 - ==== GridSite version 2.1.3 ====
 * Fri Aug 30 2013 Zdenek Sustr <sustr4@cesnet.cz>
 - Maximum cert chain length determined dynamically, no hard-coded limit

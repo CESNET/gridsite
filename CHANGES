@@ -1,3 +1,6 @@
+- ==== GridSite version 1.7.29 ====
+* Mon Dec 16 2013 Zdenek Sustr <sustr4@cesnet.cz>
+- Default key length set to 1024 bits
 - ==== GridSite version 1.7.28 ====
 * Fri Aug 30 2013 Zdenek Sustr <sustr4@cesnet.cz>
 - Maximum cert chain length determined dynamically, no hard-coded limit

@@ -3935,7 +3935,9 @@ static int mod_gridsite_server_post_config(apr_pool_t *pPool,
             ctx = SSLSrvConfigRec_server(sc)->ssl_ctx;
 
             /*We do not support TLS tickets*/
+#ifdef SSL_OP_NO_TICKET
             SSL_CTX_set_options(ctx, SSL_OP_NO_TICKET);
+#endif
 
             /* Use default caNl callbacks to verify certificates*/
             canl_ssl_ctx_set_clb(c_ctx, ctx, ctx->verify_mode,

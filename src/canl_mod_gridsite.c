@@ -2338,9 +2338,11 @@ int GRST_get_session_id(SSL *ssl, char *session_id, size_t len)
    SSL_SESSION *session;
 
    if (((session = SSL_get_session(ssl)) == NULL) ||
-       (session->session_id_length == 0)) return GRST_RET_FAILED;
+       (session->session_id_length == 0)) 
+      return GRST_RET_FAILED;
    
-   if (2 * session->session_id_length + 1 > len) return GRST_RET_FAILED;
+   if (2 * session->session_id_length + 1 > len) 
+      return GRST_RET_FAILED;
 
    for (i=0; i < (int) session->session_id_length; ++i)
     sprintf(&(session_id[i*2]), "%02X", (unsigned char) session->session_id[i]);
@@ -3931,6 +3933,9 @@ static int mod_gridsite_server_post_config(apr_pool_t *pPool,
             (SSLSrvConfigRec_server(sc)->ssl_ctx != NULL))
           {
             ctx = SSLSrvConfigRec_server(sc)->ssl_ctx;
+
+            /*We do not support TLS tickets*/
+            SSL_CTX_set_options(ctx, SSL_OP_NO_TICKET);
 
             /* Use default caNl callbacks to verify certificates*/
             canl_ssl_ctx_set_clb(c_ctx, ctx, ctx->verify_mode,

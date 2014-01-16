@@ -7,7 +7,7 @@ if [ x"$project" = x"emi1" ]; then
 else
 	shared_name="libs"
 	shared_provide="shared"
-	shared_obsoletes="gridsite-shared <= $PATCH_VERSION"
+	shared_obsoletes="gridsite-shared < $PATCH_VERSION"
 fi
 
 # test to see if gsoap-devel (or stdsoap2.h and libgsoapssl) is installed
@@ -37,7 +37,7 @@ Version: ${PATCH_VERSION:-1.x.x}
 # This next piece of .spec/sed magic puts the build OS version in the release
 Release: %(if [ "$RELEASE_VERSION" ] ; then echo $RELEASE_VERSION ; else echo '1' ; fi)%{?dist}
 Summary: mod_gridsite module for Apache httpd
-License: Modified BSD
+License: ASL 2.0 and BSD
 Group: System Environment/Daemons
 Source: %{name}-%{version}.src.tar.gz
 BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root

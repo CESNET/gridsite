@@ -63,15 +63,20 @@ int main(int argn, char *argv[])
             *delegation_id, *reqtxt, *proxydir;
   struct soap soap;
 
+  method = NULL;
   method  = getenv("REQUEST_METHOD");
-  if (strcmp(method, "POST") == 0)
-    {
-      soap_init(&soap);
-      soap_serve(&soap); /* CGI application */
-      return 0;
-    }    
+  if (method != NULL){
+    if (strcmp(method, "POST") == 0)
+      {
+        soap_init(&soap);
+        soap_serve(&soap); /* CGI application */
+        return 0;
+      }    
 
-  puts("Status: 501 Method Not Implemented\n");
+    puts("Status: 501 Method Not Implemented\n");
+    return 0;
+  }
+  puts("Status: 500 Internal Server Error\n");
   return 0;
 }
 

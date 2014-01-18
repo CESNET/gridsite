@@ -63,6 +63,7 @@
 #include <openssl/bio.h>    
 #include <openssl/des.h>    
 #include <openssl/rand.h>
+#include <openssl/ssl.h>
 #endif
 
 #include <canl.h>
@@ -78,7 +79,7 @@ static int GRSTx509CreateProxyRequest_int(char **reqtxt, char **keytxt,
         char *ocspurl, int keysize);
 static int GRSTx509MakeProxyRequest_int(char **reqtxt, char *proxydir, 
         char *delegation_id, char *user_dn, int keysize);
-static void GRSTx509ProxyKeyMatch(char **pkfile, char *pkdir, STACK_OF(X509) *certstack); 
+static int GRSTx509ProxyKeyMatch(char **pkfile, char *pkdir, STACK_OF(X509) *certstack); 
 
 int
 GRSTasn1FindField(const char *oid, char *coords,
@@ -1899,6 +1900,7 @@ char *GRSTx509CachedProxyKeyFind(char *proxydir, char *delegation_id,
   char *user_dn_enc = NULL, *prvkeyfilename = NULL, *prvkeydir = NULL;
   char *prvkeyfilepath = NULL;
   struct stat statbuf;
+  int retval = 0;
   if (!GRST_is_id_safe(delegation_id))
     return NULL;
 
@@ -1907,71 +1909,85 @@ char *GRSTx509CachedProxyKeyFind(char *proxydir, char *delegation_id,
   asprintf(&prvkeydir, "%s/cache/%s/%s/",
           proxydir, user_dn_enc, delegation_id);
   
-  GRSTx509ProxyKeyMatch(&prvkeyfilename, prvkeydir, certstack);
+  retval = GRSTx509ProxyKeyMatch(&prvkeyfilename, prvkeydir, certstack);
   free(prvkeydir);  
-  free(user_dn_enc);
 
   if (!prvkeyfilename)
       return NULL;
-  asprintf(&prvkeyfilepath, "%s/cache/%s/%s/%s",
-          proxydir, user_dn_enc, delegation_id,prvkeyfilename);
-  free(prvkeyfilename);
+  free(user_dn_enc);
 
-  if ((stat(prvkeyfilepath, &statbuf) != 0) || !S_ISREG(statbuf.st_mode))
+  if ((stat(prvkeyfilename, &statbuf) != 0) || !S_ISREG(statbuf.st_mode))
   {
-      free(prvkeyfilepath);
+      free(prvkeyfilename);
       return NULL;
   }
 
-  return prvkeyfilepath;
+  return prvkeyfilename;
 }
 
-static void GRSTx509ProxyKeyMatch(char **pkfile, char *pkdir,
+static int GRSTx509ProxyKeyMatch(char **pkfile, char *pkdir,
         STACK_OF(X509) *certstack)
 {
     X509 *cert_from_chain = NULL;
     struct dirent* in_file = NULL;
         DIR *FD = NULL;
-    EVP_PKEY *pkey = NULL;
     SSL_CTX * ssl_ctx = NULL;
     int ret = 0;
+    char *pk_file = NULL;
 
     /*proxy should be at the beginning of the chain*/
     cert_from_chain = sk_X509_value(certstack, 0);
     if (!cert_from_chain)
-        return;
+        return 1;
 
     //Try all files in the directory
     if ((FD = opendir(pkdir)) == NULL) 
-        return;
-    //tady nechci zadny ssl spojeni, jde to nejak kontrolovat bez toho?
+        return 2;
+    //No SSL connection, just the priv key check against the cert
     ssl_ctx = SSL_CTX_new(SSLv23_method()); 
     if (!ssl_ctx)
-        return;
+        return 3;
     while ((in_file = readdir(FD))) 
     {
         if (!strcmp (in_file->d_name, "."))
             continue;
         if (!strcmp (in_file->d_name, ".."))    
             continue;
-
-        SSL_CTX_use_certificate(ssl_ctx, cert_from_chain);
+        ret = asprintf(&pk_file,"%s/%s",pkdir,in_file->d_name);
+	if (ret == -1)
+	    continue;
+        /*How many certificates,key pairs I am able to load?*/
+        ret = SSL_CTX_use_certificate(ssl_ctx, cert_from_chain);
         /* Should always be PEM type*/
-        SSL_CTX_use_PrivateKey_file(ssl_ctx, in_file->d_name, SSL_FILETYPE_PEM);
+        ret = SSL_CTX_use_PrivateKey_file(ssl_ctx, pk_file,
+		SSL_FILETYPE_PEM);
+        if (ret != 1)
+            continue;
+	ret = 0;
         ret = SSL_CTX_check_private_key(ssl_ctx);
         /* Success */
         if (ret == 1){
-            asprintf(pkfile, "%s", in_file->d_name);
+            asprintf(pkfile, "%s", pk_file);
             closedir(FD);
+	    free (pk_file);
+	    pk_file = NULL;
             goto end;
         }
-        else
+        else {
             *pkfile = NULL;
+	    free (pk_file);
+	    pk_file = NULL;
+                    }
     }
+    SSL_CTX_free(ssl_ctx);
+            ssl_ctx = NULL;
+            return 4;
+
 
 end:
     SSL_CTX_free(ssl_ctx);
     ssl_ctx = NULL;
+    return 0;
 
 }
 
@@ -2601,8 +2617,11 @@ int GRSTx509CacheProxy(char *proxydir, char *delegation_id,
     /* find the existing private key file */
     prvkeyfile = GRSTx509CachedProxyKeyFind(proxydir, delegation_id, user_dn,
             certstack);
-    if (prvkeyfile == NULL)
+    if (prvkeyfile == NULL){
         goto end;
+}
+
+
 
     /* insert proxy private key into canl structure,
        read from private key file */

@@ -406,7 +406,9 @@ int GRSTx509CompactCreds(int *, int, size_t, char *, STACK_OF(X509) *, char *, X
 char *GRSTx509CachedProxyFind(char *, char *, char *);
 char *GRSTx509FindProxyFileName(void);
 int GRSTx509MakeProxyCert(char **, FILE *, char *, char *, char *, int);
-char *GRSTx509CachedProxyKeyFind(char *, char *, char *);
+#ifndef GRST_NO_OPENSSL
+char *GRSTx509CachedProxyKeyFind(char *, char *, char *, STACK_OF(X509) *);
+#endif 
 int GRSTx509ProxyDestroy(char *, char *, char *);
 int GRSTx509ProxyGetTimes(char *, char *, char *, time_t *, time_t *);
 /*use GRSTx509CreateProxyRequestKS instead*/

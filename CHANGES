@@ -1,3 +1,6 @@
+- ==== GridSite version 2.2.2 ====
+* Wed Feb 26 2013 Zdenek Sustr <sustr4@cesnet.cz>
+- Solving problems with overlapping delegation, issue #2
 - ==== GridSite version 2.2.1 ====
 * Fri Jan 17 2013 Zdenek Sustr <sustr4@cesnet.cz>
 - Turning off TLS support explicitly in GridSite (previously unsupported in OpenSSL)

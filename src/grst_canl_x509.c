@@ -247,7 +247,7 @@ static int GRSTx509VerifySig(time_t *time1_time, time_t *time2_time,
            
    voms_service_time2 = 
            GRSTasn1TimeToTimeT(ASN1_STRING_data(X509_get_notAfter(cert)),0);
-          if (voms_service_time2 < *time1_time) 
+          if (voms_service_time2 < *time2_time) 
                              *time2_time = voms_service_time2; 
             
    return GRST_RET_OK ; /* verified */
@@ -462,7 +462,7 @@ static int GRSTx509VerifyVomsSigCert(time_t *time1_time, time_t *time2_time,
    ASN1_OBJECT   *hash_obj = NULL;
    char		  coords[200];
    EVP_MD        *md_type = NULL;
-   time_t	  voms_service_time1, voms_service_time2;
+   time_t	  voms_service_time1 = 0, voms_service_time2 = GRST_MAX_TIME_T;
 
    if ((vomsdir == NULL) || (vomsdir[0] == '\0')) return GRST_RET_FAILED;
 

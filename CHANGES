@@ -1,8 +1,11 @@
+- ==== GridSite version 2.2.3 ====
+* Tue Mar 25 2014 Zdenek Sustr <sustr4@cesnet.cz>
+- Proper initialization of time constants in signature verification functions (GH Issue #11)
 - ==== GridSite version 2.2.2 ====
-* Wed Feb 26 2013 Zdenek Sustr <sustr4@cesnet.cz>
+* Wed Feb 26 2014 Zdenek Sustr <sustr4@cesnet.cz>
 - Solving problems with overlapping delegation, issue #2
 - ==== GridSite version 2.2.1 ====
-* Fri Jan 17 2013 Zdenek Sustr <sustr4@cesnet.cz>
+* Fri Jan 17 2014 Zdenek Sustr <sustr4@cesnet.cz>
 - Turning off TLS support explicitly in GridSite (previously unsupported in OpenSSL)
 - ==== GridSite version 2.2.0 ====
 * Mon Dec 2 2013 Zdenek Sustr <sustr4@cesnet.cz>

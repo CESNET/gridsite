@@ -310,6 +310,8 @@ static int GRSTx509VerifyVomsSig(time_t *time1_time, time_t *time2_time,
                    taglist[ihash].length+taglist[ihash].headerlength);
 
    md_type = EVP_get_digestbyname(OBJ_nid2sn(OBJ_obj2nid(hash_obj)));
+   if (hash_obj)
+        free(hash_obj);
    
    if (md_type == NULL) return GRST_RET_FAILED;
    
@@ -495,6 +497,8 @@ static int GRSTx509VerifyVomsSigCert(time_t *time1_time, time_t *time2_time,
 		   taglist[ihash].length+taglist[ihash].headerlength);
 
    md_type = EVP_get_digestbyname(OBJ_nid2sn(OBJ_obj2nid(hash_obj)));
+   if (hash_obj)
+        free(hash_obj);
    if (md_type == NULL) return GRST_RET_FAILED;
 
    /* check issuer CA certificate */
@@ -737,6 +741,8 @@ static int GRSTx509ChainVomsAdd(GRSTx509Cert **grst_cert,
 
         if (strcmp(acissuerserial, user_cert->serial) != 0)
                                chain_errors |= GRST_CERT_BAD_CHAIN;
+        if (acissuerserial)
+            free(acissuerserial);
 
         /* get times */
 
@@ -1299,6 +1305,8 @@ int GRSTx509ParseVomsExt(int *lastcred, int maxcreds, size_t credlen,
           }
         
         if (strcmp(acissuerserial, ucserial) != 0) continue;
+        if (acissuerserial)
+            free(acissuerserial);
 
         if (GRSTx509VerifyVomsSig(&time1_time, &time2_time,
                              asn1string, taglist, lasttag, vomsdir, acnumber)
@@ -1398,6 +1406,9 @@ int GRSTx509GetVomsCreds(int *lastcred, int maxcreds, size_t credlen,
              }
          }
     }
+
+    if (ucserial)
+        free(ucserial);
 
    return GRST_RET_OK;
 }

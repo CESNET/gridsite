@@ -1689,6 +1689,8 @@ int GRSTx509MakeProxyCert(char **proxychain, FILE *debugfp,
             break;
         ncerts++;
     }
+    if (certs != NULL)
+        certs[0] = NULL;
 
     /* zeroth cert will be new proxy cert */
     if (ncerts == 1) {
@@ -1852,16 +1854,17 @@ end:
         BIO_free(certmem);
     if (ctx)
         canl_free_ctx(ctx);
-    for (i=0; i < ncerts; ++i) {
-        if (certs[i])
-            X509_free(certs[i]);
+    if (certs){
+        for (i=0; i < ncerts; ++i) {
+            if (certs[i])
+                X509_free(certs[i]);
+        }
+        free (certs);
     }
     if (proxy_cert)
         canl_cred_free(ctx, proxy_cert);
     if (signer)
         canl_cred_free(ctx, signer);
-    if (certs)
-        free (certs);
     return retval;
 }
 

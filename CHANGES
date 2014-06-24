@@ -1,3 +1,7 @@
+- ==== GridSite version 2.2.4 ====
+* Tue Jan 3 2014 Zdenek Sustr <sustr4@cesnet.cz>
+- Fixing several memory leaks
+- Fixed handling of zero-length certificate arrays (Fixing GH Issue #15)
 - ==== GridSite version 2.2.3 ====
 * Tue Mar 25 2014 Zdenek Sustr <sustr4@cesnet.cz>
 - Proper initialization of time constants in signature verification functions (GH Issue #11)

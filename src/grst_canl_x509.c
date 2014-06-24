@@ -1765,15 +1765,18 @@ int GRSTx509MakeProxyCert(char **proxychain, FILE *debugfp,
 
         X509_EXTENSION_set_object(kyu_ex, kyu_obj);
         ASN1_OBJECT_free(kyu_obj);
+        kyu_obj = NULL;
         X509_EXTENSION_set_critical(kyu_ex, 1);
 
         kyu_oct = ASN1_OCTET_STRING_new();
         ASN1_OCTET_STRING_set(kyu_oct, kyu_str, strlen(kyu_str));
         X509_EXTENSION_set_data(kyu_ex, kyu_oct);
         ASN1_OCTET_STRING_free(kyu_oct);
+        kyu_oct = NULL;
 
         canl_cred_set_extension(ctx, proxy_cert, kyu_ex);
         X509_EXTENSION_free(kyu_ex);
+        kyu_ex = NULL;
 
         /* proxy certificate info */
         pci_ex = X509_EXTENSION_new();
@@ -1784,9 +1787,11 @@ int GRSTx509MakeProxyCert(char **proxychain, FILE *debugfp,
         ASN1_OCTET_STRING_set(pci_oct, pci_str, strlen(pci_str));
         X509_EXTENSION_set_data(pci_ex, pci_oct);
         ASN1_OCTET_STRING_free(pci_oct);
+        pci_oct = NULL;
 
-        canl_cred_set_extension(ctx, proxy_cert, kyu_ex);
+        canl_cred_set_extension(ctx, proxy_cert, pci_ex);
         X509_EXTENSION_free(pci_ex);
+        pci_ex = NULL;
     }
     ASN1_OBJECT_free(pci_obj);
     pci_obj = NULL;

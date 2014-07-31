@@ -4543,6 +4543,11 @@ static int mod_gridsite_server_post_config(apr_pool_t *pPool,
           {
             ctx = SSLSrvConfigRec_server(sc)->ssl_ctx;
 
+            /*We do not support TLS tickets*/
+#ifdef SSL_OP_NO_TICKET
+            SSL_CTX_set_options(ctx, SSL_OP_NO_TICKET);
+#endif
+
             /* in 0.9.7 we could set the issuer-checking callback directly */
 //          ctx->cert_store->check_issued = GRST_X509_check_issued_wrapper;
      

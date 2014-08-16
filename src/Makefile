@@ -118,7 +118,7 @@ GRIDSITE_NOSSL_OBJS=grst_err_nossl.lo grst_gacl_nossl.lo grst_http_nossl.lo grst
 #
 
 build: apidoc build-lib htcp mod_gridsite.so urlencode findproxyfile \
-       real-gridsite-admin.cgi gridsite-delegation.cgi
+       real-gridsite-admin.cgi gridsite-delegation.cgi htproxyput
 
 build-lib: libgridsite_globus.la libgridsite_globus.a \
            libgridsite.la libgridsite.a \

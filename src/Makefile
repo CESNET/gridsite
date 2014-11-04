@@ -130,7 +130,7 @@ libgridsite.a: libgridsite.la
 
 libgridsite.la: $(GRIDSITE_OBJS)
 	$(LINK) -rpath $(prefix)/$(libdir) $(version_info) \
-          -o $@ $+ -lcrypto $(MYCANLLDFLAGS) $(XML2_LIBS)
+          -o $@ $+ -lssl -lcrypto $(MYCANLLDFLAGS) $(XML2_LIBS)
 
 grst_err.lo: grst_err.c ../interface/gridsite.h
 	$(COMPILE)  $(MYCFLAGS) \
@@ -166,7 +166,7 @@ libgridsite_globus.a: libgridsite_globus.la
 
 libgridsite_globus.la: $(GRIDSITE_OBJS)
 	$(LINK) -rpath $(prefix)/$(libdir) $(version_info) \
-         -o $@ $+ -lcrypto $(MYCANLLDFLAGS) $(XML2_LIBS)
+         -o $@ $+ -lssl -lcrypto $(MYCANLLDFLAGS) $(XML2_LIBS)
 
 # then build versions without OpenSSL
 
@@ -233,7 +233,7 @@ mod_gridsite.so: $(MOD_GRIDSITE_FILE) $(MOD_SSLPRIVATE_HEADER) \
 	$(CC) $(CFLAGS) $(MYCFLAGS) $(LDFLAGS) \
            -shared -Wl,-soname=gridsite_module \
            -I/usr/kerberos/include \
-           $(XML2_CFLAGS) -lcrypto -lssl $(MYCANLLDFLAGS) \
+           $(XML2_CFLAGS) -lssl -lcrypto $(MYCANLLDFLAGS) \
            -DVERSION=\"$(VERSION)\" -o mod_gridsite.so \
            $(MOD_GRIDSITE_FILE) -L./.libs -lgridsite
 
@@ -263,7 +263,7 @@ findproxyfile: findproxyfile.lo libgridsite.la
 showx509exts: showx509exts.lo libgridsite.la
 	$(LINK) $(MYLDFLAGS) \
             -o $@ $< -L. -lgridsite -lssl -lcrypto $(XML2_LIBS) -lz -lm
- 
+
 slashgrid: slashgrid.lo libgridsite.la
 	$(LINK) $< -o $@ -lfuse $(MYLDFLAGS) \
           -L. $(CURL_LIBS) -lgridsite -lpthread
@@ -288,7 +288,7 @@ gaclexample.lo xacmlexample.lo: gaclexample.c xacmlexample.c
 
 gaclexample: gaclexample.lo libgridsite.la
 	$(LINK) -o $@ $< -L. -lgridsite -lssl -lcrypto $(XML2_LIBS) -lz -lm
-	    
+
 xacmlexample: xacmlexample.lo libgridsite.a
 	$(LINK) -o $@ $< -L. -lgridsite -lssl -lcrypto $(XML2_LIBS) -lz -lm
 #

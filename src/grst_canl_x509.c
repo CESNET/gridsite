@@ -1752,7 +1752,7 @@ int GRSTx509MakeProxyCert(char **proxychain, FILE *debugfp,
     /* TODO MP is this necessary? caNl test if new proxy timeout
      * is longer than signer cert proxy timeout */
     for (i=1; i < ncerts; ++i)
-        if (X509_get_ext_by_OBJ(certs[i], pci_obj, -1) > 0) 
+        if (X509_get_ext_by_OBJ(certs[i], pci_obj, -1) > -1) 
             any_rfc_proxies = 1;
 
    /* if any earlier proxies are RFC 3820, then new proxy must be 

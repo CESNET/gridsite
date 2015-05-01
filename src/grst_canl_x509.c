@@ -311,7 +311,7 @@ static int GRSTx509VerifyVomsSig(time_t *time1_time, time_t *time2_time,
 
    md_type = EVP_get_digestbyname(OBJ_nid2sn(OBJ_obj2nid(hash_obj)));
    if (hash_obj)
-        free(hash_obj);
+        ASN1_OBJECT_free(hash_obj);
    
    if (md_type == NULL) return GRST_RET_FAILED;
    
@@ -498,7 +498,7 @@ static int GRSTx509VerifyVomsSigCert(time_t *time1_time, time_t *time2_time,
 
    md_type = EVP_get_digestbyname(OBJ_nid2sn(OBJ_obj2nid(hash_obj)));
    if (hash_obj)
-        free(hash_obj);
+        ASN1_OBJECT_free(hash_obj);
    if (md_type == NULL) return GRST_RET_FAILED;
 
    /* check issuer CA certificate */

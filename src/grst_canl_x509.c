@@ -64,6 +64,8 @@
 #include <openssl/des.h>    
 #include <openssl/rand.h>
 #include <openssl/ssl.h>
+
+#include <pthread.h>
 #endif
 
 #include <canl.h>
@@ -86,6 +88,13 @@ GRSTasn1FindField(const char *oid, char *coords,
         char *asn1string,
         struct GRSTasn1TagList taglist[], int lasttag,
         int *result);
+
+/* Safely initialize OpenSSL digests */
+static void GRSTx509SafeOpenSSLInitialization(void)
+{
+    static pthread_once_t digests_once = PTHREAD_ONCE_INIT;
+    (void) pthread_once(&digests_once, OpenSSL_add_all_digests);
+}
 
 /// Compare X509 Distinguished Name strings
 int GRSTx509NameCmp(char *a, char *b)
@@ -221,7 +230,7 @@ static int GRSTx509VerifySig(time_t *time1_time, time_t *time2_time,
    prvkey = X509_extract_key(cert);
    if (prvkey == NULL) return GRST_RET_FAILED;
             
-   OpenSSL_add_all_digests();
+   GRSTx509SafeOpenSSLInitialization();
 #if OPENSSL_VERSION_NUMBER >= 0x0090701fL
    EVP_MD_CTX_init(&ctx);
    EVP_VerifyInit_ex(&ctx, md_type, NULL);
@@ -2470,7 +2479,7 @@ char *GRSTx509MakeDelegationID(void)
   const EVP_MD *m;
   EVP_MD_CTX ctx;
 
-  OpenSSL_add_all_digests();
+  GRSTx509SafeOpenSSLInitialization();
 
   m = EVP_sha1();
   if (m == NULL) return NULL;
@@ -2552,7 +2561,7 @@ char *GRSTx509MakeProxyFileName(char *delegation_id,
       return NULL;
     }
 
-  OpenSSL_add_all_digests();
+  GRSTx509SafeOpenSSLInitialization();
 
   m = EVP_sha1();
   if (m == NULL)

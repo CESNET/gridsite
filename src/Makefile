@@ -130,7 +130,7 @@ libgridsite.a: libgridsite.la
 
 libgridsite.la: $(GRIDSITE_OBJS)
 	$(LINK) -rpath $(prefix)/$(libdir) $(version_info) \
-          -o $@ $+ -lssl -lcrypto $(MYCANLLDFLAGS) $(XML2_LIBS)
+          -o $@ $+ -lssl -lcrypto $(MYCANLLDFLAGS) $(XML2_LIBS) -lpthread
 
 grst_err.lo: grst_err.c ../interface/gridsite.h
 	$(COMPILE)  $(MYCFLAGS) \
@@ -166,7 +166,7 @@ libgridsite_globus.a: libgridsite_globus.la
 
 libgridsite_globus.la: $(GRIDSITE_OBJS)
 	$(LINK) -rpath $(prefix)/$(libdir) $(version_info) \
-         -o $@ $+ -lssl -lcrypto $(MYCANLLDFLAGS) $(XML2_LIBS)
+         -o $@ $+ -lssl -lcrypto $(MYCANLLDFLAGS) $(XML2_LIBS) -lpthread
 
 # then build versions without OpenSSL
 

@@ -1,3 +1,11 @@
+- ==== GridSite version 2.2.6 ====
+* Thu Jun 25 2015 Zdenek Sustr <sustr4@cesnet.cz>
+- Fixing build with curl 7
+- Linking to OpenSSL to avoid undefined symbols
+- Fixing code that detects RFC proxies
+- Fixing memory leaks (Fixes Issue #19, Issue #22)
+- Thread-safe call OpenSSL_add_all_digests() (Fixes Issue #20)
+- Adding missing pthread lib for Debian 8
 - ==== GridSite version 2.2.5 ====
 * Tue Jun 24 2014 Zdenek Sustr <sustr4@cesnet.cz>
 - Fixing a memory handling issue in delegation code (Fixing GH Issue #16)

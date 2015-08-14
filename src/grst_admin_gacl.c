@@ -39,6 +39,7 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <unistd.h>
+#include <ctype.h>
 
 extern char *grst_perm_syms[];
 extern int grst_perm_vals[];

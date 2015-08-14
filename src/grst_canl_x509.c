@@ -46,6 +46,7 @@
 #include <pwd.h>
 #include <errno.h>
 #include <getopt.h>
+#include <ctype.h>
 
 #include <sys/types.h>
 #include <sys/stat.h>

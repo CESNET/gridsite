@@ -108,13 +108,13 @@ See http://www.gridsite.org/ for details.
 
 %build
 cd src
-CFLAGS="%{optflags}" LDFLAGS="%{?__global_ldflags}" make prefix=%{_prefix}
+make prefix=%{_prefix} CFLAGS="%{optflags}" LDFLAGS="%{?__global_ldflags}"
 
 EOF
 
 if [ $have_gsoap ] ; then
 cat <<EOF >>gridsite.spec
-CFLAGS="%{optflags}" LDFLAGS="%{?__global_ldflags}" make prefix=%{_prefix} gridsite-delegation.cgi htproxyput
+make prefix=%{_prefix} gridsite-delegation.cgi htproxyput CFLAGS="%{optflags}" LDFLAGS="%{?__global_ldflags}"
 
 EOF
 fi
@@ -122,25 +122,25 @@ fi
 cat <<EOF >>gridsite.spec
 
 %install
-rm -rf \$RPM_BUILD_ROOT
+rm -rf %{buildroot}
 
 cd src
 
-make install prefix=%{_prefix} libdir=%{_lib} DESTDIR=\$RPM_BUILD_ROOT
-rm -f \$RPM_BUILD_ROOT/%{_libdir}/*.a
+make install prefix=%{_prefix} libdir=%{_lib} DESTDIR=%{buildroot}
+rm -f %{buildroot}/%{_libdir}/*.a
 EOF
 
 if [ $have_gsoap ] ; then
 
 cat <<EOF >>gridsite.spec
 
-make install-ws prefix=%{_prefix} libdir=%{_lib} DESTDIR=\$RPM_BUILD_ROOT
+make install-ws prefix=%{_prefix} libdir=%{_lib} DESTDIR=%{buildroot}
 EOF
 fi
 
 cat <<EOF >>gridsite.spec
 %clean
-rm -rf \$RPM_BUILD_ROOT
+rm -rf %{buildroot}
 
 %post $shared_name
 if [ "\$UID" = "0" ] ; then

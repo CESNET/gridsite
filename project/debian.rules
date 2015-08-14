@@ -1,7 +1,10 @@
 #! /usr/bin/make -f
 
+-include /usr/share/dpkg/buildflags.mk
+
 override_dh_auto_build:
-	\$(MAKE) -C src prefix=/usr build gridsite-delegation.cgi htproxyput
+	\$(MAKE) -C src prefix=/usr build gridsite-delegation.cgi htproxyput \\
+		CFLAGS=\"\$(CFLAGS) \$(CPPFLAGS)\" LDFLAGS=\"\$(LDFLAGS)\"
 
 override_dh_auto_install:
 	\$(MAKE) -C src prefix=/usr httpd_name=apache2 DESTDIR=\$(shell pwd)/debian/tmp install install-ws post-install-debian

@@ -56,6 +56,7 @@
 #include <curl/curl.h>
 #include <errno.h>
 #include <netdb.h>
+#include <ctype.h>
 
 #include "gridsite.h"
 

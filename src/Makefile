@@ -351,7 +351,7 @@ gridsite-storage.cgi: gridsite-storage.lo libgridsite.la
             -lgridsite $(CURL_LIBS)
 
 %.pc: %.pc.in
-	sed -e "s/@version@/$(VERSION)/" -e "s,@prefix@,$(prefix)," -e "s/@libdir@/$(libdir)/" $< > $@
+	sed -e "s/@version@/$(VERSION)/" -e "s,@prefix@,$(prefix)," -e "s,@libdir@,$(libdir)," $< > $@
 
 clean:
 	rm -rvf doxygen

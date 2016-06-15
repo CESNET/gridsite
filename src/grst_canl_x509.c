@@ -78,11 +78,127 @@
 #define GRST_PROXYCACHE		"/../proxycache/"
 #define GRST_BACKDATE_SECONDS	300
 
+#define END_ENTITY_ROBOT_OID "1.2.840.113612.5.2.3.3.1"
+
 static int GRSTx509CreateProxyRequest_int(char **reqtxt, char **keytxt, 
         char *ocspurl, int keysize);
 static int GRSTx509MakeProxyRequest_int(char **reqtxt, char *proxydir, 
         char *delegation_id, char *user_dn, int keysize);
 static int GRSTx509ProxyKeyMatch(char **pkfile, char *pkdir, STACK_OF(X509) *certstack); 
+
+static char *
+asn1_string2string(ASN1_STRING *str)
+{
+	BIO *bio;
+	int len, ret;
+	char *result = NULL;
+
+	bio = BIO_new(BIO_s_mem());
+	if (bio == NULL)
+		return NULL;
+
+	ASN1_STRING_print_ex(bio, str, ASN1_STRFLGS_RFC2253);
+
+	len = BIO_pending(bio);
+	if (len <= 0)
+		goto end;
+
+	result = calloc(1, len + 1);
+	if (result == NULL)
+		goto end;
+
+	ret = BIO_read(bio, result, len);
+	if (ret != len) {
+		free(result);
+		result = NULL;
+		goto end;
+	}
+
+end:
+	if (bio)
+		BIO_free(bio);
+
+	return result;
+}
+
+static int
+is_robot_subject(const char *p)
+{
+	if (strlen(p) <= 6)
+		return 0;
+
+	if (strncmp(p, "Robot", 5) != 0)
+		return 0;
+
+	if (('0' <= p[5] && p[5] <= '9') ||
+		('A' <= p[5] && p[5] <= 'Z') ||
+		('a' <= p[5] && p[5] <= 'z'))
+		return 0;
+
+	return 1;
+}
+
+static int
+is_robot_certificate(X509 *cert)
+{
+	int i, ret, found;
+	char *p;
+	char buf[64];
+	X509_NAME_ENTRY *ne;
+	X509_NAME *subject;
+	ASN1_STRING *value;
+	CERTIFICATEPOLICIES *policies = NULL;
+	POLICYINFO *policy;
+
+	subject = X509_get_subject_name(cert);
+	if (subject == NULL)
+		return 0;
+
+	found = 0;
+	i = -1;
+	while ((i = X509_NAME_get_index_by_NID(subject, NID_commonName, i)) >= 0) {
+		ne = X509_NAME_get_entry(subject, i);
+		value = X509_NAME_ENTRY_get_data(ne);
+		p = asn1_string2string(value);
+		if (p == NULL)
+			continue;
+		ret = is_robot_subject(p);
+		free(p);
+		if (ret == 1) {
+			found = 1;
+			break;
+		}
+	}
+	if (!found)
+		return 0;
+
+	policies = X509_get_ext_d2i(cert, NID_certificate_policies, &i, NULL);
+	if (policies == NULL)
+		return 0;
+	found = 0;
+	for (i = 0; i < sk_POLICYINFO_num(policies); i++) {
+		policy = sk_POLICYINFO_value(policies, i);
+		memset(buf, 0, sizeof(buf));
+		OBJ_obj2txt(buf, sizeof(buf), policy->policyid, 1);
+		if (strcmp(buf, END_ENTITY_ROBOT_OID) == 0) {
+			found = 1;
+			break;
+		}
+	}
+	if (!found)
+		return 0;
+
+	return 1;
+}
+
+static GRSTx509Cert *
+add_grst_cred(GRSTx509Cert *last_cred)
+{
+	GRSTx509Cert *cert;
+
+	cert = calloc(1, sizeof(*cert));
+	return cert;
+}
 
 int
 GRSTasn1FindField(const char *oid, char *coords,
@@ -856,24 +972,29 @@ static int GRSTx509ChainVomsAdd(GRSTx509Cert **grst_cert,
 
              if (itag > -1)
                {
-                 (*grst_cert)->next = malloc(sizeof(GRSTx509Cert));
-                 *grst_cert = (*grst_cert)->next;
-                 bzero(*grst_cert, sizeof(GRSTx509Cert));
-               
-                 (*grst_cert)->notbefore = time1_time;
-                 (*grst_cert)->notafter  = time2_time;
-                 ret = asprintf(&((*grst_cert)->value), "%.*s",
+                 GRSTx509Cert *cred;
+
+                 cred = add_grst_cred(*grst_cert);
+                 if (cred == NULL)
+                     return GRST_RET_FAILED;
+
+                 cred->notbefore = time1_time;
+                 cred->notafter  = time2_time;
+                 ret = asprintf(&cred->value, "%.*s",
                                 taglist[itag].length,
                                 &asn1string[taglist[itag].start+
                                 taglist[itag].headerlength]);
-                 if (ret == -1)
+                 if (ret == -1) {
+                     free(cred);
                      return GRST_RET_FAILED;
-                                      
-                 (*grst_cert)->errors = chain_errors; /* ie may be invalid */
-                 (*grst_cert)->type = GRST_CERT_TYPE_VOMS;
-                 (*grst_cert)->issuer = strdup(acvomsdn);
-                 (*grst_cert)->dn = strdup(user_cert->dn);
-		 (*grst_cert)->delegation = delegation;
+                 }
+                 cred->errors = chain_errors; /* ie may be invalid */
+                 cred->type = GRST_CERT_TYPE_VOMS;
+                 cred->issuer = strdup(acvomsdn);
+                 cred->dn = strdup(user_cert->dn);
+                 cred->delegation = delegation;
+                 (*grst_cert)->next = cred;
+                 (*grst_cert) = cred;
                }
              else break;
            }
@@ -906,6 +1027,7 @@ int GRSTx509ChainLoad(GRSTx509Chain **chain,
    X509_EXTENSION *ex;
    time_t now;
    GRSTx509Cert *grst_cert, *new_grst_cert, *user_cert = NULL;
+   int is_robot = 0;
    
    GRSTerrorLog(GRST_LOG_DEBUG, "GRSTx509ChainLoadCheck() starts");
 
@@ -1094,6 +1216,7 @@ int GRSTx509ChainLoad(GRSTx509Chain **chain,
                     user_cert = new_grst_cert;
                     new_grst_cert->delegation 
                        = (lastcert == NULL) ? i : i + 1;
+                    is_robot = is_robot_certificate(cert);
                   }
               } 
             else 
@@ -1170,6 +1293,18 @@ int GRSTx509ChainLoad(GRSTx509Chain **chain,
       } /* end of for loop */
 
    if (cacert != NULL) X509_free(cacert);
+
+   if (is_robot) {
+	   GRSTx509Cert *cred;
+
+	   cred = add_grst_cred(grst_cert);
+	   if (cred == NULL)
+		   return GRST_RET_FAILED;
+	   cred->type = GRST_CERT_TYPE_ROBOT;
+	   cred->dn = strdup(user_cert->dn);
+	   grst_cert->next = cred;
+	   grst_cert = cred;
+   }
  
    return GRST_RET_OK;
 }

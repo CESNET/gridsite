@@ -2500,6 +2500,12 @@ void GRST_save_ssl_creds(conn_rec *conn, GRSTx509Chain *grst_chain)
 
             ++i;
           }
+        else if (grst_cert->type == GRST_CERT_TYPE_ROBOT)
+          {
+            apr_table_setn(conn->notes, "GRST_ROBOT_DN", apr_pstrdup(conn->pool, grst_cert->dn));
+            /* I ignore the sslcreds cache here */
+            ++i;
+          }
       }
 
    for (grst_cert = grst_chain->firstcert; 
@@ -2685,7 +2691,7 @@ static int mod_gridsite_perm_handler(request_rec *r)
                 *destination_prefix = NULL, *destination_translated = NULL,
                 *aclpath = NULL, *grst_cred_valid_0 = NULL, *grst_cred_valid_i,
                 *gridauthpasscode = NULL;
-    const char  *content_type;
+    const char  *content_type, *robot;
     time_t      notbefore, notafter;
     apr_table_t *env;
     apr_finfo_t  cookiefile_info;
@@ -3268,6 +3274,10 @@ static int mod_gridsite_perm_handler(request_rec *r)
                }
              else break;
            }
+
+        robot = apr_table_get(r->connection->notes, "GRST_ROBOT_DN");
+        if (robot)
+            apr_table_setn(env, "GRST_ROBOT_DN", robot);
 
         apr_table_setn(env, "GRST_PERM", apr_psprintf(r->pool, "%d", perm));
 

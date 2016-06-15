@@ -198,7 +198,7 @@ grst_htcp_nossl.lo: grst_htcp.c ../interface/gridsite.h
 
 # now the binary exectuables
 
-gsexec.lo urlencode.lo gridsite-copy.lo findproxyfile.lo showx509exts.lo:
+gsexec.lo urlencode.lo gridsite-copy.lo findproxyfile.lo showx509exts.lo test-chain.lo:
 	$(COMPILE) -DVERSION=\"$(PATCH_VERSION)\" $(MYCFLAGS) \
 	    -o $@ -c $(subst .lo,.c,$@)
 
@@ -219,6 +219,9 @@ urlencode: urlencode.lo libgridsite.la
 
 htcp: htcp.lo libgridsite.la
 	$(LINK) -o $@ $+ $(CURL_LIBS)
+
+test-chain: test-chain.lo libgridsite.la
+	$(LINK) -o $@ $< -L. -lgridsite -static
 
 htcp-static: htcp.lo libgridsite.a
 	$(LINK) -o $@ -L. $< \

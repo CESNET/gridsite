@@ -201,6 +201,7 @@ typedef struct { int    type;		/* CA, user, proxy, VOMS, ... */
 #define GRST_CERT_TYPE_EEC   2
 #define GRST_CERT_TYPE_PROXY 3
 #define GRST_CERT_TYPE_VOMS  4
+#define GRST_CERT_TYPE_ROBOT 5
 
 /* a chain of certs, starting from the first CA */
 typedef struct { GRSTx509Cert *firstcert; } GRSTx509Chain;

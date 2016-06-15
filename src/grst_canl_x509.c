@@ -219,7 +219,7 @@ int GRSTx509ChainFree(GRSTx509Chain *chain)
 static int GRSTx509VerifySig(time_t *time1_time, time_t *time2_time,
                              unsigned char *txt, int txt_len,
                              unsigned char *sig, int sig_len, 
-                             X509 *cert, EVP_MD *md_type)
+                             X509 *cert, const EVP_MD *md_type)
 ///
 /// Returns GRST_RET_OK if signature is ok, other values if not.
 {   
@@ -279,16 +279,17 @@ static int GRSTx509VerifyVomsSig(time_t *time1_time, time_t *time2_time,
    int           ihash, isig, iinfo;
    char          *certpath, *certpath2, acvomsdn[200], dn_coords[200],
                   info_coords[200], sig_coords[200], hash_coords[200];
-   unsigned char *p;
+   const unsigned char *p;
    DIR           *vomsDIR, *vomsDIR2;
    struct dirent *vomsdirent, *vomsdirent2;
    X509          *cert;
    FILE          *fp;
-   EVP_MD	 *md_type = NULL;
+   const EVP_MD  *md_type = NULL;
    struct stat    statbuf;
    time_t         voms_service_time1 = GRST_MAX_TIME_T, voms_service_time2 = 0,
                   tmp_time1, tmp_time2;
    ASN1_OBJECT   *hash_obj = NULL;
+   int           ret;
 
    if ((vomsdir == NULL) || (vomsdir[0] == '\0')) return GRST_RET_FAILED;
 
@@ -333,7 +334,9 @@ static int GRSTx509VerifyVomsSig(time_t *time1_time, time_t *time2_time,
         {        
           if (vomsdirent->d_name[0] == '.') continue;
         
-          asprintf(&certpath, "%s/%s", vomsdir, vomsdirent->d_name);
+          ret = asprintf(&certpath, "%s/%s", vomsdir, vomsdirent->d_name);
+          if (ret == -1)
+            continue;
           stat(certpath, &statbuf);
           
           if (S_ISDIR(statbuf.st_mode))
@@ -349,8 +352,10 @@ static int GRSTx509VerifyVomsSig(time_t *time1_time, time_t *time2_time,
                 {
                   if (vomsdirent2->d_name[0] == '.') continue;
                   
-                  asprintf(&certpath2, "%s/%s/%s", 
-                           vomsdir, vomsdirent->d_name, vomsdirent2->d_name);
+                  ret = asprintf(&certpath2, "%s/%s/%s",
+                                 vomsdir, vomsdirent->d_name, vomsdirent2->d_name);
+                  if (ret == -1)
+                    continue;
                 
                   fp = fopen(certpath2, "r");
                   GRSTerrorLog(GRST_LOG_DEBUG, 
@@ -463,7 +468,7 @@ static int GRSTx509VerifyVomsSigCert(time_t *time1_time, time_t *time2_time,
    char          *lscpath, *p, *cacertpath,
                  *vodir, *vomscert_cadn, *vomscert_vomsdn, 
                  *lsc_cadn, *lsc_vomsdn;
-   unsigned char *q;
+   const unsigned char *q;
    unsigned long  issuerhash = 0;
    DIR           *voDIR;
    struct dirent *vodirent;
@@ -473,7 +478,7 @@ static int GRSTx509VerifyVomsSigCert(time_t *time1_time, time_t *time2_time,
    time_t         tmp_time;
    ASN1_OBJECT   *hash_obj = NULL;
    char		  coords[200];
-   EVP_MD        *md_type = NULL;
+   const EVP_MD  *md_type = NULL;
    time_t	  voms_service_time1 = 0, voms_service_time2 = GRST_MAX_TIME_T;
 
    if ((vomsdir == NULL) || (vomsdir[0] == '\0')) return GRST_RET_FAILED;
@@ -514,7 +519,9 @@ static int GRSTx509VerifyVomsSigCert(time_t *time1_time, time_t *time2_time,
    /* check issuer CA certificate */
 
    issuerhash = X509_NAME_hash(X509_get_issuer_name(vomscert));
-   asprintf(&cacertpath, "%s/%.8x.0", capath, issuerhash);
+   ret = asprintf(&cacertpath, "%s/%.8lx.0", capath, issuerhash);
+   if (ret == -1)
+      goto end;
 
    /* check voms cert DN matches DN from AC */
 
@@ -582,7 +589,9 @@ static int GRSTx509VerifyVomsSigCert(time_t *time1_time, time_t *time2_time,
      goto end;
    }
 
-   asprintf(&vodir, "%s/%s", vomsdir, voname);
+   ret = asprintf(&vodir, "%s/%s", vomsdir, voname);
+   if (ret == -1)
+     goto end;
    
    voDIR = opendir(vodir);
    if (voDIR == NULL) goto end;
@@ -601,7 +610,9 @@ static int GRSTx509VerifyVomsSigCert(time_t *time1_time, time_t *time2_time,
           
           if (strcmp(&(vodirent->d_name[strlen(vodirent->d_name)-4]), ".lsc") != 0) continue;
         
-          asprintf(&lscpath, "%s/%s", vodir, vodirent->d_name);
+          ret = asprintf(&lscpath, "%s/%s", vodir, vodirent->d_name);
+          if (ret == -1)
+            goto end;
           stat(lscpath, &statbuf);
 
           GRSTerrorLog(GRST_LOG_DEBUG, "Check LSC file %s for %s,%s",
@@ -799,8 +810,10 @@ static int GRSTx509ChainVomsAdd(GRSTx509Cert **grst_cert,
                  (j < taglist[itag].length);
                  ++j) ;
                                
-            asprintf(&voname, "%.*s", j-1, 
+            ret = asprintf(&voname, "%.*s", j-1,
                      &(asn1string[taglist[itag].start+taglist[itag].headerlength+1]));
+            if (ret == -1)
+                return GRST_RET_FAILED;
           }
 
         snprintf(vomscert_coords, sizeof(vomscert_coords), 
@@ -849,10 +862,12 @@ static int GRSTx509ChainVomsAdd(GRSTx509Cert **grst_cert,
                
                  (*grst_cert)->notbefore = time1_time;
                  (*grst_cert)->notafter  = time2_time;
-                 asprintf(&((*grst_cert)->value), "%.*s",
-                          taglist[itag].length,
-                          &asn1string[taglist[itag].start+
-                                      taglist[itag].headerlength]);
+                 ret = asprintf(&((*grst_cert)->value), "%.*s",
+                                taglist[itag].length,
+                                &asn1string[taglist[itag].start+
+                                taglist[itag].headerlength]);
+                 if (ret == -1)
+                     return GRST_RET_FAILED;
                                       
                  (*grst_cert)->errors = chain_errors; /* ie may be invalid */
                  (*grst_cert)->type = GRST_CERT_TYPE_VOMS;
@@ -915,7 +930,11 @@ int GRSTx509ChainLoad(GRSTx509Chain **chain,
    cert = sk_X509_value(certstack, depth - 1);
    subjecthash = X509_NAME_hash(X509_get_subject_name(cert));
    issuerhash = X509_NAME_hash(X509_get_issuer_name(cert));
-   asprintf(&cacertpath, "%s/%.8x.0", capath, issuerhash);
+   ret = asprintf(&cacertpath, "%s/%.8lx.0", capath, issuerhash);
+   if (ret == -1) {
+       *chain = NULL;
+       return GRST_RET_FAILED;
+   }
    
    GRSTerrorLog(GRST_LOG_DEBUG, "Look for CA root file %s", cacertpath);
 
@@ -1901,15 +1920,18 @@ char *GRSTx509CachedProxyFind(char *proxydir, char *delegation_id,
 {
   char *user_dn_enc, *proxyfile;
   struct stat statbuf;
+  int ret;
+
   if (!GRST_is_id_safe(delegation_id))    
     return NULL;
 
   user_dn_enc = GRSThttpUrlEncode(user_dn);
 
-  asprintf(&proxyfile, "%s/%s/%s/userproxy.pem",
-           proxydir, user_dn_enc, delegation_id);
-           
+  ret = asprintf(&proxyfile, "%s/%s/%s/userproxy.pem",
+                 proxydir, user_dn_enc, delegation_id);
   free(user_dn_enc);
+  if (ret == -1)
+    return NULL;
 
   if ((stat(proxyfile, &statbuf) != 0) || !S_ISREG(statbuf.st_mode))
     {
@@ -1940,8 +1962,12 @@ char *GRSTx509CachedProxyKeyFind(char *proxydir, char *delegation_id,
 
   user_dn_enc = GRSThttpUrlEncode(user_dn);
 
-  asprintf(&prvkeydir, "%s/cache/%s/%s/",
-          proxydir, user_dn_enc, delegation_id);
+  retval = asprintf(&prvkeydir, "%s/cache/%s/%s/",
+                    proxydir, user_dn_enc, delegation_id);
+  if (retval == -1) {
+    free(user_dn_enc);
+    return NULL;
+  }
   
   retval = GRSTx509ProxyKeyMatch(&prvkeyfilename, prvkeydir, certstack);
   free(prvkeydir);  
@@ -2001,7 +2027,7 @@ static int GRSTx509ProxyKeyMatch(char **pkfile, char *pkdir,
         ret = SSL_CTX_check_private_key(ssl_ctx);
         /* Success */
         if (ret == 1){
-            asprintf(pkfile, "%s", pk_file);
+            ret = asprintf(pkfile, "%s", pk_file);
             closedir(FD);
 	    free (pk_file);
 	    pk_file = NULL;
@@ -2032,7 +2058,7 @@ static void mkdir_printf(mode_t mode, char *fmt, ...)
   va_list ap;
   
   va_start(ap, fmt);
-  vasprintf(&path, fmt, ap);
+  ret = vasprintf(&path, fmt, ap);
   va_end(ap);
 
   ret = mkdir(path, mode);
@@ -2227,10 +2253,10 @@ int GRSTx509MakeProxyRequest_int(char **reqtxt, char *proxydir,
 
     /* make the new proxy private key */
 
-    asprintf(&prvkeyfile, "%s/cache/%s/%s/userkey_XXXXXX",
-            proxydir, user_dn_enc, delegation_id);
+    ret = asprintf(&prvkeyfile, "%s/cache/%s/%s/userkey_XXXXXX",
+                   proxydir, user_dn_enc, delegation_id);
 
-    if (prvkeyfile == NULL){
+    if (ret == -1 || prvkeyfile == NULL){
         free(user_dn_enc);
         return GRST_RET_FAILED;
     }
@@ -2335,7 +2361,7 @@ int GRSTx509ProxyDestroy(char *proxydir, char *delegation_id, char *user_dn)
 /// (Including GRST_RET_NO_SUCH_FILE if the private key or cert chain
 ///  were not found.)
 {
-  int              ret = GRST_RET_OK;
+  int              ret = GRST_RET_OK, res;
   char             *filename, *user_dn_enc;
 
   if (strcmp(user_dn, "cache") == 0) return GRST_RET_FAILED;
@@ -2347,10 +2373,10 @@ int GRSTx509ProxyDestroy(char *proxydir, char *delegation_id, char *user_dn)
 
   /* proxy file */
   
-  asprintf(&filename, "%s/%s/%s/userproxy.pem",
-           proxydir, user_dn_enc, delegation_id);
+  res = asprintf(&filename, "%s/%s/%s/userproxy.pem",
+                 proxydir, user_dn_enc, delegation_id);
 
-  if (filename == NULL)  
+  if (res == -1 || filename == NULL)
     {
       free(user_dn_enc);
       return GRST_RET_FAILED;
@@ -2361,10 +2387,10 @@ int GRSTx509ProxyDestroy(char *proxydir, char *delegation_id, char *user_dn)
 
   /* voms file */
   
-  asprintf(&filename, "%s/%s/%s/voms.attributes",
-           proxydir, user_dn_enc, delegation_id);
+  res = asprintf(&filename, "%s/%s/%s/voms.attributes",
+                 proxydir, user_dn_enc, delegation_id);
 
-  if (filename == NULL)  
+  if (res == -1 || filename == NULL)
     {
       free(user_dn_enc);
       return GRST_RET_FAILED;
@@ -2386,6 +2412,7 @@ int GRSTx509ProxyGetTimes(char *proxydir, char *delegation_id, char *user_dn,
   char  *docroot, *filename, *user_dn_enc;
   FILE  *fp;
   X509  *cert;
+  int ret;
 
   if (strcmp(user_dn, "cache") == 0) return GRST_RET_FAILED;
 
@@ -2394,12 +2421,11 @@ int GRSTx509ProxyGetTimes(char *proxydir, char *delegation_id, char *user_dn,
     
   user_dn_enc = GRSThttpUrlEncode(user_dn);
   
-  asprintf(&filename, "%s/%s/%s/userproxy.pem",
-           proxydir, user_dn_enc, delegation_id);
-           
+  ret = asprintf(&filename, "%s/%s/%s/userproxy.pem",
+                 proxydir, user_dn_enc, delegation_id);
   free(user_dn_enc);
-
-  if (filename == NULL) return GRST_RET_FAILED;
+  if (ret == -1 || filename == NULL)
+    return GRST_RET_FAILED;
 
   fp = fopen(filename, "r");
   free(filename);
@@ -2643,8 +2669,10 @@ int GRSTx509CacheProxy(char *proxydir, char *delegation_id,
     mkdir_printf(S_IRUSR | S_IWUSR | S_IXUSR, 
             "%s/%s/%s", proxydir, user_dn_enc, delegation_id);
 
-    asprintf(&proxyfile, "%s/%s/%s/userproxy.pem",
-            proxydir, user_dn_enc, delegation_id);
+    ret = asprintf(&proxyfile, "%s/%s/%s/userproxy.pem",
+                   proxydir, user_dn_enc, delegation_id);
+    if (ret == -1)
+        goto end;
     free(user_dn_enc);
     user_dn_enc = NULL;
 

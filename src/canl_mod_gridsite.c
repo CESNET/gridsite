@@ -2416,7 +2416,7 @@ int GRST_load_ssl_creds(SSL *ssl, conn_rec *conn)
 void GRST_save_ssl_creds(conn_rec *conn, GRSTx509Chain *grst_chain)
 {
    int          i, lowest_voms_delegation = 65535;
-   char        *tempfile = NULL, *encoded,
+   char        *tempfile = NULL, *encoded, *voms_fqans = NULL,
                *sessionfile, session_id[(SSL_MAX_SSL_SESSION_ID_LENGTH+1)*2];
    apr_file_t  *fp = NULL;
    SSL         *ssl;
@@ -2524,6 +2524,14 @@ void GRST_save_ssl_creds(conn_rec *conn, GRSTx509Chain *grst_chain)
                    apr_psprintf(conn->pool, "GRST_CRED_AURI_%d", i),
                    apr_pstrcat(conn->pool, "fqan:", encoded, NULL));
 
+            if (voms_fqans != NULL)
+              {
+                voms_fqans = apr_pstrcat(conn->pool, encoded, ";", voms_fqans, NULL);
+              }
+            else
+              {
+                voms_fqans = apr_pstrcat(conn->pool, encoded, NULL);
+              }
             if (fp != NULL) apr_file_printf(fp, "GRST_CRED_AURI_%d=fqan:%s\n",
                                                 i, encoded);
 
@@ -2549,6 +2557,15 @@ void GRST_save_ssl_creds(conn_rec *conn, GRSTx509Chain *grst_chain)
             ++i;
           }
       }
+
+   if (voms_fqans != NULL)
+     {
+       apr_table_setn(conn->notes, "GRST_VOMS_FQANS", voms_fqans);
+       apr_file_printf(fp, "GRST_VOMS_FQANS=%s\n", voms_fqans);
+       ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, conn->base_server,
+                      "store GRST_VOMS_FQANS=%s", voms_fqans);
+     }
+
 
    /* this needs to be merged into grst_x509? */
 #if 0
@@ -2690,6 +2707,7 @@ static int mod_gridsite_perm_handler(request_rec *r)
                 *destination = NULL, *destination_uri = NULL, *querytmp, 
                 *destination_prefix = NULL, *destination_translated = NULL,
                 *aclpath = NULL, *grst_cred_valid_0 = NULL, *grst_cred_valid_i,
+                *gridauthpasscode = NULL, *grst_voms_fqans;
                 *gridauthpasscode = NULL;
     const char  *content_type, *robot;
     time_t      notbefore, notafter;
@@ -3278,6 +3296,13 @@ static int mod_gridsite_perm_handler(request_rec *r)
         robot = apr_table_get(r->connection->notes, "GRST_ROBOT_DN");
         if (robot)
             apr_table_setn(env, "GRST_ROBOT_DN", robot);
+
+        if (grst_voms_fqans  = (char *)
+                apr_table_get(r->connection->notes, "GRST_VOMS_FQANS"))
+          {
+            apr_table_setn(env, "GRST_VOMS_FQANS",
+                           apr_pstrdup(r->pool, grst_voms_fqans));
+          }
 
         apr_table_setn(env, "GRST_PERM", apr_psprintf(r->pool, "%d", perm));
 

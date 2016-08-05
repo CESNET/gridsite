@@ -2708,7 +2708,6 @@ static int mod_gridsite_perm_handler(request_rec *r)
                 *destination_prefix = NULL, *destination_translated = NULL,
                 *aclpath = NULL, *grst_cred_valid_0 = NULL, *grst_cred_valid_i,
                 *gridauthpasscode = NULL, *grst_voms_fqans;
-                *gridauthpasscode = NULL;
     const char  *content_type, *robot;
     time_t      notbefore, notafter;
     apr_table_t *env;

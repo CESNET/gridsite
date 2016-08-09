@@ -2561,7 +2561,7 @@ void GRST_save_ssl_creds(conn_rec *conn, GRSTx509Chain *grst_chain)
    if (voms_fqans != NULL)
      {
        apr_table_setn(conn->notes, "GRST_VOMS_FQANS", voms_fqans);
-       apr_file_printf(fp, "GRST_VOMS_FQANS=%s\n", voms_fqans);
+       if (fp != NULL) apr_file_printf(fp, "GRST_VOMS_FQANS=%s\n", voms_fqans);
        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, conn->base_server,
                       "store GRST_VOMS_FQANS=%s", voms_fqans);
      }

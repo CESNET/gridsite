@@ -1,3 +1,6 @@
+- ==== GridSite version 2.3.2 ====
+* Thu Aug 16 2016 Zdenek Sustr <sustr4@cesnet.cz>
+- Fixed stability issues in systemd-based distributions
 - ==== GridSite version 2.3.1 ====
 * Thu Aug 05 2016 Zdenek Sustr <sustr4@cesnet.cz>
 - Assignment to NULL fixed, addressing gridsite module crashes

@@ -2504,7 +2504,6 @@ void GRST_save_ssl_creds(conn_rec *conn, GRSTx509Chain *grst_chain)
           {
             apr_table_setn(conn->notes, "GRST_ROBOT_DN", apr_pstrdup(conn->pool, grst_cert->dn));
             /* I ignore the sslcreds cache here */
-            ++i;
           }
       }
 

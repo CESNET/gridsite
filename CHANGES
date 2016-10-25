@@ -1,3 +1,6 @@
+- ==== GridSite version 2.3.3 ====
+* Thu Oct 25 2016 Zdenek Sustr <sustr4@cesnet.cz>
+- Fixed an issue with parsing of robot certificates (GGUS #124499)
 - ==== GridSite version 2.3.2 ====
 * Thu Aug 16 2016 Zdenek Sustr <sustr4@cesnet.cz>
 - Fixed stability issues in systemd-based distributions

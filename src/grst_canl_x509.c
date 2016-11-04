@@ -347,26 +347,30 @@ static int GRSTx509VerifySig(time_t *time1_time, time_t *time2_time,
 {   
    int            ret;
    EVP_PKEY      *prvkey;
-   EVP_MD_CTX     ctx;
+   EVP_MD_CTX     *ctx = NULL;
    time_t         voms_service_time1, voms_service_time2;
 
    prvkey = X509_extract_key(cert);
    if (prvkey == NULL) return GRST_RET_FAILED;
+
+   ctx = EVP_MD_CTX_new();
+   if (ctx == NULL)
+       return GRST_RET_FAILED;
             
    GRSTx509SafeOpenSSLInitialization();
 #if OPENSSL_VERSION_NUMBER >= 0x0090701fL
-   EVP_MD_CTX_init(&ctx);
-   EVP_VerifyInit_ex(&ctx, md_type, NULL);
+   EVP_MD_CTX_init(ctx);
+   EVP_VerifyInit_ex(ctx, md_type, NULL);
 #else
-   EVP_VerifyInit(&ctx, md_type);
+   EVP_VerifyInit(ctx, md_type);
 #endif
           
-   EVP_VerifyUpdate(&ctx, txt, txt_len);
+   EVP_VerifyUpdate(ctx, txt, txt_len);
 
-   ret = EVP_VerifyFinal(&ctx, sig, sig_len, prvkey);
+   ret = EVP_VerifyFinal(ctx, sig, sig_len, prvkey);
 
 #if OPENSSL_VERSION_NUMBER >= 0x0090701fL
-   EVP_MD_CTX_cleanup(&ctx);      
+   EVP_MD_CTX_free(ctx);
 #endif
    EVP_PKEY_free(prvkey);
 
@@ -381,7 +385,7 @@ static int GRSTx509VerifySig(time_t *time1_time, time_t *time2_time,
            GRSTasn1TimeToTimeT(ASN1_STRING_data(X509_get_notAfter(cert)),0);
           if (voms_service_time2 < *time2_time) 
                              *time2_time = voms_service_time2; 
-            
+
    return GRST_RET_OK ; /* verified */
 }
 
@@ -2645,24 +2649,28 @@ char *GRSTx509MakeDelegationID(void)
   int  i, delegation_id_len;
   char cred_name[14], *cred_value, *delegation_id;
   const EVP_MD *m;
-  EVP_MD_CTX ctx;
+  EVP_MD_CTX *ctx = NULL;
 
   GRSTx509SafeOpenSSLInitialization();
+
+  ctx = EVP_MD_CTX_new();
+  if (ctx == NULL)
+    return NULL;
 
   m = EVP_sha1();
   if (m == NULL) return NULL;
 
-  EVP_DigestInit(&ctx, m);
+  EVP_DigestInit(ctx, m);
 
   for (i=0; i <= 999; ++i)
      {
        snprintf(cred_name, sizeof(cred_name), "GRST_CRED_%d", i);       
        if ((cred_value = getenv(cred_name)) == NULL) break;
        
-       EVP_DigestUpdate(&ctx, cred_value, strlen(cred_value));
+       EVP_DigestUpdate(ctx, cred_value, strlen(cred_value));
      }
      
-  EVP_DigestFinal(&ctx, hash_delegation_id, &delegation_id_len);
+  EVP_DigestFinal(ctx, hash_delegation_id, &delegation_id_len);
 
   delegation_id = malloc(17);
 
@@ -2670,6 +2678,8 @@ char *GRSTx509MakeDelegationID(void)
    sprintf(&delegation_id[i*2], "%02x", hash_delegation_id[i]);
 
   delegation_id[16] = '\0';
+
+  EVP_MD_CTX_free(ctx);
 
   return delegation_id;
 }

@@ -206,11 +206,17 @@ GRSTasn1FindField(const char *oid, char *coords,
         struct GRSTasn1TagList taglist[], int lasttag,
         int *result);
 
+static void
+ssl_init_crypto(void)
+{
+    OPENSSL_init_crypto(OPENSSL_INIT_ADD_ALL_DIGESTS, NULL);
+}
+
 /* Safely initialize OpenSSL digests */
 static void GRSTx509SafeOpenSSLInitialization(void)
 {
     static pthread_once_t digests_once = PTHREAD_ONCE_INIT;
-    (void) pthread_once(&digests_once, OpenSSL_add_all_digests);
+    (void) pthread_once(&digests_once, ssl_init_crypto);
 }
 
 /// Compare X509 Distinguished Name strings

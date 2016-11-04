@@ -302,9 +302,8 @@ static int GRSTasn1Parse2(BIO *bp, unsigned char **pp, long length, int offset,
 				{
 				int ii;
 
-				opp=op;
-				ii=d2i_ASN1_BOOLEAN(NULL,&opp,len+hl);
-				if (ii < 0)
+				ii = (int)*p;
+				if (ii < 0 || (int)len != 1)
 				{
 				  if ((bp != NULL) &&
 				      (BIO_write(bp,"Bad boolean\n",12)))

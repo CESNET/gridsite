@@ -338,7 +338,7 @@ static int GRSTasn1Parse2(BIO *bp, unsigned char **pp, long length, int offset,
 							goto end;
 					  }
 
-					M_ASN1_OCTET_STRING_free(os);
+					ASN1_OCTET_STRING_free(os);
 					os=NULL;
 					}
 				}
@@ -377,7 +377,7 @@ static int GRSTasn1Parse2(BIO *bp, unsigned char **pp, long length, int offset,
 					    (BIO_write(bp,"BAD INTEGER",11) <= 0))
 						goto end;
 					}
-				M_ASN1_INTEGER_free(bs);
+				ASN1_INTEGER_free(bs);
 				}
 			else if (tag == V_ASN1_ENUMERATED)
 				{
@@ -414,7 +414,7 @@ static int GRSTasn1Parse2(BIO *bp, unsigned char **pp, long length, int offset,
 					    (BIO_write(bp,"BAD ENUMERATED",11) <= 0))
 						goto end;
 					}
-				M_ASN1_ENUMERATED_free(bs);
+				ASN1_ENUMERATED_free(bs);
 				}
 			else if (len > 0 && dump)
 				{
@@ -450,7 +450,7 @@ static int GRSTasn1Parse2(BIO *bp, unsigned char **pp, long length, int offset,
 	ret=1;
 end:
 	if (o != NULL) ASN1_OBJECT_free(o);
-	if (os != NULL) M_ASN1_OCTET_STRING_free(os);
+	if (os != NULL) ASN1_OCTET_STRING_free(os);
 	*pp=p;
 	return(ret);
 	}

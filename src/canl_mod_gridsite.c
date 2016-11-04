@@ -2336,16 +2336,22 @@ int GRST_get_session_id(SSL *ssl, char *session_id, size_t len)
 {
    int          i;
    SSL_SESSION *session;
+   unsigned int sess_len;
+   const unsigned char *sess_id;
 
-   if (((session = SSL_get_session(ssl)) == NULL) ||
-       (session->session_id_length == 0)) 
-      return GRST_RET_FAILED;
-   
-   if (2 * session->session_id_length + 1 > len) 
+   session = SSL_get_session(ssl);
+   if (session == NULL)
       return GRST_RET_FAILED;
 
-   for (i=0; i < (int) session->session_id_length; ++i)
-    sprintf(&(session_id[i*2]), "%02X", (unsigned char) session->session_id[i]);
+   sess_id = SSL_SESSION_get_id(session, &sess_len);
+   if (sess_len == 0)
+      return GRST_RET_FAILED;
+
+   if (2 * sess_len + 1 > len) 
+      return GRST_RET_FAILED;
+
+   for (i=0; i < sess_len; ++i)
+    sprintf(&(session_id[i*2]), "%02X", sess_id[i]);
 
    session_id[i*2] = '\0';
    
@@ -2742,7 +2748,6 @@ static int mod_gridsite_perm_handler(request_rec *r)
     if ((user == NULL) &&
         (sslconn != NULL) && 
         (sslconn->ssl != NULL) &&
-        (sslconn->ssl->session != NULL) &&
         (r->connection->notes != NULL) &&
         (apr_table_get(r->connection->notes, "GRST_save_ssl_creds") == NULL))
       {

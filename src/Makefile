@@ -83,8 +83,8 @@ endif
 # where offset is a sum of maximal released minor's of all previous major's
 #
 
-# counted minors: -
-offset=0
+# counted minors: 2.3 (1.7, 1.5)
+offset=3
 
 version_info:=-version-info $(shell \
 	perl -e '$$,=":"; @F=split "\\.","$(PATCH_VERSION)"; print $$F[0]+$$F[1]+$(offset),$$F[2],$$F[1]' )

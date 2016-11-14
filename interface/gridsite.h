@@ -201,12 +201,16 @@ typedef struct { int    type;		/* CA, user, proxy, VOMS, ... */
 #define GRST_CERT_TYPE_EEC   2
 #define GRST_CERT_TYPE_PROXY 3
 #define GRST_CERT_TYPE_VOMS  4
+#define GRST_CERT_TYPE_ROBOT 5
 
 /* a chain of certs, starting from the first CA */
 typedef struct { GRSTx509Cert *firstcert; } GRSTx509Chain;
 
 #ifndef GRST_NO_OPENSSL
 int GRSTx509CertLoad(GRSTx509Cert *, X509 *);
+int GRSTx509ChainLoad(GRSTx509Chain **chain,
+                           STACK_OF(X509) *certstack, X509 *lastcert,
+                           char *capath, char *vomsdir);
 int GRSTx509ChainLoadCheck(GRSTx509Chain **, STACK_OF(X509) *, X509 *, char *, char *);
 #endif
 int GRSTx509ChainFree(GRSTx509Chain *);
@@ -403,11 +407,18 @@ int GRSTx509CompactCreds(int *, int, size_t, char *, STACK_OF(X509) *, char *, X
 char *GRSTx509CachedProxyFind(char *, char *, char *);
 char *GRSTx509FindProxyFileName(void);
 int GRSTx509MakeProxyCert(char **, FILE *, char *, char *, char *, int);
-char *GRSTx509CachedProxyKeyFind(char *, char *, char *);
+#ifndef GRST_NO_OPENSSL
+char *GRSTx509CachedProxyKeyFind(char *, char *, char *, STACK_OF(X509) *);
+#endif 
 int GRSTx509ProxyDestroy(char *, char *, char *);
 int GRSTx509ProxyGetTimes(char *, char *, char *, time_t *, time_t *);
+/*use GRSTx509CreateProxyRequestKS instead*/
 int GRSTx509CreateProxyRequest(char **, char **, char *);
+int GRSTx509CreateProxyRequestKS(char **reqtxt, char **keytxt, char *ocspurl, int keysize);
+/*use GRSTx509MakeProxyRequestKS istead*/
 int GRSTx509MakeProxyRequest(char **, char *, char *, char *);
+int GRSTx509MakeProxyRequestKS(char **reqtxt, char *proxydir,
+                             char *delegation_id, char *user_dn, int keysize);
 
 char *GRSTx509MakeDelegationID(void);
 
@@ -447,10 +458,6 @@ int    GRSTasn1ParseDump(BIO *, unsigned char *, long,
 #endif
 int    GRSTasn1GetX509Name(char *, int, char *, char *,
                            struct GRSTasn1TagList taglist[], int);
-int    GRSTasn1FindField(const char *, char *,
-                   char *,
-                   struct GRSTasn1TagList taglist[], int,
-                   int *);
 
 int    GRSThtcpNOPrequestMake(char **, int *, unsigned int);
 int    GRSThtcpNOPresponseMake(char **, int *, unsigned int);

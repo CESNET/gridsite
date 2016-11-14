@@ -46,6 +46,7 @@
 #include <pwd.h>
 #include <errno.h>
 #include <getopt.h>
+#include <ctype.h>
 
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -63,13 +64,154 @@
 #include <openssl/bio.h>    
 #include <openssl/des.h>    
 #include <openssl/rand.h>
+#include <openssl/ssl.h>
+
+#include <pthread.h>
 #endif
+
+#include <canl.h>
+#include <canl_cred.h>
 
 #include "gridsite.h"
 
 #define GRST_KEYSIZE		1024
 #define GRST_PROXYCACHE		"/../proxycache/"
 #define GRST_BACKDATE_SECONDS	300
+
+#define END_ENTITY_ROBOT_OID "1.2.840.113612.5.2.3.3.1"
+
+static int GRSTx509CreateProxyRequest_int(char **reqtxt, char **keytxt, 
+        char *ocspurl, int keysize);
+static int GRSTx509MakeProxyRequest_int(char **reqtxt, char *proxydir, 
+        char *delegation_id, char *user_dn, int keysize);
+static int GRSTx509ProxyKeyMatch(char **pkfile, char *pkdir, STACK_OF(X509) *certstack); 
+
+static char *
+asn1_string2string(ASN1_STRING *str)
+{
+	BIO *bio;
+	int len, ret;
+	char *result = NULL;
+
+	bio = BIO_new(BIO_s_mem());
+	if (bio == NULL)
+		return NULL;
+
+	ASN1_STRING_print_ex(bio, str, ASN1_STRFLGS_RFC2253);
+
+	len = BIO_pending(bio);
+	if (len <= 0)
+		goto end;
+
+	result = calloc(1, len + 1);
+	if (result == NULL)
+		goto end;
+
+	ret = BIO_read(bio, result, len);
+	if (ret != len) {
+		free(result);
+		result = NULL;
+		goto end;
+	}
+
+end:
+	if (bio)
+		BIO_free(bio);
+
+	return result;
+}
+
+static int
+is_robot_subject(const char *p)
+{
+	if (strlen(p) <= 6)
+		return 0;
+
+	if (strncmp(p, "Robot", 5) != 0)
+		return 0;
+
+	if (('0' <= p[5] && p[5] <= '9') ||
+		('A' <= p[5] && p[5] <= 'Z') ||
+		('a' <= p[5] && p[5] <= 'z'))
+		return 0;
+
+	return 1;
+}
+
+static int
+is_robot_certificate(X509 *cert)
+{
+	int i, ret, found;
+	char *p;
+	char buf[64];
+	X509_NAME_ENTRY *ne;
+	X509_NAME *subject;
+	ASN1_STRING *value;
+	CERTIFICATEPOLICIES *policies = NULL;
+	POLICYINFO *policy;
+
+	subject = X509_get_subject_name(cert);
+	if (subject == NULL)
+		return 0;
+
+	found = 0;
+	i = -1;
+	while ((i = X509_NAME_get_index_by_NID(subject, NID_commonName, i)) >= 0) {
+		ne = X509_NAME_get_entry(subject, i);
+		value = X509_NAME_ENTRY_get_data(ne);
+		p = asn1_string2string(value);
+		if (p == NULL)
+			continue;
+		ret = is_robot_subject(p);
+		free(p);
+		if (ret == 1) {
+			found = 1;
+			break;
+		}
+	}
+	if (!found)
+		return 0;
+
+	policies = X509_get_ext_d2i(cert, NID_certificate_policies, &i, NULL);
+	if (policies == NULL)
+		return 0;
+	found = 0;
+	for (i = 0; i < sk_POLICYINFO_num(policies); i++) {
+		policy = sk_POLICYINFO_value(policies, i);
+		memset(buf, 0, sizeof(buf));
+		OBJ_obj2txt(buf, sizeof(buf), policy->policyid, 1);
+		if (strcmp(buf, END_ENTITY_ROBOT_OID) == 0) {
+			found = 1;
+			break;
+		}
+	}
+	if (!found)
+		return 0;
+
+	return 1;
+}
+
+static GRSTx509Cert *
+add_grst_cred(GRSTx509Cert *last_cred)
+{
+	GRSTx509Cert *cert;
+
+	cert = calloc(1, sizeof(*cert));
+	return cert;
+}
+
+int
+GRSTasn1FindField(const char *oid, char *coords,
+        char *asn1string,
+        struct GRSTasn1TagList taglist[], int lasttag,
+        int *result);
+
+/* Safely initialize OpenSSL digests */
+static void GRSTx509SafeOpenSSLInitialization(void)
+{
+    static pthread_once_t digests_once = PTHREAD_ONCE_INIT;
+    (void) pthread_once(&digests_once, OpenSSL_add_all_digests);
+}
 
 /// Compare X509 Distinguished Name strings
 int GRSTx509NameCmp(char *a, char *b)
@@ -110,6 +252,7 @@ int GRSTx509NameCmp(char *a, char *b)
 
 
 /// Check critical extensions
+/*TODO MBD*/
 int GRSTx509KnownCriticalExts(X509 *cert)
 ///
 /// Returning GRST_RET_OK if all of extensions are known to us or 
@@ -151,7 +294,7 @@ int GRSTx509IsCA(X509 *cert)
 ///
 /// Return GRST_RET_OK if true; GRST_RET_FAILED if not.
 {
-   int idret, purpose_id;
+   int purpose_id;
 
    purpose_id = X509_PURPOSE_get_by_sname("sslclient");
 
@@ -192,7 +335,7 @@ int GRSTx509ChainFree(GRSTx509Chain *chain)
 static int GRSTx509VerifySig(time_t *time1_time, time_t *time2_time,
                              unsigned char *txt, int txt_len,
                              unsigned char *sig, int sig_len, 
-                             X509 *cert, EVP_MD *md_type)
+                             X509 *cert, const EVP_MD *md_type)
 ///
 /// Returns GRST_RET_OK if signature is ok, other values if not.
 {   
@@ -204,7 +347,7 @@ static int GRSTx509VerifySig(time_t *time1_time, time_t *time2_time,
    prvkey = X509_extract_key(cert);
    if (prvkey == NULL) return GRST_RET_FAILED;
             
-   OpenSSL_add_all_digests();
+   GRSTx509SafeOpenSSLInitialization();
 #if OPENSSL_VERSION_NUMBER >= 0x0090701fL
    EVP_MD_CTX_init(&ctx);
    EVP_VerifyInit_ex(&ctx, md_type, NULL);
@@ -230,7 +373,7 @@ static int GRSTx509VerifySig(time_t *time1_time, time_t *time2_time,
            
    voms_service_time2 = 
            GRSTasn1TimeToTimeT(ASN1_STRING_data(X509_get_notAfter(cert)),0);
-          if (voms_service_time2 < *time1_time) 
+          if (voms_service_time2 < *time2_time) 
                              *time2_time = voms_service_time2; 
             
    return GRST_RET_OK ; /* verified */
@@ -249,22 +392,20 @@ static int GRSTx509VerifyVomsSig(time_t *time1_time, time_t *time2_time,
 #define GRST_ASN1_COORDS_VOMS_INFO "-1-1-%d-1"
 #define GRST_ASN1_COORDS_VOMS_HASH "-1-1-%d-2-1"
 #define GRST_ASN1_COORDS_VOMS_SIG  "-1-1-%d-3"
-   int            ret, ihash, isig, iinfo;
+   int           ihash, isig, iinfo;
    char          *certpath, *certpath2, acvomsdn[200], dn_coords[200],
-                  info_coords[200], sig_coords[200], hash_coords[200],
-                 *p;
-   unsigned char *q;
+                  info_coords[200], sig_coords[200], hash_coords[200];
+   const unsigned char *p;
    DIR           *vomsDIR, *vomsDIR2;
    struct dirent *vomsdirent, *vomsdirent2;
    X509          *cert;
-   EVP_PKEY      *prvkey;
    FILE          *fp;
-   EVP_MD_CTX     ctx;
-   EVP_MD	 *md_type = NULL;
+   const EVP_MD  *md_type = NULL;
    struct stat    statbuf;
    time_t         voms_service_time1 = GRST_MAX_TIME_T, voms_service_time2 = 0,
                   tmp_time1, tmp_time2;
    ASN1_OBJECT   *hash_obj = NULL;
+   int           ret;
 
    if ((vomsdir == NULL) || (vomsdir[0] == '\0')) return GRST_RET_FAILED;
 
@@ -296,6 +437,8 @@ static int GRSTx509VerifyVomsSig(time_t *time1_time, time_t *time2_time,
                    taglist[ihash].length+taglist[ihash].headerlength);
 
    md_type = EVP_get_digestbyname(OBJ_nid2sn(OBJ_obj2nid(hash_obj)));
+   if (hash_obj)
+        ASN1_OBJECT_free(hash_obj);
    
    if (md_type == NULL) return GRST_RET_FAILED;
    
@@ -307,7 +450,9 @@ static int GRSTx509VerifyVomsSig(time_t *time1_time, time_t *time2_time,
         {        
           if (vomsdirent->d_name[0] == '.') continue;
         
-          asprintf(&certpath, "%s/%s", vomsdir, vomsdirent->d_name);
+          ret = asprintf(&certpath, "%s/%s", vomsdir, vomsdirent->d_name);
+          if (ret == -1)
+            continue;
           stat(certpath, &statbuf);
           
           if (S_ISDIR(statbuf.st_mode))
@@ -323,8 +468,10 @@ static int GRSTx509VerifyVomsSig(time_t *time1_time, time_t *time2_time,
                 {
                   if (vomsdirent2->d_name[0] == '.') continue;
                   
-                  asprintf(&certpath2, "%s/%s/%s", 
-                           vomsdir, vomsdirent->d_name, vomsdirent2->d_name);
+                  ret = asprintf(&certpath2, "%s/%s/%s",
+                                 vomsdir, vomsdirent->d_name, vomsdirent2->d_name);
+                  if (ret == -1)
+                    continue;
                 
                   fp = fopen(certpath2, "r");
                   GRSTerrorLog(GRST_LOG_DEBUG, 
@@ -432,26 +579,23 @@ static int GRSTx509VerifyVomsSigCert(time_t *time1_time, time_t *time2_time,
 #define GRST_ASN1_COORDS_VOMS_DN   "-1-1-%d-1-3-1-1-1-%%d-1-%%d"
 #define GRST_ASN1_COORDS_VOMS_INFO "-1-1-%d-1"
 #define GRST_ASN1_COORDS_VOMS_SIG  "-1-1-%d-3"
-   int            ret, isig, iinfo, chain_errors = GRST_RET_OK,
+   int            ret, isig, iinfo, chain_errors = GRST_RET_OK, ok = 0,
                   cadn_len, vomsdn_len, lsc_found = 0, ihash;
-   char          *lscpath, dn_coords[200],
-                  info_coords[200], sig_coords[200], *p, *cacertpath,
+   char          *lscpath, *p, *cacertpath,
                  *vodir, *vomscert_cadn, *vomscert_vomsdn, 
                  *lsc_cadn, *lsc_vomsdn;
-   unsigned char *q;
+   const unsigned char *q;
    unsigned long  issuerhash = 0;
    DIR           *voDIR;
    struct dirent *vodirent;
    X509          *cacert = NULL, *vomscert = NULL;
-   EVP_PKEY      *prvkey;
    FILE          *fp;
-   EVP_MD_CTX     ctx;
    struct stat    statbuf;
    time_t         tmp_time;
    ASN1_OBJECT   *hash_obj = NULL;
    char		  coords[200];
-   EVP_MD        *md_type = NULL;
-   time_t	  voms_service_time1, voms_service_time2;
+   const EVP_MD  *md_type = NULL;
+   time_t	  voms_service_time1 = 0, voms_service_time2 = GRST_MAX_TIME_T;
 
    if ((vomsdir == NULL) || (vomsdir[0] == '\0')) return GRST_RET_FAILED;
 
@@ -477,19 +621,23 @@ static int GRSTx509VerifyVomsSigCert(time_t *time1_time, time_t *time2_time,
    snprintf(coords, sizeof(coords), GRST_ASN1_COORDS_VOMS_SIG, acnumber);
    isig  = GRSTasn1SearchTaglist(taglist, lasttag, coords);
 
-   if ((iinfo < 0) || (ihash < 0) || (isig < 0)) return GRST_RET_FAILED;
+   if ((iinfo < 0) || (ihash < 0) || (isig < 0)) goto end;
 
    q = &asn1string[taglist[ihash].start];
    d2i_ASN1_OBJECT(&hash_obj, &q,
 		   taglist[ihash].length+taglist[ihash].headerlength);
 
    md_type = EVP_get_digestbyname(OBJ_nid2sn(OBJ_obj2nid(hash_obj)));
-   if (md_type == NULL) return GRST_RET_FAILED;
+   if (hash_obj)
+        ASN1_OBJECT_free(hash_obj);
+   if (md_type == NULL) goto end;
 
    /* check issuer CA certificate */
 
    issuerhash = X509_NAME_hash(X509_get_issuer_name(vomscert));
-   asprintf(&cacertpath, "%s/%.8x.0", capath, issuerhash);
+   ret = asprintf(&cacertpath, "%s/%.8lx.0", capath, issuerhash);
+   if (ret == -1)
+      goto end;
 
    /* check voms cert DN matches DN from AC */
 
@@ -500,7 +648,7 @@ static int GRSTx509VerifyVomsSigCert(time_t *time1_time, time_t *time2_time,
        free(vomscert_vomsdn);
        
        GRSTerrorLog(GRST_LOG_DEBUG, "Included VOMS cert DN does not match AC issuer DN!");
-       return GRST_RET_FAILED;     
+       goto end;
      }
 
    free(vomscert_vomsdn);
@@ -510,7 +658,7 @@ static int GRSTx509VerifyVomsSigCert(time_t *time1_time, time_t *time2_time,
    fp = fopen(cacertpath, "r");
    free(cacertpath);
 
-   if (fp == NULL) return GRST_RET_FAILED;
+   if (fp == NULL) goto end;
    else
      {
        cacert = PEM_read_X509(fp, NULL, NULL, NULL);
@@ -522,7 +670,7 @@ static int GRSTx509VerifyVomsSigCert(time_t *time1_time, time_t *time2_time,
        else
          {         
            GRSTerrorLog(GRST_LOG_DEBUG, " Failed to load CA root cert file");
-           return GRST_RET_FAILED;
+           goto end;
          }
      }
    
@@ -552,12 +700,17 @@ static int GRSTx509VerifyVomsSigCert(time_t *time1_time, time_t *time2_time,
    vomscert_cadn = X509_NAME_oneline(X509_get_issuer_name(vomscert),NULL,0);
 
 
-   if (ret != X509_V_OK) return (chain_errors | GRST_CERT_BAD_SIG);
+   if (ret != X509_V_OK) {
+     chain_errors |= GRST_CERT_BAD_SIG;
+     goto end;
+   }
 
-   asprintf(&vodir, "%s/%s", vomsdir, voname);
+   ret = asprintf(&vodir, "%s/%s", vomsdir, voname);
+   if (ret == -1)
+     goto end;
    
    voDIR = opendir(vodir);
-   if (voDIR == NULL) return GRST_RET_FAILED;
+   if (voDIR == NULL) goto end;
    
    cadn_len   = strlen(vomscert_cadn);
    vomsdn_len = strlen(acvomsdn);
@@ -573,7 +726,9 @@ static int GRSTx509VerifyVomsSigCert(time_t *time1_time, time_t *time2_time,
           
           if (strcmp(&(vodirent->d_name[strlen(vodirent->d_name)-4]), ".lsc") != 0) continue;
         
-          asprintf(&lscpath, "%s/%s", vodir, vodirent->d_name);
+          ret = asprintf(&lscpath, "%s/%s", vodir, vodirent->d_name);
+          if (ret == -1)
+            goto end;
           stat(lscpath, &statbuf);
 
           GRSTerrorLog(GRST_LOG_DEBUG, "Check LSC file %s for %s,%s",
@@ -631,13 +786,15 @@ static int GRSTx509VerifyVomsSigCert(time_t *time1_time, time_t *time2_time,
    if (voms_service_time1 > *time1_time) *time1_time = voms_service_time1;
    if (voms_service_time2 < *time2_time) *time2_time = voms_service_time2;
 
+   ok = 1;
+
 end:
    if (cacert)
 	X509_free(cacert);
    if (vomscert)
 	X509_free(vomscert);
 
-   return (chain_errors ? GRST_RET_FAILED : GRST_RET_OK);
+   return (!ok || chain_errors ? GRST_RET_FAILED : GRST_RET_OK);
 }
 
 /// Get the VOMS attributes in the given extension
@@ -726,6 +883,8 @@ static int GRSTx509ChainVomsAdd(GRSTx509Cert **grst_cert,
 
         if (strcmp(acissuerserial, user_cert->serial) != 0)
                                chain_errors |= GRST_CERT_BAD_CHAIN;
+        if (acissuerserial)
+            free(acissuerserial);
 
         /* get times */
 
@@ -767,8 +926,10 @@ static int GRSTx509ChainVomsAdd(GRSTx509Cert **grst_cert,
                  (j < taglist[itag].length);
                  ++j) ;
                                
-            asprintf(&voname, "%.*s", j-1, 
+            ret = asprintf(&voname, "%.*s", j-1,
                      &(asn1string[taglist[itag].start+taglist[itag].headerlength+1]));
+            if (ret == -1)
+                return GRST_RET_FAILED;
           }
 
         snprintf(vomscert_coords, sizeof(vomscert_coords), 
@@ -811,22 +972,29 @@ static int GRSTx509ChainVomsAdd(GRSTx509Cert **grst_cert,
 
              if (itag > -1)
                {
-                 (*grst_cert)->next = malloc(sizeof(GRSTx509Cert));
-                 *grst_cert = (*grst_cert)->next;
-                 bzero(*grst_cert, sizeof(GRSTx509Cert));
-               
-                 (*grst_cert)->notbefore = time1_time;
-                 (*grst_cert)->notafter  = time2_time;
-                 asprintf(&((*grst_cert)->value), "%.*s",
-                          taglist[itag].length,
-                          &asn1string[taglist[itag].start+
-                                      taglist[itag].headerlength]);
-                                      
-                 (*grst_cert)->errors = chain_errors; /* ie may be invalid */
-                 (*grst_cert)->type = GRST_CERT_TYPE_VOMS;
-                 (*grst_cert)->issuer = strdup(acvomsdn);
-                 (*grst_cert)->dn = strdup(user_cert->dn);
-		 (*grst_cert)->delegation = delegation;
+                 GRSTx509Cert *cred;
+
+                 cred = add_grst_cred(*grst_cert);
+                 if (cred == NULL)
+                     return GRST_RET_FAILED;
+
+                 cred->notbefore = time1_time;
+                 cred->notafter  = time2_time;
+                 ret = asprintf(&cred->value, "%.*s",
+                                taglist[itag].length,
+                                &asn1string[taglist[itag].start+
+                                taglist[itag].headerlength]);
+                 if (ret == -1) {
+                     free(cred);
+                     return GRST_RET_FAILED;
+                 }
+                 cred->errors = chain_errors; /* ie may be invalid */
+                 cred->type = GRST_CERT_TYPE_VOMS;
+                 cred->issuer = strdup(acvomsdn);
+                 cred->dn = strdup(user_cert->dn);
+                 cred->delegation = delegation;
+                 (*grst_cert)->next = cred;
+                 (*grst_cert) = cred;
                }
              else break;
            }
@@ -834,20 +1002,9 @@ static int GRSTx509ChainVomsAdd(GRSTx509Cert **grst_cert,
       
    return GRST_RET_OK;
 }
-
-/// Check certificate chain for GSI proxy acceptability.
-int GRSTx509ChainLoadCheck(GRSTx509Chain **chain, 
+int GRSTx509ChainLoad(GRSTx509Chain **chain,
                            STACK_OF(X509) *certstack, X509 *lastcert,
                            char *capath, char *vomsdir)
-///
-/// Returns GRST_RET_OK if valid; OpenSSL X509 errors otherwise.
-///
-/// The GridSite version handles old and new style Globus proxies, and
-/// proxies derived from user certificates issued with "X509v3 Basic
-/// Constraints: CA:FALSE" (eg UK e-Science CA)
-///
-/// TODO: we do not yet check ProxyCertInfo and ProxyCertPolicy extensions
-///       (although via GRSTx509KnownCriticalExts() we can accept them.)
 {
    X509 *cert;                  /* Points to the current cert in the loop */
    X509 *cacert = NULL;         /* The CA root cert */
@@ -870,6 +1027,7 @@ int GRSTx509ChainLoadCheck(GRSTx509Chain **chain,
    X509_EXTENSION *ex;
    time_t now;
    GRSTx509Cert *grst_cert, *new_grst_cert, *user_cert = NULL;
+   int is_robot = 0;
    
    GRSTerrorLog(GRST_LOG_DEBUG, "GRSTx509ChainLoadCheck() starts");
 
@@ -894,7 +1052,11 @@ int GRSTx509ChainLoadCheck(GRSTx509Chain **chain,
    cert = sk_X509_value(certstack, depth - 1);
    subjecthash = X509_NAME_hash(X509_get_subject_name(cert));
    issuerhash = X509_NAME_hash(X509_get_issuer_name(cert));
-   asprintf(&cacertpath, "%s/%.8x.0", capath, issuerhash);
+   ret = asprintf(&cacertpath, "%s/%.8lx.0", capath, issuerhash);
+   if (ret == -1) {
+       *chain = NULL;
+       return GRST_RET_FAILED;
+   }
    
    GRSTerrorLog(GRST_LOG_DEBUG, "Look for CA root file %s", cacertpath);
 
@@ -1036,7 +1198,7 @@ int GRSTx509ChainLoadCheck(GRSTx509Chain **chain,
                CA: this is really for lousy CAs that dont create 
                proper v3 root certificates */
                 
-            if (i == depth) IsCA == TRUE;
+            if (i == depth) IsCA = TRUE;
             else IsCA = (GRSTx509IsCA(cert) == GRST_RET_OK);
 
             /* If any forebear certificate is not allowed to sign we must 
@@ -1054,6 +1216,7 @@ int GRSTx509ChainLoadCheck(GRSTx509Chain **chain,
                     user_cert = new_grst_cert;
                     new_grst_cert->delegation 
                        = (lastcert == NULL) ? i : i + 1;
+                    is_robot = is_robot_certificate(cert);
                   }
               } 
             else 
@@ -1130,173 +1293,78 @@ int GRSTx509ChainLoadCheck(GRSTx509Chain **chain,
       } /* end of for loop */
 
    if (cacert != NULL) X509_free(cacert);
+
+   if (is_robot) {
+	   GRSTx509Cert *cred;
+
+	   cred = add_grst_cred(grst_cert);
+	   if (cred == NULL)
+		   return GRST_RET_FAILED;
+	   cred->type = GRST_CERT_TYPE_ROBOT;
+	   cred->dn = strdup(user_cert->dn);
+	   grst_cert->next = cred;
+	   grst_cert = cred;
+   }
  
    return GRST_RET_OK;
 }
 
 /// Check certificate chain for GSI proxy acceptability.
-int GRSTx509CheckChain(int *first_non_ca, X509_STORE_CTX *ctx)
+int GRSTx509ChainLoadCheck(GRSTx509Chain **chain, 
+                           STACK_OF(X509) *certstack, X509 *lastcert,
+                           char *capath, char *vomsdir)
 ///
-/// Returns X509_V_OK/GRST_RET_OK if valid; OpenSSL X509 errors otherwise.
-///
-/// Inspired by GSIcheck written by Mike Jones, SVE, Manchester Computing,
-/// The University of Manchester.
+/// Returns GRST_RET_OK if valid; caNl errors otherwise.
 ///
 /// The GridSite version handles old and new style Globus proxies, and
 /// proxies derived from user certificates issued with "X509v3 Basic
 /// Constraints: CA:FALSE" (eg UK e-Science CA)
 ///
-/// We do not check chain links between certs here: this is done by
-/// GRST_check_issued/X509_check_issued in mod_ssl's ssl_engine_init.c
-///
 /// TODO: we do not yet check ProxyCertInfo and ProxyCertPolicy extensions
 ///       (although via GRSTx509KnownCriticalExts() we can accept them.)
 {
-   STACK_OF(X509) *certstack;   /* Points to the client's cert chain */
-   X509 *cert;                  /* Points to the client's cert */
-   int depth;                   /* Depth of cert chain */
-   size_t len,len2;             /* Lengths of issuer and cert DN */
-   int IsCA;                    /* Holds whether cert is allowed to sign */
-   int prevIsCA;                /* Holds whether previous cert in chain is 
-                                   allowed to sign */
-   int prevIsLimited;		/* previous cert was proxy and limited */
-   int i,j;                     /* Iteration variables */
-   char *cert_DN;               /* Pointer to current-certificate-in-chain's 
-                                   DN */
-   char *issuer_DN;             /* Pointer to 
-                                   issuer-of-current-cert-in-chain's DN */
-   char *proxy_part_DN;         /* Pointer to end part of current-cert-in-chain
-                                   maybe eg "/CN=proxy" */
-   time_t now;
-   
-   time(&now);
+    canl_ctx cctx = NULL;
+    int err = 0;
 
-   *first_non_ca = 0; /* set to something predictable if things fail */
+    cctx = canl_create_ctx();
+    if (cctx == NULL)
+        return GRST_RET_FAILED;
 
-   /* Check for context */
-   if (!ctx) return X509_V_ERR_INVALID_CA; 
-     /* Can't GSI-verify if there is no context. Here and throughout this
-        function we report all errors as X509_V_ERR_INVALID_CA. */
- 
-   /* Set necessary preliminary values */
-   IsCA          = TRUE;           /* =prevIsCA - start from a CA */
-   prevIsLimited = 0;
- 
-   /* Get the client cert chain */
-   certstack = X509_STORE_CTX_get_chain(ctx);     /* Get the client's chain  */
-   depth     = sk_X509_num(certstack);            /* How deep is that chain? */
- 
-   /* Check the client chain */
-   for (i=depth-1; i >= 0; --i) 
-      /* loop through client-presented chain starting at CA end */
-      {
-        prevIsCA=IsCA;
+    /* Use caNl to check the certificate*/
+    err = canl_verify_chain(cctx, NULL, certstack, capath);
 
-        /* Check for X509 certificate and point to it with 'cert' */
-        if (cert = sk_X509_value(certstack, i))
-          {
-            /* we check times and reject immediately if invalid */
-          
-            if (now <
-           GRSTasn1TimeToTimeT(ASN1_STRING_data(X509_get_notBefore(cert)),0))
-                  return X509_V_ERR_INVALID_CA;
-                
-            if (now > 
-           GRSTasn1TimeToTimeT(ASN1_STRING_data(X509_get_notAfter(cert)),0))
-                  return X509_V_ERR_INVALID_CA;
+    /* Then fetch info about chain into grst structures */
+    GRSTx509ChainLoad(chain, certstack, lastcert, capath, vomsdir);
 
-            /* If any forebear certificate is not allowed to sign we must 
-               assume all decendents are proxies and cannot sign either */
-            if (prevIsCA)
-              {
-                /* always treat the first cert (from the CA files) as a CA */
-                if (i == depth-1) IsCA = TRUE;
-                /* check if this cert is valid CA for signing certs */
-                else IsCA = (GRSTx509IsCA(cert) == GRST_RET_OK);
-                
-                if (!IsCA) *first_non_ca = i;
-              } 
-            else 
-              {
-                IsCA = FALSE; 
-                /* Force proxy check next iteration. Important because I can
-                   sign any CA I create! */
-              }
- 
-            cert_DN   = X509_NAME_oneline(X509_get_subject_name(cert),NULL,0);
-            issuer_DN = X509_NAME_oneline(X509_get_issuer_name(cert),NULL,0);
-            len       = strlen(cert_DN);
-            len2      = strlen(issuer_DN);
+    canl_free_ctx(cctx);
 
-            /* issuer didn't have CA status, so this is (at best) a proxy:
-               check for bad proxy extension*/
+    return err;
+}
 
-            if (!prevIsCA)
-              {
-                if (prevIsLimited) /* we reject proxies of limited proxies! */
-                                return X509_V_ERR_INVALID_CA;
-              
-                /* User not allowed to sign shortened DN */
-                if (len2 > len) return X509_V_ERR_INVALID_CA;                           
-                  
-                /* Proxy subject must begin with issuer. */
-                if (strncmp(cert_DN, issuer_DN, len2) != 0) 
-                              return X509_V_ERR_INVALID_CA;
+/* Check certificate chain for GSI proxy acceptability. */
+int GRSTx509CheckChain(int *first_non_ca, X509_STORE_CTX *store_ctx)
+/* Returns X509_V_OK/GRST_RET_OK if valid; caNl errors otherwise.
+   We do not check chain links between certs here: this is done by
+   GRST_check_issued/X509_check_issued in mod_ssl's ssl_engine_init.c */
+{
+    canl_err_code ret = 0;      /* Canl error code */
 
-                /* Set pointer to end of base DN in cert_DN */
-                proxy_part_DN = &cert_DN[len2];
+    canl_ctx cctx = NULL;
 
-                /* First attempt at support for Old and New style GSI
-                   proxies: /CN=anything is ok for now */
-                if (strncmp(proxy_part_DN, "/CN=", 4) != 0)
-                                         return X509_V_ERR_INVALID_CA;
-                                         
-                if ((strncmp(proxy_part_DN, "/CN=limited proxy", 17) == 0) &&
-                    (i > 0)) prevIsLimited = 1; /* ready for next cert ... */
-              } 
-          }
-      }
+    /* Look for the store context */
+    if (!store_ctx)
+        return X509_V_ERR_INVALID_CA; /* TODO really not clever*/
 
-   /* Check cert whose private key is being used by client. If previous in 
-      chain is not allowed to be a CA then need to check this final cert for 
-      valid proxy-icity too */
-   if (!prevIsCA) 
-     { 
-       if (prevIsLimited) return X509_V_ERR_INVALID_CA;
-        /* we do not accept proxies signed by limited proxies */
-     
-       if (cert = sk_X509_value(certstack, 0)) 
-         {
-           /* Load DN & length of DN and either its issuer or the
-              first-bad-issuer-in-chain */
-           cert_DN = X509_NAME_oneline(X509_get_subject_name(cert), NULL, 0);
-           issuer_DN = X509_NAME_oneline(X509_get_issuer_name(cert),  NULL, 0);
-           len = strlen(cert_DN);
-           len2 = strlen(issuer_DN);
- 
-           /* issuer didn't have CA status, check for bad proxy extension */
+    cctx = canl_create_ctx();
+    if (cctx == NULL)
+        return GRST_RET_FAILED;
 
-           if (len2 > len) return X509_V_ERR_INVALID_CA;
-             /* User not allowed to sign shortened DN */
+    /* Verify chain using caNl, without openssl part */
+    ret = canl_verify_chain_wo_ossl(cctx, NULL, store_ctx);
 
-           if (strncmp(cert_DN, issuer_DN, len2) != 0) 
-                           return X509_V_ERR_INVALID_CA;
-             /* Proxy subject must begin with issuer. */
+    canl_free_ctx(cctx);
 
-           proxy_part_DN = &cert_DN[len2];                         
-             /* Set pointer to end of DN base in cert_DN */
-             
-           /* Remander of subject must be either "/CN=proxy" or 
-              "/CN=limited proxy" (or /CN=XYZ for New style GSI) */
-              
-           /* First attempt at support for Old and New style GSI
-              proxies: /CN=anything is ok for now. */
-           if (strncmp(proxy_part_DN, "/CN=", 4) != 0)
-                                   return X509_V_ERR_INVALID_CA;
-         }
-     }
- 
-   return X509_V_OK; /* this is also GRST_RET_OK, of course - by choice */
+    return ret; /* this is also GRST_RET_OK, of course - by choice */
 }
 
 /// Example VerifyCallback routine
@@ -1350,10 +1418,9 @@ int GRSTx509ParseVomsExt(int *lastcred, int maxcreds, size_t credlen,
 #define GRST_ASN1_COORDS_TIME1   "-1-1-%d-1-6-1"
 #define GRST_ASN1_COORDS_TIME2   "-1-1-%d-1-6-2"
    ASN1_OCTET_STRING *asn1data;
-   char              *asn1string, acissuerdn[200], acvomsdn[200],
+   char              *asn1string, acissuerdn[200],
                       dn_coords[200], fqan_coords[200], time1_coords[200],
                       time2_coords[200], serial_coords[200];
-   unsigned char     *p;
    long               asn1length;
    int                lasttag=-1, itag, i, acnumber = 1;
    char              *acissuerserial = NULL;
@@ -1407,6 +1474,8 @@ int GRSTx509ParseVomsExt(int *lastcred, int maxcreds, size_t credlen,
           }
         
         if (strcmp(acissuerserial, ucserial) != 0) continue;
+        if (acissuerserial)
+            free(acissuerserial);
 
         if (GRSTx509VerifyVomsSig(&time1_time, &time2_time,
                              asn1string, taglist, lasttag, vomsdir, acnumber)
@@ -1467,7 +1536,6 @@ int GRSTx509GetVomsCreds(int *lastcred, int maxcreds, size_t credlen,
    char s[80], *ucserial;
    unsigned char  *ucuser, *ucissuer;
    X509_EXTENSION *ex;
-   ASN1_STRING    *asn1str;
    X509           *cert;
    time_t          time1_time = 0, time2_time = 0, uctime1_time, uctime2_time;
 
@@ -1507,6 +1575,9 @@ int GRSTx509GetVomsCreds(int *lastcred, int maxcreds, size_t credlen,
              }
          }
     }
+
+    if (ucserial)
+        free(ucserial);
 
    return GRST_RET_OK;
 }
@@ -1582,7 +1653,7 @@ int GRSTx509CompactCreds(int *lastcred, int maxcreds, size_t credlen,
 /// Function returns GRST_RET_OK on success, or GRST_RET_FAILED if
 /// some inconsistency found in certificate.
 {   
-   int   i, j, delegation = 0;
+   int   i, delegation = 0;
    char  credtemp[credlen+1];
    X509 *cert, *usercert = NULL, *gsiproxycert = NULL;
 
@@ -1691,7 +1762,7 @@ int GRSTx509MakeProxyCert(char **proxychain, FILE *debugfp,
 /// errors are output to that file pointer. The proxy will expired in
 /// the given number of minutes starting from the current time.
 {
-  char *ptr, *certchain, s[41];
+  char *ptr = NULL, *certchain = NULL;
   static unsigned char pci_str[] = { 0x30, 0x0c, 0x30, 0x0a, 0x06, 0x08,
     0x2b, 0x06, 0x01, 0x05, 0x05, 0x07, 0x15, 0x01, 0 },
     kyu_str[] = { 0x03, 0x02, 0x03, 
@@ -1699,338 +1770,276 @@ int GRSTx509MakeProxyCert(char **proxychain, FILE *debugfp,
                   X509v3_KU_KEY_ENCIPHERMENT  | 
                   X509v3_KU_KEY_AGREEMENT, 
                   0 };
-  int i, ncerts, any_rfc_proxies = 0;
-  long serial = 1234, ptrlen;
-  EVP_PKEY *pkey, *CApkey;
-  const EVP_MD *digest;
-  X509 **certs = NULL;
-  X509_REQ *req;
-  X509_NAME *name, *CAsubject, *newsubject;
-  X509_NAME_ENTRY *ent;
-  ASN1_OBJECT *pci_obj = NULL, *kyu_obj;
-  ASN1_OCTET_STRING *pci_oct, *kyu_oct;
-  X509_EXTENSION *pci_ex, *kyu_ex;
-  FILE *fp;
-  BIO *reqmem, *certmem;
-  time_t notAfter;
+  int i = 0, ncerts = 0, any_rfc_proxies = 0;
+  long ptrlen = 0;
+    EVP_PKEY *pkey = NULL, *signer_pkey = NULL;
+    X509 **certs = NULL;
+    X509_REQ *req = NULL;
+    ASN1_OBJECT *pci_obj = NULL, *kyu_obj = NULL;
+    ASN1_OCTET_STRING *pci_oct = NULL, *kyu_oct = NULL;
+    FILE *fp = NULL;
+    BIO *reqmem = NULL, *certmem = NULL;
+    canl_ctx ctx = NULL;
+    int retval = 1, ret = 0;
+    canl_cred proxy_cert = NULL, signer = NULL;
 
-  /* read in the request */
-  reqmem = BIO_new(BIO_s_mem());
-  BIO_puts(reqmem, reqtxt);
-    
-  if (!(req = PEM_read_bio_X509_REQ(reqmem, NULL, NULL, NULL)))
-    {
-      mpcerror(debugfp,
-              "GRSTx509MakeProxyCert(): error reading request from BIO memory\n");
-      BIO_free(reqmem);
-      return GRST_RET_FAILED;
+    ctx = canl_create_ctx();
+    if (ctx == NULL) {
+        fprintf(debugfp, "GRSTx509MakeProxyCert(): Failed to create"
+               " caNl library context\n");
+        return 1;
     }
     
-  BIO_free(reqmem);
+    /* read in the request */
+    reqmem = BIO_new(BIO_s_mem());
+    BIO_puts(reqmem, reqtxt);
 
-  /* verify signature on the request */
-  if (!(pkey = X509_REQ_get_pubkey(req)))
-    {
-      mpcerror(debugfp,
-              "GRSTx509MakeProxyCert(): error getting public key from request\n");
-      
-      X509_REQ_free(req);
-      return GRST_RET_FAILED;
+    if (!(req = PEM_read_bio_X509_REQ(reqmem, NULL, NULL, NULL))) {
+        fprintf(debugfp, "GRSTx509MakeProxyCert(): error reading"
+                " request from BIO memory\n");
+        goto end;
     }
-
-  if (X509_REQ_verify(req, pkey) != 1)
-    {
-      mpcerror(debugfp,
-            "GRSTx509MakeProxyCert(): error verifying signature on certificate\n");
-
-      X509_REQ_free(req);
-      return GRST_RET_FAILED;
-    }
+    BIO_free(reqmem);
+    reqmem = NULL;
     
-  /* read in the signing certificate */
-  if (!(fp = fopen(cert, "r")))
-    {
-      mpcerror(debugfp,
-            "GRSTx509MakeProxyCert(): error opening signing certificate file\n");
-
-      X509_REQ_free(req);
-      return GRST_RET_FAILED;
-    }    
-
-  ncerts = 1;
-  while (1)
-  {
-   certs = (X509 **) realloc(certs, (sizeof(X509 *)) * (ncerts+1));
-   if (certs == NULL)
-       mpcerror(debugfp,
-               "GRSTx509MakeProxyCert(): no memory\n");
-   if ((certs[ncerts] = PEM_read_X509(fp, NULL, NULL, NULL)) == NULL)
-       break;
-   ncerts++;
-
-  }
-
-  if (ncerts == 1) /* zeroth cert with be new proxy cert */
-    {
-      mpcerror(debugfp,
-            "GRSTx509MakeProxyCert(): error reading signing certificate file\n");
-
-      X509_REQ_free(req);
-      return GRST_RET_FAILED;
-    }    
-
-  fclose(fp);
-  fp = NULL;
-  
-  CAsubject = X509_get_subject_name(certs[1]);
-
-  /* read in the CA private key */
-  if (!(fp = fopen(key, "r")))
-    {
-      mpcerror(debugfp,
-            "GRSTx509MakeProxyCert(): error reading signing private key file\n");
-
-      X509_REQ_free(req);
-      return GRST_RET_FAILED;
-    }    
-
-  if (!(CApkey = PEM_read_PrivateKey(fp, NULL, NULL, NULL)))
-    {
-      mpcerror(debugfp,
-            "GRSTx509MakeProxyCert(): error reading signing private key in file\n");
-
-      X509_REQ_free(req);
-      return GRST_RET_FAILED;
-    }    
-
-  fclose(fp);
-  
-  /* get subject name */
-  if (!(name = X509_REQ_get_subject_name(req)))
-    {
-      mpcerror(debugfp,
-            "GRSTx509MakeProxyCert(): error getting subject name from request\n");
-
-      X509_REQ_free(req);
-      return GRST_RET_FAILED;
-    }    
-
-  /* create new certificate */
-  if (!(certs[0] = X509_new()))
-    {
-      mpcerror(debugfp,
-            "GRSTx509MakeProxyCert(): error creating X509 object\n");
-
-      X509_REQ_free(req);
-      return GRST_RET_FAILED;
-    }    
-
-  /* set version number for the certificate (X509v3) and the serial number   
-     
-     We now use 2 = v3 for the GSI proxy, rather than the old Globus 
-     behaviour of 3 = v4. See Savannah Bug #53721 */
-     
-  if (X509_set_version(certs[0], 2L) != 1)
-    {
-      mpcerror(debugfp,
-            "GRSTx509MakeProxyCert(): error setting certificate version\n");
-
-      X509_REQ_free(req);
-      return GRST_RET_FAILED;
-    }    
-
-  ASN1_INTEGER_set(X509_get_serialNumber(certs[0]), (long) time(NULL));
-
-  if (!(name = X509_get_subject_name(certs[1])))
-    {
-      mpcerror(debugfp,
-      "GRSTx509MakeProxyCert(): error getting subject name from CA certificate\n");
-
-      X509_REQ_free(req);
-      return GRST_RET_FAILED;
-    }    
-
-  if (X509_set_issuer_name(certs[0], name) != 1)
-    {
-      mpcerror(debugfp,
-      "GRSTx509MakeProxyCert(): error setting issuer name of certificate\n");
-
-      X509_REQ_free(req);
-      return GRST_RET_FAILED;
-    }    
-
-  /* set public key in the certificate */
-  if (X509_set_pubkey(certs[0], pkey) != 1)
-    {
-      mpcerror(debugfp,
-      "GRSTx509MakeProxyCert(): error setting public key of the certificate\n");
-
-      X509_REQ_free(req);
-      return GRST_RET_FAILED;
-    }    
-
-  /* set duration for the certificate */
-  if (!(X509_gmtime_adj(X509_get_notBefore(certs[0]), -GRST_BACKDATE_SECONDS)))
-    {
-      mpcerror(debugfp,
-      "GRSTx509MakeProxyCert(): error setting beginning time of the certificate\n");
-
-      X509_REQ_free(req);
-      return GRST_RET_FAILED;
-    }    
-
-  if (!(X509_gmtime_adj(X509_get_notAfter(certs[0]), 60 * minutes)))
-    {
-      mpcerror(debugfp,
-      "GRSTx509MakeProxyCert(): error setting ending time of the certificate\n");
-
-      X509_REQ_free(req);
-      return GRST_RET_FAILED;
+    /* load req into canl cred. context */
+    ret = canl_cred_new(ctx, &proxy_cert);
+    if (ret) {
+        fprintf(debugfp, "GRSTx509MakeProxyCert(): caNl cred. context"
+                " cannot be created: %s\n", canl_get_error_message(ctx));
+        goto end;
     }
-    
-  /* go through chain making sure this proxy is not longer lived */
+    ret = canl_cred_load_req(ctx, proxy_cert, req);
+    if (ret) {
+        fprintf(stderr, "GRSTx509MakeProxyCert(): Failed to load certificate "
+                "request container: %s\n", canl_get_error_message(ctx));
+        goto end;
+    }
 
-  pci_obj = OBJ_txt2obj(GRST_PROXYCERTINFO_OID, 0);
+    /*TODO MP Should proxy sognature verification be in caN???*/
+    /* verify signature on the request */
+    if (!(pkey = X509_REQ_get_pubkey(req))) {
+        mpcerror(debugfp, "GRSTx509MakeProxyCert(): error getting public"
+                " key from request\n");
+    }
 
-  notAfter = 
-     GRSTasn1TimeToTimeT(ASN1_STRING_data(X509_get_notAfter(certs[0])), 0);
-     
-  for (i=1; i < ncerts; ++i)
-     {
-       if (notAfter > 
-           GRSTasn1TimeToTimeT(ASN1_STRING_data(X509_get_notAfter(certs[i])),
-                               0))
-         {
-           notAfter = 
-            GRSTasn1TimeToTimeT(ASN1_STRING_data(X509_get_notAfter(certs[i])),
-                                0);
-            
-           ASN1_UTCTIME_set(X509_get_notAfter(certs[0]), notAfter);
-         }
-         
-       if (X509_get_ext_by_OBJ(certs[i], pci_obj, -1) > 0) 
-         any_rfc_proxies = 1;
-     }
+    if (X509_REQ_verify(req, pkey) != 1) {
+        mpcerror(debugfp, "GRSTx509MakeProxyCert(): error verifying signature"
+                " on certificate\n");
+        goto end;
+    }
+    EVP_PKEY_free(pkey);
+    pkey = NULL;
+    X509_REQ_free(req);
+    req = NULL;
+
+    /* read in the signing certificate */
+    if (!(fp = fopen(cert, "r"))) {
+        mpcerror(debugfp, "GRSTx509MakeProxyCert(): error opening"
+                " signing certificate file\n");
+        goto end;
+    }
+    /* load req signer cert into caNl cred. context*/
+    ret = canl_cred_new(ctx, &signer);
+    if (ret) {
+        fprintf(debugfp, "GRSTx509MakeProxyCert(): caNl cred. context"
+                " cannot be created: %s\n", canl_get_error_message(ctx));
+        goto end;
+    }
+
+    ncerts = 1;
+    while (1)
+    {
+        certs = (X509 **) realloc(certs, (sizeof(X509 *)) * (ncerts+1));
+        if (certs == NULL)
+            mpcerror(debugfp,
+                "GRSTx509MakeProxyCert(): no memory\n");
+        if ((certs[ncerts] = PEM_read_X509(fp, NULL, NULL, NULL)) == NULL)
+            break;
+        ncerts++;
+    }
+    if (certs != NULL)
+        certs[0] = NULL;
+
+    /* zeroth cert will be new proxy cert */
+    if (ncerts == 1) {
+        mpcerror(debugfp, "GRSTx509MakeProxyCert(): error reading"
+                " signing certificate file\n");
+        goto end;
+    }
+    fclose(fp);
+    fp = NULL;
+
+    /* read in the signer certificate*/
+    ret = canl_cred_load_cert_file(ctx, signer, cert);
+    if (ret){
+        fprintf(stderr, "[DELEGATION] Cannot load signer's certificate"
+                ": %s\n", canl_get_error_message(ctx));
+        goto end;
+    }
+
+
+    /* read in the signer private key */
+    if (!(fp = fopen(key, "r"))) {
+        mpcerror(debugfp, "GRSTx509MakeProxyCert(): error reading" 
+                " signing private key file\n");
+        goto end;
+    }    
+
+    if (!(signer_pkey = PEM_read_PrivateKey(fp, NULL, NULL, NULL))) {
+        mpcerror(debugfp, "GRSTx509MakeProxyCert(): error reading "
+                "signing private key in file\n");
+        goto end;
+    }    
+    fclose(fp);
+    fp = NULL;
+    canl_cred_load_priv_key(ctx, signer, signer_pkey);
+    EVP_PKEY_free(signer_pkey);
+    signer_pkey = NULL;
+
+    /*TODO MP Compare with VOMS in caNl (orig gridsite proxyver = 2L)*/
+    /* set version number for the certificate (X509v3) and the serial number
+       We now use 2 = v3 for the GSI proxy, rather than the old Globus
+       behaviour of 3 = v4. See Savannah Bug #53721 */
+
+    /* TODO MP what about serial numbers? Should caNl provide API function for
+     * setting custom serial number?*/
+    /*  ASN1_INTEGER_set(X509_get_serialNumber(certs[0]), (long) time(NULL));*/
+
+    /* TODO MP use some default timeout?*/
+    if (minutes >= 0) {
+        ret = canl_cred_set_lifetime(ctx, proxy_cert, 60 * minutes);
+        if (ret)
+            fprintf(debugfp, "[DELEGATION] Failed set new cert lifetime"
+                    ": %s\n", canl_get_error_message(ctx));
+    }
+
+    /* go through chain making sure this proxy is not longer lived */
+
+    pci_obj = OBJ_txt2obj(GRST_PROXYCERTINFO_OID, 0);
+
+    /* TODO MP is this necessary? caNl test if new proxy timeout
+     * is longer than signer cert proxy timeout */
+    for (i=1; i < ncerts; ++i)
+        if (X509_get_ext_by_OBJ(certs[i], pci_obj, -1) > -1) 
+            any_rfc_proxies = 1;
 
    /* if any earlier proxies are RFC 3820, then new proxy must be 
       an RFC 3820 proxy too with the required extensions */ 
-   if (any_rfc_proxies)
-    {
-      /* key usage */
-      kyu_obj = OBJ_txt2obj(GRST_KEYUSAGE_OID, 0);
-      kyu_ex = X509_EXTENSION_new();
-      
-      X509_EXTENSION_set_object(kyu_ex, kyu_obj);
-      ASN1_OBJECT_free(kyu_obj);
-      X509_EXTENSION_set_critical(kyu_ex, 1);
+    if (any_rfc_proxies) {
+        X509_EXTENSION *pci_ex = NULL, *kyu_ex = NULL;
+        /* key usage */
+        kyu_obj = OBJ_txt2obj(GRST_KEYUSAGE_OID, 0);
+        kyu_ex = X509_EXTENSION_new();
 
-      kyu_oct = ASN1_OCTET_STRING_new();
-      ASN1_OCTET_STRING_set(kyu_oct, kyu_str, strlen(kyu_str));
-      X509_EXTENSION_set_data(kyu_ex, kyu_oct);
-      ASN1_OCTET_STRING_free(kyu_oct);
-      
-      X509_add_ext(certs[0], kyu_ex, -1);
-      X509_EXTENSION_free(kyu_ex);
+        X509_EXTENSION_set_object(kyu_ex, kyu_obj);
+        ASN1_OBJECT_free(kyu_obj);
+        kyu_obj = NULL;
+        X509_EXTENSION_set_critical(kyu_ex, 1);
 
-      /* proxy certificate info */
-      pci_ex = X509_EXTENSION_new();
-      
-      X509_EXTENSION_set_object(pci_ex, pci_obj);
-      X509_EXTENSION_set_critical(pci_ex, 1);
+        kyu_oct = ASN1_OCTET_STRING_new();
+        ASN1_OCTET_STRING_set(kyu_oct, kyu_str, strlen(kyu_str));
+        X509_EXTENSION_set_data(kyu_ex, kyu_oct);
+        ASN1_OCTET_STRING_free(kyu_oct);
+        kyu_oct = NULL;
 
-      pci_oct = ASN1_OCTET_STRING_new();
-      ASN1_OCTET_STRING_set(pci_oct, pci_str, strlen(pci_str));
-      X509_EXTENSION_set_data(pci_ex, pci_oct);
-      ASN1_OCTET_STRING_free(pci_oct);
-      
-      X509_add_ext(certs[0], pci_ex, -1);
-      X509_EXTENSION_free(pci_ex);
+        canl_cred_set_extension(ctx, proxy_cert, kyu_ex);
+        X509_EXTENSION_free(kyu_ex);
+        kyu_ex = NULL;
+
+        /* proxy certificate info */
+        pci_ex = X509_EXTENSION_new();
+        X509_EXTENSION_set_object(pci_ex, pci_obj);
+        X509_EXTENSION_set_critical(pci_ex, 1);
+
+        pci_oct = ASN1_OCTET_STRING_new();
+        ASN1_OCTET_STRING_set(pci_oct, pci_str, strlen(pci_str));
+        X509_EXTENSION_set_data(pci_ex, pci_oct);
+        ASN1_OCTET_STRING_free(pci_oct);
+        pci_oct = NULL;
+
+        canl_cred_set_extension(ctx, proxy_cert, pci_ex);
+        X509_EXTENSION_free(pci_ex);
+        pci_ex = NULL;
     }
-  ASN1_OBJECT_free(pci_obj);
+    ASN1_OBJECT_free(pci_obj);
+    pci_obj = NULL;
 
-  /* set issuer and subject name of the cert from the req and the CA */
+    if (any_rfc_proxies)
+        canl_cred_set_cert_type(ctx, proxy_cert, CANL_RFC);
+    else
+        canl_cred_set_cert_type(ctx, proxy_cert, CANL_EEC);
+    /* Sign the proxy */
+    ret = canl_cred_sign_proxy(ctx, signer, proxy_cert);
+    if (ret){
+        fprintf(stderr, "[DELEGATION] Cannot sign new proxy"
+                ": %s\n", canl_get_error_message(ctx));
+        goto end;
+    }
 
-  if (any_rfc_proxies) /* user CN=number rather than CN=proxy */
-    {
-       snprintf(s, sizeof(s), "%ld", (long) time(NULL));
-       ent = X509_NAME_ENTRY_create_by_NID(NULL, OBJ_txt2nid("commonName"), 
-                                      MBSTRING_ASC, s, -1);
-    }    
-  else ent = X509_NAME_ENTRY_create_by_NID(NULL, OBJ_txt2nid("commonName"), 
-                                      MBSTRING_ASC, "proxy", -1);
+    ret = canl_cred_save_cert(ctx, proxy_cert, &certs[0]);
+    if (ret) {
+        fprintf(stderr, "GRSTx509MakeProxyCert(): Cannot save new cert file"
+                ": %s\n", canl_get_error_message(ctx));
+        goto end;
+    }
+    canl_free_ctx(ctx);
+    ctx = NULL;
 
-  newsubject = X509_NAME_dup(CAsubject);
+    /* store the completed certificate chain */
+    certchain = strdup("");
+    for (i=0; i < ncerts; ++i) {
+        certmem = BIO_new(BIO_s_mem());
 
-  X509_NAME_add_entry(newsubject, ent, -1, 0);
+        if (PEM_write_bio_X509(certmem, certs[i]) != 1) {
+            mpcerror(debugfp, "GRSTx509MakeProxyCert(): error writing"
+                    " certificate to memory BIO\n");            
+            goto end;
+        }
+        ptrlen = BIO_get_mem_data(certmem, &ptr);
+        certchain = realloc(certchain, strlen(certchain) + ptrlen + 1);
+        strncat(certchain, ptr, ptrlen);
 
-  if (X509_set_subject_name(certs[0], newsubject) != 1)
-    {
-      mpcerror(debugfp,
-      "GRSTx509MakeProxyCert(): error setting subject name of certificate\n");
+        BIO_free(certmem);
+        certmem = NULL;
+        X509_free(certs[i]);
+        certs[i] = NULL;
+    }
+    ncerts = 0;
+    *proxychain = certchain;  
+    retval = GRST_RET_OK;
 
-      X509_REQ_free(req);
-      return GRST_RET_FAILED;
-    }    
-    
-  X509_NAME_free(newsubject);
-  X509_NAME_ENTRY_free(ent);
-
-  /* sign the certificate with the signing private key */
-  if (EVP_PKEY_type(CApkey->type) == EVP_PKEY_RSA)
-    digest = EVP_md5();
-  else
-    {
-      mpcerror(debugfp,
-      "GRSTx509MakeProxyCert(): error checking signing private key for a valid digest\n");
-
-      X509_REQ_free(req);
-      return GRST_RET_FAILED;
-    }    
-
-  if (!(X509_sign(certs[0], CApkey, digest)))
-    {
-      mpcerror(debugfp,
-      "GRSTx509MakeProxyCert(): error signing certificate\n");
-
-      X509_REQ_free(req);
-      return GRST_RET_FAILED;
-    }    
-
-  /* store the completed certificate chain */
-
-  certchain = strdup("");
-
-  for (i=0; i < ncerts; ++i)
-     {
-       certmem = BIO_new(BIO_s_mem());
-
-       if (PEM_write_bio_X509(certmem, certs[i]) != 1)
-         {
-           mpcerror(debugfp,
-            "GRSTx509MakeProxyCert(): error writing certificate to memory BIO\n");            
-
-           X509_REQ_free(req);
-           return GRST_RET_FAILED;
-         }
-
-       ptrlen = BIO_get_mem_data(certmem, &ptr);
-  
-       certchain = realloc(certchain, strlen(certchain) + ptrlen + 1);
-       
-       strncat(certchain, ptr, ptrlen);
-    
-       BIO_free(certmem);
-       X509_free(certs[i]);
-     }
-
-  if (certs)
-      free (certs);
-  EVP_PKEY_free(pkey);
-  EVP_PKEY_free(CApkey);
-  X509_REQ_free(req);
-      
-  *proxychain = certchain;  
-  return GRST_RET_OK;
+end:
+    if (reqmem)
+        BIO_free(reqmem);
+    if (pkey)
+        EVP_PKEY_free(pkey);
+    if (signer_pkey)
+        EVP_PKEY_free(signer_pkey);
+    if (req)
+        X509_REQ_free(req);
+    if (pci_obj)
+        ASN1_OBJECT_free(pci_obj);
+    if (fp) {
+        fclose(fp);
+        fp = NULL;
+    }
+    if (certmem)
+        BIO_free(certmem);
+    if (ctx)
+        canl_free_ctx(ctx);
+    if (certs){
+        for (i=0; i < ncerts; ++i) {
+            if (certs[i])
+                X509_free(certs[i]);
+        }
+        free (certs);
+    }
+    if (proxy_cert)
+        canl_cred_free(ctx, proxy_cert);
+    if (signer)
+        canl_cred_free(ctx, signer);
+    return retval;
 }
 
 /// Find a proxy file in the proxy cache
@@ -2046,16 +2055,18 @@ char *GRSTx509CachedProxyFind(char *proxydir, char *delegation_id,
 {
   char *user_dn_enc, *proxyfile;
   struct stat statbuf;
+  int ret;
 
-  if (!GRST_is_id_safe(delegation_id))
-      return NULL;
+  if (!GRST_is_id_safe(delegation_id))    
+    return NULL;
 
   user_dn_enc = GRSThttpUrlEncode(user_dn);
 
-  asprintf(&proxyfile, "%s/%s/%s/userproxy.pem",
-           proxydir, user_dn_enc, delegation_id);
-           
+  ret = asprintf(&proxyfile, "%s/%s/%s/userproxy.pem",
+                 proxydir, user_dn_enc, delegation_id);
   free(user_dn_enc);
+  if (ret == -1)
+    return NULL;
 
   if ((stat(proxyfile, &statbuf) != 0) || !S_ISREG(statbuf.st_mode))
     {
@@ -2068,7 +2079,7 @@ char *GRSTx509CachedProxyFind(char *proxydir, char *delegation_id,
 
 /// Find a temporary proxy private key file in the proxy cache
 char *GRSTx509CachedProxyKeyFind(char *proxydir, char *delegation_id, 
-                                 char *user_dn)
+                                 char *user_dn, STACK_OF(X509) *certstack)
 ///
 /// Returns the full path and file name of the private key file associated
 /// with given delegation ID and user DN.
@@ -2077,26 +2088,102 @@ char *GRSTx509CachedProxyKeyFind(char *proxydir, char *delegation_id,
 /// private proxy key corresponding to the given delegation_id, or NULL
 /// if not found.
 {
-  char *user_dn_enc, *prvkeyfile;
+  char *user_dn_enc = NULL, *prvkeyfilename = NULL, *prvkeydir = NULL;
+  char *prvkeyfilepath = NULL;
   struct stat statbuf;
-
+  int retval = 0;
   if (!GRST_is_id_safe(delegation_id))
-      return NULL;
+    return NULL;
 
   user_dn_enc = GRSThttpUrlEncode(user_dn);
 
-  asprintf(&prvkeyfile, "%s/cache/%s/%s/userkey.pem",
-           proxydir, user_dn_enc, delegation_id);
-           
+  retval = asprintf(&prvkeydir, "%s/cache/%s/%s/",
+                    proxydir, user_dn_enc, delegation_id);
+  if (retval == -1) {
+    free(user_dn_enc);
+    return NULL;
+  }
+  
+  retval = GRSTx509ProxyKeyMatch(&prvkeyfilename, prvkeydir, certstack);
+  free(prvkeydir);  
+
+  if (!prvkeyfilename)
+      return NULL;
   free(user_dn_enc);
 
-  if ((stat(prvkeyfile, &statbuf) != 0) || !S_ISREG(statbuf.st_mode))
-    {
-      free(prvkeyfile);
+  if ((stat(prvkeyfilename, &statbuf) != 0) || !S_ISREG(statbuf.st_mode))
+  {
+      free(prvkeyfilename);
       return NULL;
+  }
+
+  return prvkeyfilename;
+}
+
+static int GRSTx509ProxyKeyMatch(char **pkfile, char *pkdir,
+        STACK_OF(X509) *certstack)
+{
+    X509 *cert_from_chain = NULL;
+    struct dirent* in_file = NULL;
+        DIR *FD = NULL;
+    SSL_CTX * ssl_ctx = NULL;
+    int ret = 0;
+    char *pk_file = NULL;
+
+    /*proxy should be at the beginning of the chain*/
+    cert_from_chain = sk_X509_value(certstack, 0);
+    if (!cert_from_chain)
+        return 1;
+
+    //Try all files in the directory
+    if ((FD = opendir(pkdir)) == NULL) 
+        return 2;
+    //No SSL connection, just the priv key check against the cert
+    ssl_ctx = SSL_CTX_new(SSLv23_method()); 
+    if (!ssl_ctx)
+        return 3;
+    while ((in_file = readdir(FD))) 
+    {
+        if (!strcmp (in_file->d_name, "."))
+            continue;
+        if (!strcmp (in_file->d_name, ".."))    
+            continue;
+        ret = asprintf(&pk_file,"%s/%s",pkdir,in_file->d_name);
+	if (ret == -1)
+	    continue;
+        /*How many certificates,key pairs I am able to load?*/
+        ret = SSL_CTX_use_certificate(ssl_ctx, cert_from_chain);
+        /* Should always be PEM type*/
+        ret = SSL_CTX_use_PrivateKey_file(ssl_ctx, pk_file,
+		SSL_FILETYPE_PEM);
+        if (ret != 1)
+            continue;
+	ret = 0;
+        ret = SSL_CTX_check_private_key(ssl_ctx);
+        /* Success */
+        if (ret == 1){
+            ret = asprintf(pkfile, "%s", pk_file);
+            closedir(FD);
+	    free (pk_file);
+	    pk_file = NULL;
+            goto end;
+        }
+        else {
+            *pkfile = NULL;
+	    free (pk_file);
+	    pk_file = NULL;
+                    }
     }
-    
-  return prvkeyfile;
+    SSL_CTX_free(ssl_ctx);
+            ssl_ctx = NULL;
+            return 4;
+
+
+end:
+    SSL_CTX_free(ssl_ctx);
+    ssl_ctx = NULL;
+    return 0;
+
 }
 
 static void mkdir_printf(mode_t mode, char *fmt, ...)
@@ -2106,7 +2193,7 @@ static void mkdir_printf(mode_t mode, char *fmt, ...)
   va_list ap;
   
   va_start(ap, fmt);
-  vasprintf(&path, fmt, ap);
+  ret = vasprintf(&path, fmt, ap);
   va_end(ap);
 
   ret = mkdir(path, mode);
@@ -2114,189 +2201,292 @@ static void mkdir_printf(mode_t mode, char *fmt, ...)
   free(path);
 }
 
-/// Create a X.509 request for a GSI proxy and its private key
+/* wrap GRSTx509CreateProxyRequest_int.
+ *  This funcion should
+ *  be used instead of deprecated GRSTx509CreateProxyRequest.
+ *  In future major versions of gridsite, GRSTx509CreateProxyRequest
+ *  may be removed.
+ *  Out: reqtxt - proxy request
+ *       keytxt - new key   
+ *  In
+ *       ocspurl - URL of the OCSP server (may not be implemented now)
+ *       keysize - size of the new key (0 default value, 1-4096 otherwise)  
+ *     */
+int GRSTx509CreateProxyRequestKS(char **reqtxt, char **keytxt, char *ocspurl, int keysize)
+{
+    if (keysize > 0)
+        return GRSTx509CreateProxyRequest_int(reqtxt, keytxt, ocspurl, keysize);
+    else if (keysize == 0)
+        return GRSTx509CreateProxyRequest_int(reqtxt, keytxt, ocspurl, GRST_KEYSIZE);
+    else
+        return 1;
+}
+
+/* Deprecated, should use GRSTx509CreateProxyRequestKS instead.*/
 int GRSTx509CreateProxyRequest(char **reqtxt, char **keytxt, char *ocspurl)
+/// Create a X.509 request for a GSI proxy and its private key
+{
 ///
 /// Returns GRST_RET_OK on success, non-zero otherwise. Request string
 /// and private key are PEM encoded strings
-{
-  int              i;
-  char            *ptr;
-  size_t           ptrlen;
-  RSA             *keypair;
-  X509_NAME       *subject;
-  X509_NAME_ENTRY *ent;
-  EVP_PKEY        *pkey;
-  X509_REQ        *certreq;
-  BIO             *reqmem, *keymem;
-  const EVP_MD    *digest;
-  struct stat      statbuf;
-
-  /* create key pair and put it in a PEM string */
-
-  if ((keypair = RSA_generate_key(GRST_KEYSIZE, 65537, NULL, NULL)) == NULL)
-                                                               return 1;
-
-  keymem = BIO_new(BIO_s_mem());
-  if (!PEM_write_bio_RSAPrivateKey(keymem, keypair, NULL, NULL, 0, NULL, NULL))
-    {
-      BIO_free(keymem);
-      return 3;
-    }
-
-  ptrlen = BIO_get_mem_data(keymem, &ptr);
-  
-  *keytxt = malloc(ptrlen + 1);
-  memcpy(*keytxt, ptr, ptrlen);
-  (*keytxt)[ptrlen] = '\0';
-
-  BIO_free(keymem);
-  
-  /* now create the certificate request */
-
-  certreq = X509_REQ_new();
-
-  OpenSSL_add_all_algorithms();
-
-  pkey = EVP_PKEY_new();
-  EVP_PKEY_assign_RSA(pkey, keypair);
-
-  X509_REQ_set_pubkey(certreq, pkey);
-  
-  subject = X509_NAME_new();
-  ent = X509_NAME_ENTRY_create_by_NID(NULL, OBJ_txt2nid("organizationName"), 
-                                      MBSTRING_ASC, "Dummy", -1);
-  X509_NAME_add_entry (subject, ent, -1, 0);
-  X509_REQ_set_subject_name (certreq, subject);
-  
-  digest = EVP_md5();
-  X509_REQ_sign(certreq, pkey, digest);
-
-  reqmem = BIO_new(BIO_s_mem());
-  PEM_write_bio_X509_REQ(reqmem, certreq);
-  ptrlen = BIO_get_mem_data(reqmem, &ptr);
-  
-  *reqtxt = malloc(ptrlen + 1);
-  memcpy(*reqtxt, ptr, ptrlen);
-  (*reqtxt)[ptrlen] = '\0';
-
-  BIO_free(reqmem);
-
-  X509_REQ_free(certreq);
-  EVP_PKEY_free(pkey);
-  if (ent)
-      X509_NAME_ENTRY_free(ent);
-  if (subject)
-      X509_NAME_free(subject);
-
-  return 0;
+    return GRSTx509CreateProxyRequest_int(reqtxt, keytxt, ocspurl, GRST_KEYSIZE);
 }
 
-/// Make and store a X.509 request for a GSI proxy
+int GRSTx509CreateProxyRequest_int(char **reqtxt, char **keytxt, char *ocspurl, int keysize)
+{
+    char            *ptr = 0;
+    size_t           ptrlen = 0;
+    EVP_PKEY        *pkey = NULL;
+    X509_REQ        *req = NULL;
+    BIO             *reqmem = NULL, *keymem = NULL;
+    canl_cred proxy_bob = NULL;
+    int retval = 0;
+    canl_ctx c_ctx = NULL;
+    int ret = 0;
+
+    /*Make new canl_ctx, TODO MP how to initialize it only once?*/
+    c_ctx = canl_create_ctx();
+    if (c_ctx == NULL) {
+        return 10; /* TODO MP we can use caNl error codes now */
+    }
+
+    ret = canl_cred_new(c_ctx, &proxy_bob);
+    if (ret){
+        retval = 11;
+        goto end;
+    }
+
+    /*use caNl to generate a X509 request*/
+    ret = canl_cred_new_req(c_ctx, proxy_bob, keysize);
+    if (ret) {
+        retval = 12;
+        goto end;
+    }
+
+    ret = canl_cred_save_req(c_ctx, proxy_bob, &req);
+    if (ret) {
+        retval = 13;
+        goto end;
+    }
+
+    /*Convert request into a string*/
+    reqmem = BIO_new(BIO_s_mem());
+    PEM_write_bio_X509_REQ(reqmem, req);
+    ptrlen = BIO_get_mem_data(reqmem, &ptr);
+
+    *reqtxt = malloc(ptrlen + 1);
+    memcpy(*reqtxt, ptr, ptrlen);
+    (*reqtxt)[ptrlen] = '\0';
+
+    /* Put keypair in a PEM string */
+    ret = canl_cred_save_priv_key(c_ctx, proxy_bob, &pkey);
+    if (ret){
+        retval = 15;
+        goto end;
+    }
+    keymem = BIO_new(BIO_s_mem());
+    if (!PEM_write_bio_PrivateKey(keymem, pkey, NULL, NULL, 0, NULL, NULL))
+    {
+        BIO_free(keymem);
+        return 3;
+    }
+
+    ptrlen = BIO_get_mem_data(keymem, &ptr);
+    *keytxt = malloc(ptrlen + 1);
+    memcpy(*keytxt, ptr, ptrlen);
+    (*keytxt)[ptrlen] = '\0';
+
+end:
+    if (proxy_bob)
+        canl_cred_free(c_ctx, proxy_bob);
+    if (pkey)
+        EVP_PKEY_free(pkey);
+    if (reqmem)
+        BIO_free(reqmem);
+    if (keymem)
+        BIO_free(keymem);
+    if (req)
+        X509_REQ_free(req);
+    if (c_ctx)
+        canl_free_ctx(c_ctx);
+
+    return retval;
+}
+
+
+/* wrap GRSTx509MakeProxyRequest_int.
+ *  This funcion should
+ *  be used instead of deprecated GRSTx509MakeProxyRequest.
+ *  In future major versions of gridsite, GRSTx509MakeProxyRequest
+ *  may be removed.
+ *  Out: reqtxt - proxy request
+ *  In:  proxydir - Directory for the proxy key to store 
+ *       delegation_id - id of the delegated proxy
+ *       user_dn - user DN (other then "cache")
+ *       keysize - size of the new key (0 default value, 1-4096 otherwise)  
+ *     */
+int GRSTx509MakeProxyRequestKS(char **reqtxt, char *proxydir, 
+                             char *delegation_id, char *user_dn, int keysize)
+{
+    if (keysize > 0)
+        return GRSTx509MakeProxyRequest_int(reqtxt, proxydir, 
+            delegation_id, user_dn, keysize);
+    else if (keysize == 0)
+        return GRSTx509MakeProxyRequest_int(reqtxt, proxydir,
+            delegation_id, user_dn, GRST_KEYSIZE);
+    else
+        return 1;
+}
+
+/* Deprecated, should use GRSTx509CreateProxyRequestKS instead.*/
 int GRSTx509MakeProxyRequest(char **reqtxt, char *proxydir, 
-                             char *delegation_id, char *user_dn)
+        char *delegation_id, char * user_dn)
+/// Create a X.509 request for a GSI proxy and its private key
+{
+///
+/// Returns GRST_RET_OK on success, non-zero otherwise. Request string
+/// and private key are PEM encoded strings
+    return GRSTx509MakeProxyRequest_int(reqtxt, proxydir, 
+            delegation_id, user_dn, GRST_KEYSIZE);
+}
+
+
+
+/// Make and store a X.509 request for a GSI proxy
+int GRSTx509MakeProxyRequest_int(char **reqtxt, char *proxydir, 
+                             char *delegation_id, char *user_dn, int keysize)
 ///
 /// Returns GRST_RET_OK on success, non-zero otherwise. Request string
 /// is PEM encoded, and the key is stored in the temporary cache under
 /// proxydir
 {
-  int              i;
-  char            *docroot, *prvkeyfile, *ptr, *user_dn_enc;
-  size_t           ptrlen;
-  FILE            *fp;
-  RSA             *keypair;
-  X509_NAME       *subject;
-  X509_NAME_ENTRY *ent;
-  EVP_PKEY        *pkey;
-  X509_REQ        *certreq;
-  BIO             *reqmem;
-  const EVP_MD    *digest;
-  struct stat      statbuf;
+    char *prvkeyfile = NULL, *ptr = NULL, *user_dn_enc = NULL;
+    size_t ptrlen = 0;
+    FILE *fp = NULL;
+    EVP_PKEY *pkey = NULL;
+    BIO *reqmem = NULL;
+    canl_ctx c_ctx = NULL;
+    canl_cred proxy_bob = NULL;
+    X509_REQ *req = NULL;
+    int retval = GRST_RET_OK;
+    int ret = 0;
+    int fd_ret = -1;
 
-  if (strcmp(user_dn, "cache") == 0) return GRST_RET_FAILED;
-    
-  user_dn_enc = GRSThttpUrlEncode(user_dn);
+    if (strcmp(user_dn, "cache") == 0)
+        return GRST_RET_FAILED;
 
-  /* create directories if necessary */
+    user_dn_enc = GRSThttpUrlEncode(user_dn);
 
-  mkdir_printf(S_IRUSR | S_IWUSR | S_IXUSR, 
-               "%s/cache",       proxydir);
-  mkdir_printf(S_IRUSR | S_IWUSR | S_IXUSR, 
-               "%s/cache/%s",    proxydir, user_dn_enc);
-  mkdir_printf(S_IRUSR | S_IWUSR | S_IXUSR, 
-               "%s/cache/%s/%s", proxydir, user_dn_enc, delegation_id);
+    /* create directories if necessary */
 
-  /* make the new proxy private key */
+    mkdir_printf(S_IRUSR | S_IWUSR | S_IXUSR, 
+            "%s/cache",       proxydir);
+    mkdir_printf(S_IRUSR | S_IWUSR | S_IXUSR, 
+            "%s/cache/%s",    proxydir, user_dn_enc);
+    mkdir_printf(S_IRUSR | S_IWUSR | S_IXUSR, 
+            "%s/cache/%s/%s", proxydir, user_dn_enc, delegation_id);
 
-  asprintf(&prvkeyfile, "%s/cache/%s/%s/userkey.pem",
-           proxydir, user_dn_enc, delegation_id);
+    /* make the new proxy private key */
 
-  if (prvkeyfile == NULL)  
-    {
-      free(user_dn_enc);
-      return GRST_RET_FAILED;
+    ret = asprintf(&prvkeyfile, "%s/cache/%s/%s/userkey_XXXXXX",
+                   proxydir, user_dn_enc, delegation_id);
+
+    if (ret == -1 || prvkeyfile == NULL){
+        free(user_dn_enc);
+        return GRST_RET_FAILED;
     }
-        
-  if ((keypair = RSA_generate_key(GRST_KEYSIZE, 65537, NULL, NULL)) == NULL)
-    {
-      free(prvkeyfile);
-      return 1;
+
+    /*Make new canl_ctx, TODO MP how to initialize it only once?*/
+    c_ctx = canl_create_ctx();
+    if (c_ctx == NULL) {
+        free(prvkeyfile);
+        return 10; /* TODO MP we can use caNl error codes now */
     }
-          
-  if ((fp = fopen(prvkeyfile, "w")) == NULL) 
-    {
-      free(prvkeyfile);
-      return 2;
+
+    ret = canl_cred_new(c_ctx, &proxy_bob);
+    if (ret){
+        retval = 11;
+        goto end;
     }
-  
-  chmod(prvkeyfile, S_IRUSR | S_IWUSR);
-  free(prvkeyfile);
-  free(user_dn_enc);
 
-  if (!PEM_write_RSAPrivateKey(fp, keypair, NULL, NULL, 0, NULL, NULL))
-                               return 3;
-  
-  if (fclose(fp) != 0) return 4;
-  
-  /* now create the certificate request */
+    /*use caNl to generate X509 request*/
+    ret = canl_cred_new_req(c_ctx, proxy_bob, keysize);
+    if (ret) {
+        retval = 12;
+        goto end;
+    }
 
-  certreq = X509_REQ_new();
-  if (certreq == NULL) return 5;
+    ret = canl_cred_save_req(c_ctx, proxy_bob, &req);
+    if (ret) {
+        retval = 13;
+        goto end;
+    }
 
-  OpenSSL_add_all_algorithms();
 
-  pkey = EVP_PKEY_new();
-  EVP_PKEY_assign_RSA(pkey, keypair);
+    fd_ret = mkstemp(prvkeyfile);
+    if (fd_ret == -1) {
+        retval = 14;
+        goto end;
+    }
 
-  X509_REQ_set_pubkey(certreq, pkey);
-  
-  subject = X509_NAME_new();
-  ent = X509_NAME_ENTRY_create_by_NID(NULL, OBJ_txt2nid("organizationName"), 
-                                      MBSTRING_ASC, "Dummy", -1);
-  X509_NAME_add_entry (subject, ent, -1, 0);
-  X509_REQ_set_subject_name (certreq, subject);
-  
-  digest = EVP_md5();
-  X509_REQ_sign(certreq, pkey, digest);
+    fp = fdopen(fd_ret, "w+");
+    if (fp == NULL){
+        retval = 24;
+        goto end;
+    }
 
-  reqmem = BIO_new(BIO_s_mem());
-  PEM_write_bio_X509_REQ(reqmem, certreq);
-  ptrlen = BIO_get_mem_data(reqmem, &ptr);
-  
-  *reqtxt = malloc(ptrlen + 1);
-  memcpy(*reqtxt, ptr, ptrlen);
-  (*reqtxt)[ptrlen] = '\0';
+    /*Save private key in cache*/  
+    chmod(prvkeyfile, S_IRUSR | S_IWUSR);
+    free(prvkeyfile);
+    prvkeyfile = NULL;
+    free(user_dn_enc);
+    user_dn_enc = NULL;
 
-  BIO_free(reqmem);
+    ret = canl_cred_save_priv_key(c_ctx, proxy_bob, &pkey);
+    if (ret) {
+        retval = 15;
+        goto end;
+    }
 
-  X509_REQ_free(certreq);
-  EVP_PKEY_free(pkey);
-  if (ent)
-      X509_NAME_ENTRY_free(ent);
-  if (subject)
-      X509_NAME_free(subject);
-  
-  return 0;
+    if (!PEM_write_PrivateKey(fp, pkey, NULL, NULL, 0, NULL, NULL)) {
+        retval = 3;
+        goto end;
+    }
+
+    if (fclose(fp) != 0){
+        retval = 4;
+        goto end;
+    }
+
+    /* TODO MP ask. "Dummy" vs "proxy" in sslutils.c from Voms 
+       ent=X509_NAME_ENTRY_create_by_NID(NULL, OBJ_txt2nid("organizationName"), 
+       MBSTRING_ASC, "Dummy", -1);
+       TODO MD5 vs SHA1 defaults.
+     */  
+
+    /*Convert request into string*/
+    reqmem = BIO_new(BIO_s_mem());
+    PEM_write_bio_X509_REQ(reqmem, req);
+    ptrlen = BIO_get_mem_data(reqmem, &ptr);
+
+    *reqtxt = malloc(ptrlen + 1);
+    memcpy(*reqtxt, ptr, ptrlen);
+    (*reqtxt)[ptrlen] = '\0';
+end:
+    if (proxy_bob)
+        canl_cred_free(c_ctx, proxy_bob);
+    if (reqmem)
+        BIO_free(reqmem);
+    if (req)
+        X509_REQ_free(req);
+    if (prvkeyfile)
+        free(prvkeyfile);
+    if (user_dn_enc)
+        free(user_dn_enc);
+    if (c_ctx)
+        canl_free_ctx(c_ctx);
+
+  return retval;
 }
 
 /// Destroy stored GSI proxy files
@@ -2306,22 +2496,22 @@ int GRSTx509ProxyDestroy(char *proxydir, char *delegation_id, char *user_dn)
 /// (Including GRST_RET_NO_SUCH_FILE if the private key or cert chain
 ///  were not found.)
 {
-  int              ret = GRST_RET_OK;
-  char            *docroot, *filename, *user_dn_enc;
+  int              ret = GRST_RET_OK, res;
+  char             *filename, *user_dn_enc;
 
   if (strcmp(user_dn, "cache") == 0) return GRST_RET_FAILED;
-
+  
   if (!GRST_is_id_safe(delegation_id))
-      return GRST_RET_FAILED;
+    return GRST_RET_FAILED;
     
   user_dn_enc = GRSThttpUrlEncode(user_dn);
 
   /* proxy file */
   
-  asprintf(&filename, "%s/%s/%s/userproxy.pem",
-           proxydir, user_dn_enc, delegation_id);
+  res = asprintf(&filename, "%s/%s/%s/userproxy.pem",
+                 proxydir, user_dn_enc, delegation_id);
 
-  if (filename == NULL)  
+  if (res == -1 || filename == NULL)
     {
       free(user_dn_enc);
       return GRST_RET_FAILED;
@@ -2332,10 +2522,10 @@ int GRSTx509ProxyDestroy(char *proxydir, char *delegation_id, char *user_dn)
 
   /* voms file */
   
-  asprintf(&filename, "%s/%s/%s/voms.attributes",
-           proxydir, user_dn_enc, delegation_id);
+  res = asprintf(&filename, "%s/%s/%s/voms.attributes",
+                 proxydir, user_dn_enc, delegation_id);
 
-  if (filename == NULL)  
+  if (res == -1 || filename == NULL)
     {
       free(user_dn_enc);
       return GRST_RET_FAILED;
@@ -2357,20 +2547,20 @@ int GRSTx509ProxyGetTimes(char *proxydir, char *delegation_id, char *user_dn,
   char  *docroot, *filename, *user_dn_enc;
   FILE  *fp;
   X509  *cert;
+  int ret;
 
   if (strcmp(user_dn, "cache") == 0) return GRST_RET_FAILED;
 
   if (!GRST_is_id_safe(delegation_id))
-      return GRST_RET_FAILED;
+    return GRST_RET_FAILED;
     
   user_dn_enc = GRSThttpUrlEncode(user_dn);
   
-  asprintf(&filename, "%s/%s/%s/userproxy.pem",
-           proxydir, user_dn_enc, delegation_id);
-           
+  ret = asprintf(&filename, "%s/%s/%s/userproxy.pem",
+                 proxydir, user_dn_enc, delegation_id);
   free(user_dn_enc);
-
-  if (filename == NULL) return GRST_RET_FAILED;
+  if (ret == -1 || filename == NULL)
+    return GRST_RET_FAILED;
 
   fp = fopen(filename, "r");
   free(filename);
@@ -2446,12 +2636,12 @@ char *GRSTx509MakeDelegationID(void)
 /// values of the compact credentials exported by mod_gridsite
 { 
   unsigned char hash_delegation_id[EVP_MAX_MD_SIZE];        
-  int  size_needed = 0, i, delegation_id_len;
+  int  i, delegation_id_len;
   char cred_name[14], *cred_value, *delegation_id;
   const EVP_MD *m;
   EVP_MD_CTX ctx;
 
-  OpenSSL_add_all_digests();
+  GRSTx509SafeOpenSSLInitialization();
 
   m = EVP_sha1();
   if (m == NULL) return NULL;
@@ -2533,7 +2723,7 @@ char *GRSTx509MakeProxyFileName(char *delegation_id,
       return NULL;
     }
 
-  OpenSSL_add_all_digests();
+  GRSTx509SafeOpenSSLInitialization();
 
   m = EVP_sha1();
   if (m == NULL)
@@ -2574,111 +2764,93 @@ int GRSTx509CacheProxy(char *proxydir, char *delegation_id,
 /// private key with the same delegation ID and user DN is moved out of
 /// the temporary cache.
 {
-  int   c, len = 0, i, ret;
-  char *user_dn_enc, *p, *ptr, *prvkeyfile, *proxyfile;
-  STACK_OF(X509) *certstack;
-  BIO  *certmem;
-  X509 *cert;
-  long  ptrlen;        
-  FILE *ifp, *ofp;
+    int ret = 0;
+    int retval = GRST_RET_FAILED;
+    char *user_dn_enc, *prvkeyfile, *proxyfile;
+    STACK_OF(X509) *certstack;
+    canl_ctx c_ctx = NULL;
+    canl_cred proxy_bob = NULL;
 
-  if (strcmp(user_dn, "cache") == 0) return GRST_RET_FAILED;
-    
-  /* find the existing private key file */
+    if (strcmp(user_dn, "cache") == 0)
+        return GRST_RET_FAILED;
 
-  prvkeyfile = GRSTx509CachedProxyKeyFind(proxydir, delegation_id, user_dn);
 
-  if (prvkeyfile == NULL)
-    {
-      return GRST_RET_FAILED;
+    /* get the X509 stack */
+    if (GRSTx509StringToChain(&certstack, proxychain) != GRST_RET_OK){
+        return GRST_RET_FAILED;/* TODO MP we can use caNl error codes now */
+    }
+ 
+    /*Make new canl_ctx, TODO MP how to initialize it only once?*/
+    c_ctx = canl_create_ctx();
+    if (c_ctx == NULL) 
+        goto end;
+
+    ret = canl_cred_new(c_ctx, &proxy_bob);
+    if (ret){
+        goto end; /* TODO MP we can use caNl error codes now */
     }
 
-  /* open it ready for later */
-
-  if ((ifp = fopen(prvkeyfile, "r")) == NULL)
-    {
-      free(prvkeyfile);
-      return GRST_RET_FAILED;
+    /*Use caNl to load certstack into proxy_bob*/
+    ret = canl_cred_load_chain(c_ctx, proxy_bob, certstack);
+    if (ret){
+        goto end;
     }
 
-  /* get the X509 stack */
+    /* create directories if necessary, and set proxy filename */
+    user_dn_enc = GRSThttpUrlEncode(user_dn);
 
-  if (GRSTx509StringToChain(&certstack, proxychain) != GRST_RET_OK)
-    {
-      fclose(ifp);
-      free(prvkeyfile);
-      return GRST_RET_FAILED;
-    }
+    mkdir_printf(S_IRUSR | S_IWUSR | S_IXUSR, 
+            "%s/%s",    proxydir, user_dn_enc);
+    mkdir_printf(S_IRUSR | S_IWUSR | S_IXUSR, 
+            "%s/%s/%s", proxydir, user_dn_enc, delegation_id);
 
-  /* create directories if necessary, and set proxy filename */
+    ret = asprintf(&proxyfile, "%s/%s/%s/userproxy.pem",
+                   proxydir, user_dn_enc, delegation_id);
+    if (ret == -1)
+        goto end;
+    free(user_dn_enc);
+    user_dn_enc = NULL;
 
-  user_dn_enc = GRSThttpUrlEncode(user_dn);
+    /* find the existing private key file */
+    prvkeyfile = GRSTx509CachedProxyKeyFind(proxydir, delegation_id, user_dn,
+            certstack);
+    if (prvkeyfile == NULL){
+        goto end;
+}
 
-  mkdir_printf(S_IRUSR | S_IWUSR | S_IXUSR, 
-               "%s/%s",    proxydir, user_dn_enc);
-  mkdir_printf(S_IRUSR | S_IWUSR | S_IXUSR, 
-               "%s/%s/%s", proxydir, user_dn_enc, delegation_id);
 
-  asprintf(&proxyfile, "%s/%s/%s/userproxy.pem",
-           proxydir, user_dn_enc, delegation_id);
-           
-  free(user_dn_enc);
 
-  /* set up to write proxy file */
+    /* insert proxy private key into canl structure,
+       read from private key file */
+    ret = canl_cred_load_priv_key_file(c_ctx, proxy_bob, prvkeyfile, NULL, NULL);
+    if (ret)
+        goto end;
+    /* Corresponding proxy key file found, remove it */
+    unlink(prvkeyfile);
+    free(prvkeyfile);
+    prvkeyfile = NULL;
 
-  ofp = fopen(proxyfile, "w");
-  chmod(proxyfile, S_IRUSR | S_IWUSR);
-  free(proxyfile);
+    ret = canl_cred_save_proxyfile(c_ctx, proxy_bob, proxyfile);
+    if (ret)
+        goto end;
 
-  if (ofp == NULL)
-    {
-      fclose(ifp);
-      free(prvkeyfile);
-      return GRST_RET_FAILED;
-    }
+    retval = GRST_RET_OK;
 
-  /* write out the most recent proxy by itself */
+end:
+    if (proxyfile)
+        free(proxyfile);
+    if (proxy_bob)
+        canl_cred_free(c_ctx, proxy_bob);
+    if (certstack)
+        sk_X509_free(certstack);
+    if (prvkeyfile)
+        free(prvkeyfile);
+    if (user_dn_enc)
+        free(user_dn_enc);
+    if (c_ctx)
+        canl_free_ctx(c_ctx);
 
-  if (cert = sk_X509_value(certstack, 0))
-    {
-      certmem = BIO_new(BIO_s_mem());
-      if (PEM_write_bio_X509(certmem, cert) == 1)
-        {
-          ptrlen = BIO_get_mem_data(certmem, &ptr);
-          fwrite(ptr, 1, ptrlen, ofp);
-        }
-
-      BIO_free(certmem);
-    }
-
-  /* insert proxy private key, read from private key file */
-
-  while ((c = fgetc(ifp)) != EOF) fputc(c, ofp);
-  unlink(prvkeyfile);
-  free(prvkeyfile);
-
-  for (i=1; i <= sk_X509_num(certstack) - 1; ++i)
-        /* loop through the proxy chain starting at 2nd most recent proxy */
-     {
-       if (cert = sk_X509_value(certstack, i))
-         {
-           certmem = BIO_new(BIO_s_mem());
-           if (PEM_write_bio_X509(certmem, cert) == 1)
-             {
-               ptrlen = BIO_get_mem_data(certmem, &ptr);
-               fwrite(ptr, 1, ptrlen, ofp);
-             }
-
-           BIO_free(certmem);
-         }
-     }
-
-  sk_X509_free(certstack);
-
-  if (fclose(ifp) != 0) return GRST_RET_FAILED;
-  if (fclose(ofp) != 0) return GRST_RET_FAILED;
-
-  return GRST_RET_OK;
+    return retval;
 }
 
 int

@@ -61,9 +61,11 @@ GSOAP_CFLAGS=`pkg-config gsoap --cflags`
 GSOAP_LIBS=`pkg-config gsoap --libs`
 GSOAPSSL_CFLAGS=`pkg-config gsoapssl --cflags`
 GSOAPSSL_LIBS=`pkg-config gsoapssl --libs`
+CANL_C_CFLAGS=
+CANL_C_LIBS=-lcanl_c
 
 ifndef MYCFLAGS
-export MYCFLAGS=-I. -I../interface -fPIC -DLINUX=2 -D_REENTRANT -D_LARGEFILE64_SOURCE $(HTTPD_FLAGS) 
+export MYCFLAGS=-I. -I../interface -DPIC -fPIC -DLINUX=2 -D_REENTRANT -D_LARGEFILE64_SOURCE $(HTTPD_FLAGS)
 endif
 
 ifndef MYLDFLAGS
@@ -72,248 +74,206 @@ endif
 
 -include Makefile.inc
 
-ifdef OPENSSL_GLOBUS_LIBS
-PC_FILES=gridsite-openssl.pc gridsite-globus.pc
-else
+# In order to use libtool versioning correcty, we must have:
+#
+# current = major + minor + offset
+# revision = patch
+# age = minor
+#
+# where offset is a sum of maximal released minor's of all previous major's
+#
+
+# counted minors: -
+offset=0
+
+version_info:=-version-info $(shell \
+	perl -e '$$,=":"; @F=split "\\.","$(PATCH_VERSION)"; print $$F[0]+$$F[1]+$(offset),$$F[2],$$F[1]' )
+
 PC_FILES=gridsite-openssl.pc
+
+# caNl adoption part
+# caNl library and headers have to be in standard system places.
+GRST_X509_OBJS=grst_canl_x509.lo
+MOD_GRIDSITE_FILE=canl_mod_gridsite.c
+MOD_SSLPRIVATE_HEADER=canl_mod_ssl-private.h
+MYCANLLDFLAGS=$(CANL_C_LIBS)
+
+# Print all warnings
+ifeq ($(WALL),yes)
+MYCFLAGS += -Wall
 endif
+
+CFLAGS=-g -O2
+
+CC=gcc
+COMPILE=libtool --mode=compile $(CC) $(CFLAGS)
+LINK=libtool --mode=link $(CC) $(LDFLAGS)
+INSTALL=libtool --mode=install install
+
+GRIDSITE_OBJS=grst_err.lo $(GRST_X509_OBJS) grst_gacl.lo grst_xacml.lo grst_http.lo grst_asn1.lo grst_htcp.lo
+GRIDSITE_NOSSL_OBJS=grst_err_nossl.lo grst_gacl_nossl.lo grst_http_nossl.lo grst_xacml_nossl.lo grst_htcp_nossl.lo
 
 #
 # Build
 #
 
-build: apidoc build-lib \
-       htcp gridsite-copy.cgi gridsite-storage.cgi mod_gridsite.so \
-       urlencode findproxyfile gsexec real-gridsite-admin.cgi
+build: apidoc build-lib htcp mod_gridsite.so urlencode findproxyfile \
+       real-gridsite-admin.cgi gridsite-delegation.cgi htproxyput
 
-build-lib: libgridsite_globus.so.$(VERSION) libgridsite_globus.a \
-           libgridsite.so.$(VERSION) libgridsite.a \
-           libgridsite_nossl.so.$(VERSION) libgridsite_nossl.a $(PC_FILES)
+build-lib: libgridsite_globus.la libgridsite_globus.a \
+           libgridsite.la libgridsite.a \
+           libgridsite_nossl.la libgridsite_nossl.a $(PC_FILES)
 
 # First, normal versions using system OpenSSL rather than Globus OpenSSL
 
-libgridsite.so.$(VERSION): grst_err.o grst_x509.o grst_gacl.o grst_xacml.o \
-                           grst_http.o grst_asn1.o grst_htcp.o
-	gcc -shared -Wl,-soname,libgridsite.so.$(MINOR_VERSION) \
-         -o libgridsite.so.$(PATCH_VERSION) \
-         grst_err.o grst_x509.o grst_gacl.o grst_xacml.o grst_http.o \
-         grst_asn1.o grst_htcp.o -lcrypto $(XML2_LIBS)
-	ln -sf libgridsite.so.$(VERSION) libgridsite.so
-	ln -sf libgridsite.so.$(VERSION) libgridsite.so.$(MINOR_VERSION)
+libgridsite.a: libgridsite.la
 
-libgridsite.a: grst_err.o grst_x509.o grst_gacl.o grst_xacml.o grst_http.o grst_asn1.o grst_htcp.o
-	ar src libgridsite.a grst_err.o grst_x509.o grst_gacl.o grst_xacml.o grst_http.o grst_asn1.o grst_htcp.o
+libgridsite.la: $(GRIDSITE_OBJS)
+	$(LINK) -rpath $(prefix)/$(libdir) $(version_info) \
+          -o $@ $+ -lssl -lcrypto $(MYCANLLDFLAGS) $(XML2_LIBS) -lpthread
 
-grst_err.o: grst_err.c ../interface/gridsite.h
-	gcc -g $(MYCFLAGS) \
+grst_err.lo: grst_err.c ../interface/gridsite.h
+	$(COMPILE)  $(MYCFLAGS) \
 	    -I/usr/kerberos/include \
-	    -c grst_err.c
+	    -c $< -o $@
 
-grst_x509.o: grst_x509.c ../interface/gridsite.h
-	gcc -g $(MYCFLAGS) \
-            -I/usr/kerberos/include -c grst_x509.c
+grst_canl_x509.lo: grst_canl_x509.c ../interface/gridsite.h
+	$(COMPILE)  $(MYCFLAGS) $(CANL_C_CFLAGS) \
+            -I/usr/kerberos/include -c $< -o $@
 
-grst_gacl.o: grst_gacl.c ../interface/gridsite.h
-	gcc -g $(MYCFLAGS) \
-            -I/usr/kerberos/include $(XML2_CFLAGS) -c grst_gacl.c
+grst_gacl.lo: grst_gacl.c ../interface/gridsite.h
+	$(COMPILE)  $(MYCFLAGS) \
+            -I/usr/kerberos/include $(XML2_CFLAGS) -c $< -o $@
 
-grst_xacml.o: grst_xacml.c ../interface/gridsite.h
-	gcc -g $(MYCFLAGS) \
-            -I/usr/kerberos/include $(XML2_CFLAGS) -c grst_xacml.c
+grst_xacml.lo: grst_xacml.c ../interface/gridsite.h
+	$(COMPILE)  $(MYCFLAGS) \
+            -I/usr/kerberos/include $(XML2_CFLAGS) -c $< -o $@
 
-grst_http.o: grst_http.c ../interface/gridsite.h
-	gcc -g $(MYCFLAGS) \
-                        -I/usr/kerberos/include -c grst_http.c
+grst_http.lo: grst_http.c ../interface/gridsite.h
+	$(COMPILE)  $(MYCFLAGS) \
+                        -I/usr/kerberos/include -c $< -o $@
 
-grst_asn1.o: grst_asn1.c ../interface/gridsite.h
-	gcc -g $(MYCFLAGS) \
-            -I/usr/kerberos/include -c grst_asn1.c
+grst_asn1.lo: grst_asn1.c ../interface/gridsite.h
+	$(COMPILE)  $(MYCFLAGS) \
+            -I/usr/kerberos/include -c $< -o $@
 
-grst_htcp.o: grst_htcp.c ../interface/gridsite.h
-	gcc -g $(MYCFLAGS) \
-            -I/usr/kerberos/include -c grst_htcp.c
+grst_htcp.lo: grst_htcp.c ../interface/gridsite.h
+	$(COMPILE)  $(MYCFLAGS) \
+            -I/usr/kerberos/include -c $< -o $@
 
-# Then build versions using Globus OpenSSL if configured
+# globus soname for compatibility
+libgridsite_globus.a: libgridsite_globus.la
 
-ifdef OPENSSL_GLOBUS_LIBS
-
-libgridsite_globus.so.$(VERSION): grst_err_globus.o \
-               grst_x509_globus.o grst_gacl_globus.o grst_http_globus.o \
-               grst_asn1_globus.o grst_xacml_globus.o grst_htcp_globus.o 
-	gcc -shared -Wl,-soname,libgridsite_globus.so.$(MINOR_VERSION) \
-         -o libgridsite_globus.so.$(PATCH_VERSION) \
-         grst_err_globus.o grst_x509_globus.o grst_gacl_globus.o grst_xacml_globus.o \
-         grst_http_globus.o grst_asn1_globus.o $(XML2_LIBS) $(OPENSSL_GLOBUS_LIBS)
-	ln -sf libgridsite_globus.so.$(VERSION) libgridsite_globus.so
-
-libgridsite_globus.a: grst_err_globus.o grst_x509_globus.o grst_gacl_globus.o grst_http_globus.o grst_asn1_globus.o
-	ar src libgridsite_globus.a \
-               grst_err_globus.o grst_x509_globus.o grst_gacl_globus.o grst_http_globus.o grst_asn1_globus.o
-
-grst_err_globus.o: grst_err.c ../interface/gridsite.h
-	gcc -g $(MYCFLAGS) $(OPENSSL_GLOBUS_FLAGS) \
-	    -I/usr/kerberos/include \
-	    -c grst_err.c \
-	    -o grst_err_globus.o
-
-grst_x509_globus.o: grst_x509.c ../interface/gridsite.h
-	gcc -g $(MYCFLAGS) $(OPENSSL_GLOBUS_FLAGS) \
-            -I/usr/kerberos/include -c grst_x509.c \
-            -o grst_x509_globus.o
-
-grst_gacl_globus.o: grst_gacl.c ../interface/gridsite.h
-	gcc -g $(MYCFLAGS) $(OPENSSL_GLOBUS_FLAGS) \
-            -I/usr/kerberos/include $(XML2_CFLAGS) -c grst_gacl.c \
-            -o grst_gacl_globus.o
-
-grst_xacml_globus.o: grst_xacml.c ../interface/gridsite.h
-	gcc -g $(MYCFLAGS) $(OPENSSL_GLOBUS_FLAGS) \
-            -I/usr/kerberos/include $(XML2_CFLAGS) -c grst_xacml.c \
-            -o grst_xacml_globus.o
-
-grst_http_globus.o: grst_http.c ../interface/gridsite.h
-	gcc -g $(MYCFLAGS) $(OPENSSL_GLOBUS_FLAGS) \
-            -I/usr/kerberos/include -c grst_http.c \
-            -o grst_http_globus.o
-
-grst_asn1_globus.o: grst_asn1.c ../interface/gridsite.h
-	gcc -g $(MYCFLAGS) $(OPENSSL_GLOBUS_FLAGS) \
-            -I/usr/kerberos/include -c grst_asn1.c \
-            -o grst_asn1_globus.o
-
-grst_htcp_globus.o: grst_htcp.c ../interface/gridsite.h
-	gcc -g $(MYCFLAGS) $(OPENSSL_GLOBUS_FLAGS) \
-            -I/usr/kerberos/include -c grst_htcp.c \
-            -o grst_htcp_globus.o
-
-else
-
-libgridsite_globus.so.$(VERSION): libgridsite.so.$(VERSION)
-	cp -f libgridsite.so.$(VERSION) libgridsite_globus.so.$(VERSION)
-
-libgridsite_globus.a: libgridsite.a
-	cp -f libgridsite.a libgridsite_globus.a
-
-endif
+libgridsite_globus.la: $(GRIDSITE_OBJS)
+	$(LINK) -rpath $(prefix)/$(libdir) $(version_info) \
+         -o $@ $+ -lssl -lcrypto $(MYCANLLDFLAGS) $(XML2_LIBS) -lpthread
 
 # then build versions without OpenSSL
 
-libgridsite_nossl.so.$(VERSION): grst_err_nossl.o \
-               grst_gacl_nossl.o grst_http_nossl.o \
-               grst_xacml_nossl.o grst_htcp_nossl.o 
-	gcc -shared -Wl,-soname,libgridsite_nossl.so.$(MINOR_VERSION) \
-         -o libgridsite_nossl.so.$(PATCH_VERSION) \
-         grst_err_nossl.o grst_gacl_nossl.o grst_xacml_nossl.o \
-         grst_http_nossl.o grst_htcp_nossl.o $(XML2_LIBS)
-	ln -sf libgridsite_nossl.so.$(VERSION) libgridsite_nossl.so
+libgridsite_nossl.a: libgridsite_nossl.la
 
-libgridsite_nossl.a: grst_err_nossl.o grst_gacl_nossl.o grst_http_nossl.o grst_htcp_nossl.o
-	ar src libgridsite_nossl.a \
-               grst_err_nossl.o grst_gacl_nossl.o grst_http_nossl.o grst_htcp_nossl.o
+libgridsite_nossl.la: $(GRIDSITE_NOSSL_OBJS)
+	$(LINK) -rpath $(prefix)/$(libdir) $(version_info) \
+	  -o $@ $+ $(XML2_LIBS)
 
-grst_err_nossl.o: grst_err.c ../interface/gridsite.h
-	gcc -g $(MYCFLAGS) -DGRST_NO_OPENSSL \
-	    -I/usr/kerberos/include \
-	    -c grst_err.c \
-	    -o grst_err_nossl.o
+grst_err_nossl.lo: grst_err.c ../interface/gridsite.h
+	$(COMPILE)  $(MYCFLAGS) -DGRST_NO_OPENSSL \
+	    -I/usr/kerberos/include -c $< -o $@
 
-grst_gacl_nossl.o: grst_gacl.c ../interface/gridsite.h
-	gcc -g $(MYCFLAGS) -DGRST_NO_OPENSSL \
-            -I/usr/kerberos/include $(XML2_CFLAGS) -c grst_gacl.c \
-            -o grst_gacl_nossl.o
+grst_gacl_nossl.lo: grst_gacl.c ../interface/gridsite.h
+	$(COMPILE)  $(MYCFLAGS) -DGRST_NO_OPENSSL \
+            -I/usr/kerberos/include $(XML2_CFLAGS) -c $< -o $@
 
-grst_xacml_nossl.o: grst_xacml.c ../interface/gridsite.h
-	gcc -g $(MYCFLAGS) -DGRST_NO_OPENSSL \
-            -I/usr/kerberos/include $(XML2_CFLAGS) -c grst_xacml.c \
-            -o grst_xacml_nossl.o
+grst_xacml_nossl.lo: grst_xacml.c ../interface/gridsite.h
+	$(COMPILE)  $(MYCFLAGS) -DGRST_NO_OPENSSL \
+            -I/usr/kerberos/include $(XML2_CFLAGS) -c $< -o $@
 
-grst_http_nossl.o: grst_http.c ../interface/gridsite.h
-	gcc -g $(MYCFLAGS) -DGRST_NO_OPENSSL \
-            -I/usr/kerberos/include -c grst_http.c \
-            -o grst_http_nossl.o
+grst_http_nossl.lo: grst_http.c ../interface/gridsite.h
+	$(COMPILE)  $(MYCFLAGS) -DGRST_NO_OPENSSL \
+            -I/usr/kerberos/include -c $< -o $@
 
-grst_htcp_nossl.o: grst_htcp.c ../interface/gridsite.h
-	gcc -g $(MYCFLAGS) -DGRST_NO_OPENSSL \
-            -I/usr/kerberos/include -c grst_htcp.c \
-            -o grst_htcp_nossl.o
+grst_htcp_nossl.lo: grst_htcp.c ../interface/gridsite.h
+	$(COMPILE)  $(MYCFLAGS) -DGRST_NO_OPENSSL \
+            -I/usr/kerberos/include -c $< -o $@
 
 # now the binary exectuables
 
-gsexec:	gsexec.c gsexec.h
-	gcc -g -DVERSION=\"$(PATCH_VERSION)\" $(MYCFLAGS) \
-	    -o gsexec gsexec.c
+gsexec.lo urlencode.lo gridsite-copy.lo findproxyfile.lo showx509exts.lo test-chain.lo:
+	$(COMPILE) -DVERSION=\"$(PATCH_VERSION)\" $(MYCFLAGS) \
+	    -o $@ -c $(subst .lo,.c,$@)
 
-urlencode: urlencode.c libgridsite.so.$(VERSION)
-	gcc -g -DVERSION=\"$(PATCH_VERSION)\" $(MYCFLAGS) \
-            -o urlencode urlencode.c -L. \
-            -I/usr/kerberos/include \
-            -lgridsite
+htcp.lo:
+	$(COMPILE) -DVERSION=\"$(PATCH_VERSION)\" $(MYCFLAGS) \
+	    -o $@ -c $(subst .lo,.c,$@) $(CURL_CFLAGS)
 
-htcp: htcp.c libgridsite.so.$(VERSION)
-	gcc -g -DVERSION=\"$(PATCH_VERSION)\" $(MYCFLAGS) \
-	    -o htcp htcp.c -L. \
+slashgrid.lo: slashgrid.c
+	$(COMPILE) -o $@ -c $< $(MYCFLAGS) $(XML2_CFLAGS) -D_FILE_OFFSET_BITS=64 \
+          -D_REENTRANT -DFUSE_USE_VERSION=22 -I/usr/kerberos/include \
+          $(CURL_CFLAGS)
+
+gsexec:	gsexec.lo gsexec.h
+	$(LINK) $< -o $@
+
+urlencode: urlencode.lo libgridsite.la
+	$(LINK) -o $@ $< -L. -lgridsite
+
+htcp: htcp.lo libgridsite.la
+	$(LINK) -o $@ $+ $(CURL_LIBS)
+
+test-chain: test-chain.lo libgridsite.la
+	$(LINK) -o $@ $< -L. -lgridsite -static
+
+htcp-static: htcp.lo libgridsite.a
+	$(LINK) -o $@ -L. $< \
 	    -I/usr/kerberos/include \
-            $(CURL_CFLAGS) $(CURL_LIBS) \
-            -lgridsite
+            $(CURL_LIBS) -static -lgridsite
 
-htcp-static: htcp.c libgridsite.a
-	gcc -g -DVERSION=\"$(PATCH_VERSION)\" $(MYCFLAGS) \
-	    -o htcp-static htcp.c -L. \
-	    -I/usr/kerberos/include \
-            $(CURL_CFLAGS) $(CURL_LIBS) \
-            -lgridsite -static
+gridsite-copy.cgi: gridsite-copy.lo libgridsite.la
+	$(LINK) -o $@ $< -L. $(CURL_LIBS) $(MYFCGILIBS) -lgridsite
 
-gridsite-copy.cgi: gridsite-copy.c libgridsite.so.$(VERSION)
-	gcc -g -DVERSION=\"$(PATCH_VERSION)\" $(MYCFLAGS) \
-	    -o gridsite-copy.cgi gridsite-copy.c -L. \
-	    -I/usr/kerberos/include \
-            $(CURL_CFLAGS) $(CURL_LIBS) \
-            $(MYFCGILIBS) -lgridsite
-
-mod_gridsite.so: mod_gridsite.c mod_ssl-private.h libgridsite.so.$(VERSION)
-	gcc -g $(MYCFLAGS) -shared -Wl,-soname=gridsite_module \
+mod_gridsite.so: $(MOD_GRIDSITE_FILE) $(MOD_SSLPRIVATE_HEADER) \
+                 libgridsite.la
+	$(CC) $(CFLAGS) $(MYCFLAGS) $(LDFLAGS) \
+           -shared -Wl,-soname=gridsite_module \
            -I/usr/kerberos/include \
-           $(XML2_CFLAGS) -lcrypto -lssl \
+           $(XML2_CFLAGS) -lssl -lcrypto $(MYCANLLDFLAGS) \
            -DVERSION=\"$(VERSION)\" -o mod_gridsite.so \
-           mod_gridsite.c $(MYLDFLAGS) -lgridsite
+           $(MOD_GRIDSITE_FILE) -L./.libs -lgridsite
 
 mod_gridsite_example.so: mod_gridsite_example.c 
-	gcc -g -shared -Wl,-soname=gridsite_example_module \
-	   -I/usr/include/httpd -I/usr/include/apr-0 \
+	$(CC) $(CFLAGS) $(LDFLAGS) \
+           -shared -Wl,-soname=gridsite_example_module \
+           -fPIC $(HTTPD_FLAGS) \
            -DVERSION=\"$(VERSION)\" -o mod_gridsite_example.so \
            mod_gridsite_example.c 
 
-real-gridsite-admin.cgi: grst_admin_main.c grst_admin_gacl.c \
-                         grst_admin_file.c grst_admin.h
-	gcc -g $(MYCFLAGS) $(MYLDFLAGS) -o real-gridsite-admin.cgi \
-            grst_admin_main.c \
-            grst_admin_gacl.c \
-            grst_admin_file.c \
-            -I/usr/kerberos/include \
-            -DVERSION=\"$(VERSION)\" -lgridsite
+grst_admin_main.lo grst_admin_gacl.lo grst_admin_file.lo:
+	$(COMPILE) $(MYCFLAGS) -I/usr/kerberos/include \
+          -DVERSION=\"$(VERSION)\" -o $@ -c $(subst .lo,.c,$@)
 
-findproxyfile: findproxyfile.c libgridsite.so.$(VERSION)
-	gcc -g -DVERSION=\"$(PATCH_VERSION)\" $(MYCFLAGS) $(MYLDFLAGS) \
-            -o findproxyfile findproxyfile.c -L. \
-            -I/usr/kerberos/include -lgridsite
+real-gridsite-admin.cgi: grst_admin_main.lo grst_admin_gacl.lo \
+                         grst_admin_file.lo grst_admin.h
+	$(LINK) $(MYLDFLAGS) -o real-gridsite-admin.cgi \
+            grst_admin_main.lo \
+            grst_admin_gacl.lo \
+            grst_admin_file.lo \
+            -lgridsite
 
-showx509exts: showx509exts.c libgridsite.so.$(VERSION)
-	gcc -g -DVERSION=\"$(PATCH_VERSION)\" $(MYCFLAGS) $(MYLDFLAGS) \
-            -o showx509exts showx509exts.c -L. \
-            -I/usr/kerberos/include \
-            -lgridsite \
-            -lssl -lcrypto $(XML2_LIBS) -lz -lm
- 
-slashgrid: slashgrid.c libgridsite.so.$(VERSION)
-	gcc -g -o slashgrid -lfuse -lpthread slashgrid.c \
-          $(MYCFLAGS) $(MYLDFLAGS) $(XML2_CFLAGS) \
-          -D_FILE_OFFSET_BITS=64 -D_REENTRANT -DFUSE_USE_VERSION=22 \
-          -I/usr/kerberos/include $(CURL_CFLAGS) \
+findproxyfile: findproxyfile.lo libgridsite.la
+	$(LINK) $(MYLDFLAGS) \
+            -o $@ $< -L. -lgridsite
+
+showx509exts: showx509exts.lo libgridsite.la
+	$(LINK) $(MYLDFLAGS) \
+            -o $@ $< -L. -lgridsite -lssl -lcrypto $(XML2_LIBS) -lz -lm
+
+slashgrid: slashgrid.lo libgridsite.la
+	$(LINK) $< -o $@ -lfuse $(MYLDFLAGS) \
           -L. $(CURL_LIBS) -lgridsite -lpthread
 
 # This target is used by make-gridsite-spec to test for FUSE include+libs
 fuse-test: fuse-test.c
-	gcc -g -lfuse fuse-test.c \
+	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ -lfuse fuse-test.c \
           $(MYCFLAGS) $(MYLDFLAGS) $(XML2_CFLAGS) \
           -D_FILE_OFFSET_BITS=64 -D_REENTRANT -DFUSE_USE_VERSION=22
 
@@ -325,15 +285,15 @@ apidoc:
 	cd ../doc ; for i in *.1 *.8 ; do ../src/roffit < $$i \
           > $$i.html ; done
 
-gaclexample: gaclexample.c libgridsite.a
-	gcc -g -o gaclexample gaclexample.c -I../interface -L. \
-            -I/usr/kerberos/include -lgridsite \
-            -lssl -lcrypto $(XML2_LIBS) -lz -lm
-	    
-xacmlexample: xacmlexample.c libgridsite.a
-	gcc -g -o xacmlexample xacmlexample.c -I../interface -L. \
-            -I/usr/kerberos/include -lgridsite \
-            -lssl -lcrypto $(XML2_LIBS) -lz -lm
+gaclexample.lo xacmlexample.lo: gaclexample.c xacmlexample.c
+	$(COMPILE) -c $(subst .lo,.c,$@) -o $@ -I../interface \
+          -I/usr/kerberos/include
+
+gaclexample: gaclexample.lo libgridsite.la
+	$(LINK) -o $@ $< -L. -lgridsite -lssl -lcrypto $(XML2_LIBS) -lz -lm
+
+xacmlexample: xacmlexample.lo libgridsite.a
+	$(LINK) -o $@ $< -L. -lgridsite -lssl -lcrypto $(XML2_LIBS) -lz -lm
 #
 # Delegation machinery, including SOAP delegation portType. To build this
 # you either need to use the gLite build environment and set REPOSITORY
@@ -354,178 +314,156 @@ DelegationSoapBinding.wsdl: delegation.h
 	$(GSOAPDIR)/bin/soapcpp2 -c delegation.h
 
 gridsite-delegation.cgi: grst-delegation.c delegation.h \
-                         DelegationSoapBinding.wsdl libgridsite.so.$(VERSION)
-	gcc -g $(MYCFLAGS) $(MYLDFLAGS) -o gridsite-delegation.cgi \
+                         DelegationSoapBinding.wsdl libgridsite.la
+	$(CC) $(CFLAGS) $(MYCFLAGS) $(LDFLAGS) $(MYLDFLAGS) -o $@ \
             grst-delegation.c \
             -I/usr/kerberos/include -I. $(GSOAP_CFLAGS) \
-            -I$(GRIDSITEDIR)/include \
-            -DVERSION=\"$(VERSION)\" -L. \
+            -DVERSION=\"$(VERSION)\" -L./.libs \
             soapC.c soapServer.c \
-            -L$(GRIDSITEDIR)/$(libdir)  $(GSOAP_LIBS) \
-            -lgridsite
+            $(GSOAP_LIBS) -lgridsite
 
-htproxyput: htproxyput.c delegation.h DelegationSoapBinding.wsdl libgridsite.so.$(VERSION)
-	gcc -g $(MYCFLAGS) $(MYLDFLAGS) -o htproxyput \
+htproxyput: htproxyput.c delegation.h DelegationSoapBinding.wsdl libgridsite.la
+	$(CC) $(CFLAGS) $(MYCFLAGS) $(LDFLAGS) $(MYLDFLAGS) -o $@ \
             htproxyput.c \
             -I/usr/kerberos/include -I. \
-            -g -DVERSION=\"$(VERSION)\" \
+            -DVERSION=\"$(VERSION)\" \
             $(GSOAPSSL_CFLAGS) \
-            -I$(GRIDSITEDIR)/include \
-            -L. \
+            -L./.libs \
             $(STDSOAP2) \
             soapC.c soapClient.c $(GSOAPSSL_LIBS) \
             -lgridsite -lssl -lcrypto
-        
+
 # This target is used by make-gridsite-spec to test for gSOAP include+libs
 gsoap-test: gsoap-test.c 
-	gcc -g $(MYCFLAGS) $(MYLDFLAGS) -o gsoap-test \
+	$(CC) $(CFLAGS) $(MYCFLAGS) $(LDFLAGS) $(MYLDFLAGS) -o $@ \
             gsoap-test.c \
             -I/usr/kerberos/include -I. \
-            -g -DVERSION=\"$(VERSION)\" \
+            -DVERSION=\"$(VERSION)\" \
             $(GSOAPSSL_CFLAGS) \
-            -I$(GRIDSITEDIR)/include \
-            $(STDSOAP2) -L$(GRIDSITEDIR)/$(libdir) \
+            $(STDSOAP2) \
             $(GSOAPSSL_LIBS) -lz -lssl -lcrypto $(XML2_LIBS) -lm
-        
-gridsite-storage.cgi: gridsite-storage.c libgridsite.so.$(VERSION)
-	gcc -g $(MYCFLAGS) $(MYLDFLAGS) -o gridsite-storage.cgi \
-            gridsite-storage.c \
+
+gridsite-storage.lo: gridsite-storage.c
+	$(COMPILE) -o $@ -c $<  $(MYCFLAGS) \
             -I/usr/kerberos/include -I.\
-            -I$(GRIDSITEDIR)/include \
             -DVERSION=\"$(VERSION)\" -L. \
-            -L$(GRIDSITEDIR)/$(libdir) \
-            -lgridsite $(CURL_CFLAGS) $(CURL_LIBS)
+            $(CURL_CFLAGS)
+
+gridsite-storage.cgi: gridsite-storage.lo libgridsite.la
+	$(LINK) $(MYLDFLAGS) -o $@ $< \
+            -lgridsite $(CURL_LIBS)
 
 %.pc: %.pc.in
-	sed -e "s/@version@/$(VERSION)/" -e "s,@prefix@,$(prefix)," -e "s/@libdir@/$(libdir)/" $< > $@
+	sed -e "s/@version@/$(VERSION)/" -e "s,@prefix@,$(prefix)," -e "s,@libdir@,$(libdir)," $< > $@
 
 clean:
 	rm -rvf doxygen
+	rm -rvf .libs
 	rm -vf DelegationSoapBinding.* soapC*.c soapH*.h soapS*.c soapStub.h ns.xsd
 	rm -vf fuse-test.c gsoap-test.c gridsite.spec
-	rm -vf libgridsite*.so* *.cgi mod_gridsite*.so *.a *.o
+	rm -vf libgridsite*.so* *.cgi mod_gridsite*.so *.a *.o *.la *.lo
 	rm -vf gsexec urlencode htcp htcp-static findproxyfile showx509exts slashgrid fuse-test gaclexample xacmlexample htproxyput gsoap-test
-	rm -vf gridsite-openssl.pc gridsite-globus.pc
+	rm -vf gridsite-openssl.pc
+
+distclean:
+	rm -rfv ../dist ../gridsite-*.tar.gz $(MYRPMDIR)
 
 #
 # Install
 #
 
 install: apidoc install-lib
-	mkdir -p $(prefix)/include \
-                 $(prefix)/$(libdir)/$(httpd_name)/modules \
-                 $(prefix)/bin \
-                 $(prefix)/sbin \
-                 $(prefix)/share/man/man1 \
-                 $(prefix)/share/man/man8 \
-                 $(prefix)/share/doc/gridsite-$(MINOR_VERSION)
+	mkdir -p $(DESTDIR)$(prefix)/include \
+                 $(DESTDIR)$(prefix)/$(libdir)/$(httpd_name)/modules \
+                 $(DESTDIR)$(prefix)/bin \
+                 $(DESTDIR)$(prefix)/sbin \
+                 $(DESTDIR)$(prefix)/share/man/man1 \
+                 $(DESTDIR)$(prefix)/share/man/man8 \
+                 $(DESTDIR)$(prefix)/share/doc/gridsite-$(MINOR_VERSION)
 	sed 's/^\(#define GRST_VERSION\).*$$/\1 $(DEFVERSION)/' \
-	      ../interface/gridsite.h > $(prefix)/include/gridsite.h
-	cp -f ../interface/gridsite-gacl.h $(prefix)/include
-	cp -f urlencode $(prefix)/bin
-	cp -f findproxyfile $(prefix)/bin
-	cp -f real-gridsite-admin.cgi $(prefix)/sbin
-	cp -f gridsite-copy.cgi $(prefix)/sbin
-	cp -f gridsite-storage.cgi $(prefix)/sbin
+	      ../interface/gridsite.h > $(DESTDIR)$(prefix)/include/gridsite.h
+	cp -f ../interface/gridsite-gacl.h $(DESTDIR)$(prefix)/include
+	$(INSTALL) urlencode $(DESTDIR)$(prefix)/bin
+	$(INSTALL) findproxyfile $(DESTDIR)$(prefix)/bin
+	$(INSTALL) real-gridsite-admin.cgi $(DESTDIR)$(prefix)/sbin
 	cp -f ../CHANGES ../README ../INSTALL ../LICENSE ../VERSION \
-               $(prefix)/share/doc/gridsite-$(MINOR_VERSION)
+               $(DESTDIR)$(prefix)/share/doc/gridsite-$(MINOR_VERSION)
 	cp -f ../doc/index.html ../doc/*.conf ../doc/*.sh ../doc/*.spec \
               mod_gridsite_example.c \
-               $(prefix)/share/doc/gridsite-$(MINOR_VERSION)
+               $(DESTDIR)$(prefix)/share/doc/gridsite-$(MINOR_VERSION)
 	for i in htcp.1 htfind.1 htll.1 htls.1 htmkdir.1 htmv.1 htping.1 \
 	 htrm.1 urlencode.1 findproxyfile.1 ; do \
-	 cp -f ../doc/$$i.html $(prefix)/share/doc/gridsite-$(MINOR_VERSION) ; \
-         cp -f ../doc/$$i $(prefix)/share/doc/gridsite-$(MINOR_VERSION) ; \
-         cp -f ../doc/$$i $(prefix)/share/man/man1 ; \
-         gzip -f $(prefix)/share/man/man1/$$i ; done
-	for i in mod_gridsite.8 gsexec.8 ; do \
-	 cp -f ../doc/$$i.html $(prefix)/share/doc/gridsite-$(MINOR_VERSION) ; \
-         cp -f ../doc/$$i $(prefix)/share/doc/gridsite-$(MINOR_VERSION) ; \
-         cp -f ../doc/$$i $(prefix)/share/man/man8 ; \
-         gzip -f $(prefix)/share/man/man8/$$i ; done
-	cp -f htcp $(prefix)/bin
-	ln -sf htcp $(prefix)/bin/htls
-	ln -sf htcp $(prefix)/bin/htll
-	ln -sf htcp $(prefix)/bin/htrm
-	ln -sf htcp $(prefix)/bin/htmkdir
-	ln -sf htcp $(prefix)/bin/htmv
-	ln -sf htcp $(prefix)/bin/htping
-	ln -sf htcp $(prefix)/bin/htfind
-	cp -f gsexec $(prefix)/sbin
-	cp -f mod_gridsite.so $(prefix)/$(libdir)/$(httpd_name)/modules
+	 cp -f ../doc/$$i.html $(DESTDIR)$(prefix)/share/doc/gridsite-$(MINOR_VERSION) ; \
+         cp -f ../doc/$$i $(DESTDIR)$(prefix)/share/doc/gridsite-$(MINOR_VERSION) ; \
+         cp -f ../doc/$$i $(DESTDIR)$(prefix)/share/man/man1 ; \
+         gzip -f $(DESTDIR)$(prefix)/share/man/man1/$$i ; done
+	for i in mod_gridsite.8 ; do \
+	 cp -f ../doc/$$i.html $(DESTDIR)$(prefix)/share/doc/gridsite-$(MINOR_VERSION) ; \
+         cp -f ../doc/$$i $(DESTDIR)$(prefix)/share/doc/gridsite-$(MINOR_VERSION) ; \
+         cp -f ../doc/$$i $(DESTDIR)$(prefix)/share/man/man8 ; \
+         gzip -f $(DESTDIR)$(prefix)/share/man/man8/$$i ; done
+	$(INSTALL) htcp $(DESTDIR)$(prefix)/bin
+	ln -sf htcp $(DESTDIR)$(prefix)/bin/htls
+	ln -sf htcp $(DESTDIR)$(prefix)/bin/htll
+	ln -sf htcp $(DESTDIR)$(prefix)/bin/htrm
+	ln -sf htcp $(DESTDIR)$(prefix)/bin/htmkdir
+	ln -sf htcp $(DESTDIR)$(prefix)/bin/htmv
+	ln -sf htcp $(DESTDIR)$(prefix)/bin/htping
+	ln -sf htcp $(DESTDIR)$(prefix)/bin/htfind
+	cp -f mod_gridsite.so $(DESTDIR)$(prefix)/$(libdir)/$(httpd_name)/modules
 
 install-lib:
-	mkdir -p $(prefix)/$(libdir)/pkgconfig
-	cp -f  libgridsite.a $(prefix)/$(libdir)
-	cp -f  libgridsite.so.$(PATCH_VERSION) $(prefix)/$(libdir)
-	ln -sf libgridsite.so.$(PATCH_VERSION) \
-                                 $(prefix)/$(libdir)/libgridsite.so
-	ln -sf libgridsite.so.$(PATCH_VERSION) \
-                                 $(prefix)/$(libdir)/libgridsite.so.$(MAJOR_VERSION)
-	ln -sf libgridsite.so.$(PATCH_VERSION) \
-                                 $(prefix)/$(libdir)/libgridsite.so.$(MINOR_VERSION)
-	cp -f  libgridsite_globus.a $(prefix)/$(libdir)
-	cp -f  libgridsite_globus.so.$(PATCH_VERSION) $(prefix)/$(libdir)
-	ln -sf libgridsite_globus.so.$(PATCH_VERSION) \
-                                 $(prefix)/$(libdir)/libgridsite_globus.so
-	ln -sf libgridsite_globus.so.$(PATCH_VERSION) \
-                                 $(prefix)/$(libdir)/libgridsite_globus.so.$(MAJOR_VERSION)
-	ln -sf libgridsite_globus.so.$(PATCH_VERSION) \
-                                 $(prefix)/$(libdir)/libgridsite_globus.so.$(MINOR_VERSION)
-	cp -f  libgridsite_nossl.a $(prefix)/$(libdir)
-	cp -f  libgridsite_nossl.so.$(PATCH_VERSION) $(prefix)/$(libdir)
-	ln -sf libgridsite_nossl.so.$(PATCH_VERSION) \
-                                 $(prefix)/$(libdir)/libgridsite_nossl.so
-	ln -sf libgridsite_nossl.so.$(PATCH_VERSION) \
-                                 $(prefix)/$(libdir)/libgridsite_nossl.so.$(MAJOR_VERSION)
-	ln -sf libgridsite_nossl.so.$(PATCH_VERSION) \
-                                 $(prefix)/$(libdir)/libgridsite_nossl.so.$(MINOR_VERSION)
-	cp -f $(PC_FILES) $(prefix)/$(libdir)/pkgconfig
+	mkdir -p $(DESTDIR)$(prefix)/$(libdir)/pkgconfig
+	$(INSTALL) libgridsite.la $(DESTDIR)$(prefix)/$(libdir)
+	$(INSTALL) libgridsite_globus.la $(DESTDIR)$(prefix)/$(libdir)
+	$(INSTALL) libgridsite_nossl.la $(DESTDIR)$(prefix)/$(libdir)
+	rm -f $(DESTDIR)$(prefix)/$(libdir)/*.la
+	cp -f $(PC_FILES) $(DESTDIR)$(prefix)/$(libdir)/pkgconfig
 
 install-slashgrid: slashgrid
-	-mkdir -p $(RPM_BUILD_ROOT)/etc/rc.d/init.d
-	-mkdir -p $(prefix)/share/doc/gridsite-$(MINOR_VERSION)
-	-mkdir -p $(prefix)/share/man/man8
-	cp -f slashgrid $(prefix)/sbin
-	cp -f slashgrid.init $(RPM_BUILD_ROOT)/etc/rc.d/init.d/slashgrid
-	cp -f ../doc/slashgrid.8.html $(prefix)/share/doc/gridsite-$(MINOR_VERSION) ; \
-	cp -f ../doc/slashgrid.8 $(prefix)/share/doc/gridsite-$(MINOR_VERSION) ; \
-	cp -f ../doc/slashgrid.8 $(prefix)/share/man/man8
-	gzip -f $(prefix)/share/man/man8/slashgrid.8
-	mkdir -p $(RPM_BUILD_ROOT)/var/spool/slashgrid
+	-mkdir -p $(DESTDIR)/etc/rc.d/init.d
+	-mkdir -p $(DESTDIR)$(prefix)/share/doc/gridsite-$(MINOR_VERSION)
+	-mkdir -p $(DESTDIR)$(prefix)/share/man/man8
+	$(INSTALL) slashgrid $(DESTDIR)$(prefix)/sbin
+	cp -f slashgrid.init $(DESTDIR)/etc/rc.d/init.d/slashgrid
+	cp -f ../doc/slashgrid.8.html $(DESTDIR)$(prefix)/share/doc/gridsite-$(MINOR_VERSION) ; \
+	cp -f ../doc/slashgrid.8 $(DESTDIR)$(prefix)/share/doc/gridsite-$(MINOR_VERSION) ; \
+	cp -f ../doc/slashgrid.8 $(DESTDIR)$(prefix)/share/man/man8
+	gzip -f $(DESTDIR)$(prefix)/share/man/man8/slashgrid.8
+	mkdir -p $(DESTDIR)/var/spool/slashgrid
 
 install-ws: gridsite-delegation.cgi htproxyput
-	mkdir -p $(prefix)/include \
-                 $(prefix)/bin \
-                 $(prefix)/sbin \
-                 $(prefix)/share/man/man1 \
-                 $(prefix)/share/man/man8 \
-                 $(prefix)/share/doc/gridsite-$(MINOR_VERSION)
-	cp -f ../doc/*.wsdl $(prefix)/share/doc/gridsite-$(MINOR_VERSION)
+	mkdir -p $(DESTDIR)$(prefix)/include \
+                 $(DESTDIR)$(prefix)/bin \
+                 $(DESTDIR)$(prefix)/sbin \
+                 $(DESTDIR)$(prefix)/share/man/man1 \
+                 $(DESTDIR)$(prefix)/share/man/man8 \
+                 $(DESTDIR)$(prefix)/share/doc/gridsite-$(MINOR_VERSION)
+	cp -f ../doc/*.wsdl $(DESTDIR)$(prefix)/share/doc/gridsite-$(MINOR_VERSION)
 	for i in htproxyput.1 htproxytime.1 htproxyrenew.1 htproxydestroy.1 \
 	 htproxyunixtime.1 htproxyinfo.1 ; do \
-	 cp -f ../doc/$$i.html $(prefix)/share/doc/gridsite-$(MINOR_VERSION) ; \
-         cp -f ../doc/$$i $(prefix)/share/doc/gridsite-$(MINOR_VERSION) ; \
-         cp -f ../doc/$$i $(prefix)/share/man/man1 ; \
-         gzip -f $(prefix)/share/man/man1/$$i ; done
+	 cp -f ../doc/$$i.html $(DESTDIR)$(prefix)/share/doc/gridsite-$(MINOR_VERSION) ; \
+         cp -f ../doc/$$i $(DESTDIR)$(prefix)/share/doc/gridsite-$(MINOR_VERSION) ; \
+         cp -f ../doc/$$i $(DESTDIR)$(prefix)/share/man/man1 ; \
+         gzip -f $(DESTDIR)$(prefix)/share/man/man1/$$i ; done
 	for i in gridsite-delegation.8 ; do \
-	 cp -f ../doc/$$i.html $(prefix)/share/doc/gridsite-$(MINOR_VERSION) ; \
-         cp -f ../doc/$$i $(prefix)/share/doc/gridsite-$(MINOR_VERSION) ; \
-         cp -f ../doc/$$i $(prefix)/share/man/man8 ; \
-         gzip -f $(prefix)/share/man/man8/$$i ; done
-	cp -f htproxyput $(prefix)/bin
-	ln -sf htproxyput $(prefix)/bin/htproxydestroy
-	ln -sf htproxyput $(prefix)/bin/htproxytime
-	ln -sf htproxyput $(prefix)/bin/htproxyunixtime
-	ln -sf htproxyput $(prefix)/bin/htproxyrenew
-	ln -sf htproxyput $(prefix)/bin/htproxyinfo
-	cp -f gridsite-delegation.cgi $(prefix)/sbin
+	 cp -f ../doc/$$i.html $(DESTDIR)$(prefix)/share/doc/gridsite-$(MINOR_VERSION) ; \
+         cp -f ../doc/$$i $(DESTDIR)$(prefix)/share/doc/gridsite-$(MINOR_VERSION) ; \
+         cp -f ../doc/$$i $(DESTDIR)$(prefix)/share/man/man8 ; \
+         gzip -f $(DESTDIR)$(prefix)/share/man/man8/$$i ; done
+	cp -f htproxyput $(DESTDIR)$(prefix)/bin
+	ln -sf htproxyput $(DESTDIR)$(prefix)/bin/htproxydestroy
+	ln -sf htproxyput $(DESTDIR)$(prefix)/bin/htproxytime
+	ln -sf htproxyput $(DESTDIR)$(prefix)/bin/htproxyunixtime
+	ln -sf htproxyput $(DESTDIR)$(prefix)/bin/htproxyrenew
+	ln -sf htproxyput $(DESTDIR)$(prefix)/bin/htproxyinfo
+	cp -f gridsite-delegation.cgi $(DESTDIR)$(prefix)/sbin
 
 post-install-debian:
 	sed -i \
 		-e 's,^\(ServerRoot\) .*,\1 "/etc/$(httpd_name)",' \
 		-e 's,/usr/lib/httpd/modules,/usr/$(libdir)/$(httpd_name)/modules,' \
-		$(prefix)/share/doc/gridsite-$(MINOR_VERSION)/*.conf
+		$(DESTDIR)$(prefix)/share/doc/gridsite-$(MINOR_VERSION)/*.conf
 
 #
 # Distributions
@@ -545,7 +483,8 @@ dist:
 	fi
 	cp -f Makefile grst*.c htcp.c slashgrid.c slashgrid.init \
                  urlencode.c findproxyfile.c gaclexample.c mod_gridsite*.c \
-                 htproxyput.c grst_admin.h mod_ssl-private.h \
+                 htproxyput.c grst_admin.h mod_ap-compat.h \
+                 canl_mod_gridsite.c canl_mod_ssl-private.h \
                  gsexec.c gsexec.h gridsite-copy.c gridsite-storage.c \
                  delegation.h \
                  roffit make-gridsite-spec make-debian-files \
@@ -568,7 +507,7 @@ htcp-bin: htcp
 	mkdir -p ../htcp-bin-$(PATCH_VERSION)/bin \
                  ../htcp-bin-$(PATCH_VERSION)/man/man1
 	cp -f ../doc/README.htcp-bin ../htcp-bin-$(PATCH_VERSION)
-	cp -f htcp ../htcp-bin-$(PATCH_VERSION)/bin
+	$(INSTALL) htcp ../htcp-bin-$(PATCH_VERSION)/bin
 	cp -f ../doc/htcp.1 ../doc/htrm.1 ../doc/htls.1 ../doc/htmkdir.1 \
               ../doc/htll.1 ../doc/htmv.1 ../doc/htping.1 ../doc/htfind.1 \
               ../htcp-bin-$(PATCH_VERSION)/man/man1
@@ -590,8 +529,7 @@ rpm-prepare: dist
 	 ./make-gridsite-spec
 
 rpm: rpm-prepare
-	rm -Rf $(MYRPMDIR)
-	mkdir -p $(MYRPMDIR)/SOURCES $(MYRPMDIR)/SPECS $(MYRPMDIR)/BUILD \
+	-mkdir -p $(MYRPMDIR)/SOURCES $(MYRPMDIR)/SPECS $(MYRPMDIR)/BUILD \
              $(MYRPMDIR)/SRPMS $(MYRPMDIR)/RPMS/i386 $(MYRPMDIR)/BUILDROOT
 	cp -f ../gridsite-$(PATCH_VERSION).src.tar.gz $(MYRPMDIR)/SOURCES
 	cp -f gridsite.spec $(MYRPMDIR)/SPECS
@@ -607,14 +545,13 @@ deb-prepare: dist
 	 ./make-debian-files
 
 deb: deb-prepare
-	rm -Rf $(MYRPMDIR)
-	mkdir -p $(MYRPMDIR)
+	-mkdir -p $(MYRPMDIR)
 	tar -xC $(MYRPMDIR) -f ../gridsite-$(PATCH_VERSION).src.tar.gz
 	cp ../gridsite-$(PATCH_VERSION).src.tar.gz $(MYRPMDIR)/gridsite_$(PATCH_VERSION).orig.tar.gz
 	cp -rf ../debian/ $(MYRPMDIR)/gridsite-$(PATCH_VERSION)/
 	(cd $(MYRPMDIR)/gridsite-$(PATCH_VERSION) && \
 	pwd && \
-	dpkg-buildpackage -S -d -uc -us)
+	dpkg-buildpackage -S -d -nc -uc -us)
 
 wtf: 
 	pwd
@@ -624,4 +561,4 @@ wtf:
 #	ls -lR /usr/local/
 #	ls -lR $(GSOAPDIR)
 
-.PHONY: build build-lib apidoc clean install install-lib install-slashgrid install-ws dist htcp-bin rpm deb wtf post-install-debian
+.PHONY: build build-lib apidoc clean distclean install install-lib install-slashgrid install-ws dist htcp-bin rpm deb wtf post-install-debian

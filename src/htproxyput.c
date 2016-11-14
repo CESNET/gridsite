@@ -265,12 +265,25 @@ int main(int argc, char *argv[])
         
       fd = mkstemp(keycert);
       ofp = fdopen(fd, "w");
+      if (!ofp)
+      {
+          fprintf(stderr, "Cannot open tmp file for the key\n");
+          return 1;
+      }
           
       ifp = fopen(key, "r");          
+      {
+          fprintf(stderr, "Cannot open the file with the key\n");
+          return 1;
+      }
       while ((c = fgetc(ifp)) != EOF) fputc(c, ofp);          
       fclose(ifp);
           
       ifp = fopen(cert, "r");          
+      {
+          fprintf(stderr, "Cannot open the file with the cert\n");
+          return 1;
+      }
       while ((c = fgetc(ifp)) != EOF) fputc(c, ofp);          
       fclose(ifp);
           
@@ -479,7 +492,7 @@ int main(int argc, char *argv[])
     for (ii=0; ii < 1000; ++ii)
 #endif
     {
-      if (GRSTx509CreateProxyRequest(&reqtxt, &keytxt, NULL) != GRST_RET_OK)
+      if (GRSTx509CreateProxyRequestKS(&reqtxt, &keytxt, NULL, 0) != GRST_RET_OK)
         {
           fprintf(stderr, "Failed to create internal proxy cert request\n");
           return 1;

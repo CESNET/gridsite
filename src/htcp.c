@@ -56,23 +56,10 @@
 #include <curl/curl.h>
 #include <errno.h>
 #include <netdb.h>
+#include <ctype.h>
 
 #include "gridsite.h"
 
-/* deal with older versions of libcurl and curl.h */
-
-#ifndef CURLOPT_WRITEDATA
-#define CURLOPT_WRITEDATA CURLOPT_FILE
-#endif
- 
-#ifndef CURLOPT_READDATA
-#define CURLOPT_READDATA CURLOPT_FILE
-#endif
-
-#ifndef CURLE_HTTP_RETURNED_ERROR
-#define CURLE_HTTP_RETURNED_ERROR CURLE_HTTP_NOT_FOUND
-#endif
- 
 #define HTCP_GET	1
 #define HTCP_PUT	2
 #define HTCP_DELETE	3
@@ -895,7 +882,7 @@ int do_finds(char *sources[],
   struct sockaddr from;
   socklen_t fromlen;
 #define MAXBUF 8192  
-  char *request, response[MAXBUF], *p;
+  char *request, response[MAXBUF];
   GRSThtcpMessage msg;
   struct timeval start_timeval, wait_timeval;
   struct grst_sitecast_group sitecast_groups[HTCP_SITECAST_GROUPS];
@@ -1014,7 +1001,7 @@ int translate_sitecast_url(char **source_ptr,
   struct sockaddr from;
   socklen_t fromlen;
 #define MAXBUF 8192  
-  char *request, response[MAXBUF], *p;
+  char *request, response[MAXBUF];
   GRSThtcpMessage msg;
   struct timeval start_timeval, wait_timeval;
   struct grst_sitecast_group sitecast_groups[HTCP_SITECAST_GROUPS];

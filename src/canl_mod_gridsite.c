@@ -107,9 +107,13 @@
 
 #include <openssl/x509v3.h>
 
-#include "mod_ssl-private.h"
+#include "canl_mod_ssl-private.h"
+#include "mod_ap-compat.h"
 
 #include "gridsite.h"
+
+#include <canl.h>
+#include <canl_ssl.h>
 
 #ifndef IPV6_ADD_MEMBERSHIP
 #ifdef  IPV6_JOIN_GROUP
@@ -154,12 +158,6 @@ struct sitecast_sockets {
     fd_set fds;
     int max_fd;
 } sitecast_sockets;
-
-#if AP_MODULE_MAGIC_AT_LEAST(20051115,0)
-/* SSL_app_data2_idx is private in Apache 2.2 mod_ssl but can be
-   determined at init time, and then recorded here */
-int GRST_SSL_app_data2_idx = -1;
-#endif
 
 typedef struct
 {
@@ -468,7 +466,7 @@ int html_format(request_rec *r, mod_gridsite_dir_cfg *conf)
     try to do GridSite formatting of .html files (NOT .shtml etc)
 */
 {
-    int    i, fd, errstatus;
+    int   fd;
     char  *buf, *p, *file, *s, *head_formatted, *header_formatted,
           *body_formatted, *admin_formatted, *footer_formatted;
     size_t length;
@@ -647,8 +645,8 @@ int html_dir_list(request_rec *r, mod_gridsite_dir_cfg *conf)
     by GridSiteHtmlFormat/conf->format
 */
 {
-    int    i, fd, n, nn;
-    char  *buf, *p, *s, *head_formatted, *header_formatted,
+    int   fd, n, nn;
+    char  *p, *s, *head_formatted, *header_formatted,
           *body_formatted, *admin_formatted, *footer_formatted, *temp,
            modified[999], *d_namepath, *indexheaderpath, *indexheadertext,
            *encoded, *escaped;
@@ -854,7 +852,6 @@ char *make_passcode_file(request_rec *r, mod_gridsite_dir_cfg *conf,
     int           i;
     char         *filetemplate, *notename_i, *grst_cred_i, *cookievalue=NULL;
     apr_uint64_t  gridauthcookie;
-    apr_table_t  *env;
     apr_file_t   *fp;
 
     /* create random for use in GRIDHTTP_PASSCODE cookies and file name */
@@ -1257,7 +1254,6 @@ static void recurse4dirlist(char *dirname, time_t *dirs_time,
    DIR           *oneDIR;
    struct dirent *onedirent;
    struct tm      mtime_tm;
-   size_t         length;
    struct stat    statbuf;
 
    if ((stat(dirname, &statbuf) != 0) ||
@@ -1331,7 +1327,7 @@ static int mod_gridsite_dnlistsuri_dir_handler(request_rec *r,
 */
 {
     int            enclen, fullurilen, fd;
-    char          *fulluri, *encfulluri, *dn_list_ptr, *dirname, *unencname,
+    char          *fulluri, *encfulluri, *dn_list_ptr, *dirname,
                   *body, *oneline, *p, *s,
                   *head_formatted, *header_formatted, *footer_formatted,
                   *permstr = NULL;
@@ -2078,7 +2074,7 @@ static const char *mod_gridsite_take2_cmds(cmd_parms *a, void *cfg,
     
     if (strcasecmp(a->cmd->name, "GridSiteUserGroup") == 0)
     {
-      if (!(unixd_config.suexec_enabled))
+      if (!(ap_unixd_config.suexec_enabled))
           return "Using GridSiteUserGroup will "
                  "require rebuilding Apache with suexec support!";
     
@@ -2342,9 +2338,11 @@ int GRST_get_session_id(SSL *ssl, char *session_id, size_t len)
    SSL_SESSION *session;
 
    if (((session = SSL_get_session(ssl)) == NULL) ||
-       (session->session_id_length == 0)) return GRST_RET_FAILED;
+       (session->session_id_length == 0)) 
+      return GRST_RET_FAILED;
    
-   if (2 * session->session_id_length + 1 > len) return GRST_RET_FAILED;
+   if (2 * session->session_id_length + 1 > len) 
+      return GRST_RET_FAILED;
 
    for (i=0; i < (int) session->session_id_length; ++i)
     sprintf(&(session_id[i*2]), "%02X", (unsigned char) session->session_id[i]);
@@ -2417,8 +2415,8 @@ int GRST_load_ssl_creds(SSL *ssl, conn_rec *conn)
 
 void GRST_save_ssl_creds(conn_rec *conn, GRSTx509Chain *grst_chain)
 {
-   int          i, lastcred, lowest_voms_delegation = 65535;
-   char         envname[14], *tempfile = NULL, *encoded,
+   int          i, lowest_voms_delegation = 65535;
+   char        *tempfile = NULL, *encoded, *voms_fqans = NULL,
                *sessionfile, session_id[(SSL_MAX_SSL_SESSION_ID_LENGTH+1)*2];
    apr_file_t  *fp = NULL;
    SSL         *ssl;
@@ -2502,6 +2500,11 @@ void GRST_save_ssl_creds(conn_rec *conn, GRSTx509Chain *grst_chain)
 
             ++i;
           }
+        else if (grst_cert->type == GRST_CERT_TYPE_ROBOT)
+          {
+            apr_table_setn(conn->notes, "GRST_ROBOT_DN", apr_pstrdup(conn->pool, grst_cert->dn));
+            /* I ignore the sslcreds cache here */
+          }
       }
 
    for (grst_cert = grst_chain->firstcert; 
@@ -2520,6 +2523,14 @@ void GRST_save_ssl_creds(conn_rec *conn, GRSTx509Chain *grst_chain)
                    apr_psprintf(conn->pool, "GRST_CRED_AURI_%d", i),
                    apr_pstrcat(conn->pool, "fqan:", encoded, NULL));
 
+            if (voms_fqans != NULL)
+              {
+                voms_fqans = apr_pstrcat(conn->pool, encoded, ";", voms_fqans, NULL);
+              }
+            else
+              {
+                voms_fqans = apr_pstrcat(conn->pool, encoded, NULL);
+              }
             if (fp != NULL) apr_file_printf(fp, "GRST_CRED_AURI_%d=fqan:%s\n",
                                                 i, encoded);
 
@@ -2545,6 +2556,15 @@ void GRST_save_ssl_creds(conn_rec *conn, GRSTx509Chain *grst_chain)
             ++i;
           }
       }
+
+   if (voms_fqans != NULL)
+     {
+       apr_table_setn(conn->notes, "GRST_VOMS_FQANS", voms_fqans);
+       if (fp != NULL) apr_file_printf(fp, "GRST_VOMS_FQANS=%s\n", voms_fqans);
+       ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, conn->base_server,
+                      "store GRST_VOMS_FQANS=%s", voms_fqans);
+     }
+
 
    /* this needs to be merged into grst_x509? */
 #if 0
@@ -2679,16 +2699,16 @@ static int mod_gridsite_perm_handler(request_rec *r)
     int          retcode = DECLINED, i, j, n, file_is_acl = 0, cc_delegation,
                  destination_is_acl = 0, ishttps = 0, nist_loa, delegation,
                  from_cookie = 0;
-    char        *dn, *p, *q, envname1[30], envname2[30], 
+    char        *p, *q, envname1[30], envname2[30], 
                 *grst_cred_auri_0 = NULL, *dir_path,
-                *remotehost, s[99], *grst_cred_auri_i, *cookies, *file, *https,
-                *cookiefile, oneline[1025], *key_i, *decoded,
+                *remotehost, *grst_cred_auri_i, *cookies, *file,
+                *cookiefile, oneline[1025], *decoded,
                 *destination = NULL, *destination_uri = NULL, *querytmp, 
                 *destination_prefix = NULL, *destination_translated = NULL,
                 *aclpath = NULL, *grst_cred_valid_0 = NULL, *grst_cred_valid_i,
-                *gridauthpasscode = NULL;
-    const char  *content_type;
-    time_t       now, notbefore, notafter;
+                *gridauthpasscode = NULL, *grst_voms_fqans;
+    const char  *content_type, *robot;
+    time_t      notbefore, notafter;
     apr_table_t *env;
     apr_finfo_t  cookiefile_info;
     apr_file_t  *fp;
@@ -2699,8 +2719,6 @@ static int mod_gridsite_perm_handler(request_rec *r)
     GRSTgaclAcl     *acl = NULL;
     mod_gridsite_dir_cfg *cfg;
     SSLConnRec      *sslconn;
-    STACK_OF(X509)  *certstack;
-    X509	    *peercert;
 
     cfg = (mod_gridsite_dir_cfg *)
                     ap_get_module_config(r->per_dir_config, &gridsite_module);
@@ -3053,9 +3071,9 @@ static int mod_gridsite_perm_handler(request_rec *r)
 
     /* finally add IP credential */
     
-    if (r->connection->remote_ip)
+    if (GRST_AP_CLIENT_IP(r->connection))
       {
-        cred = GRSTgaclCredCreate("ip:", r->connection->remote_ip);
+        cred = GRSTgaclCredCreate("ip:", GRST_AP_CLIENT_IP(r->connection));
         GRSTgaclCredSetNotAfter(cred, GRST_MAX_TIME_T);
 
         if (user == NULL) user = GRSTgaclUserNew(cred);
@@ -3273,6 +3291,17 @@ static int mod_gridsite_perm_handler(request_rec *r)
              else break;
            }
 
+        robot = apr_table_get(r->connection->notes, "GRST_ROBOT_DN");
+        if (robot)
+            apr_table_setn(env, "GRST_ROBOT_DN", robot);
+
+        if (grst_voms_fqans  = (char *)
+                apr_table_get(r->connection->notes, "GRST_VOMS_FQANS"))
+          {
+            apr_table_setn(env, "GRST_VOMS_FQANS",
+                           apr_pstrdup(r->pool, grst_voms_fqans));
+          }
+
         apr_table_setn(env, "GRST_PERM", apr_psprintf(r->pool, "%d", perm));
 
         if (((mod_gridsite_dir_cfg *) cfg)->requirepasscode == 0)
@@ -3454,643 +3483,41 @@ static int mod_gridsite_perm_handler(request_rec *r)
     return retcode;
 }
 
-int GRST_X509_check_issued_wrapper(X509_STORE_CTX *ctx, X509 *x, X509 *issuer)
-/* We change the default callback to use our wrapper and discard errors
-   due to GSI proxy chains (ie where users certs act as CAs) */
-{
-    int ret;
-    ret = X509_check_issued(issuer, x);
-    if (ret == X509_V_OK)
-                return 1;
-         
-    /* Non self-signed certs without signing are ok if they passed
-           the other checks inside X509_check_issued. Is this enough? */
-    if ((ret == X509_V_ERR_KEYUSAGE_NO_CERTSIGN) &&
-        (X509_NAME_cmp(X509_get_subject_name(issuer),
-                           X509_get_subject_name(x)) != 0)) return 1;
- 
-    /* If we haven't asked for issuer errors don't set ctx */
-#if OPENSSL_VERSION_NUMBER < 0x00908000
-    if (!(ctx->flags & X509_V_FLAG_CB_ISSUER_CHECK)) return 0;
-#else
-    if (!(ctx->param->flags & X509_V_FLAG_CB_ISSUER_CHECK)) return 0;
-#endif 
-  
-    ctx->error = ret;
-    ctx->current_cert = x;
-    ctx->current_issuer = issuer;
-    return ctx->verify_cb(0, ctx);
-}
-
-/* Later OpenSSL versions add a second pointer ... */
-int GRST_verify_cert_wrapper(X509_STORE_CTX *ctx, void *p)
-
-/* Earlier ones have a single argument ... */
-// int GRST_verify_cert_wrapper(X509_STORE_CTX *ctx)
-
-/* Before 0.9.7 we cannot change the check_issued callback directly in
-   the X509_STORE, so we must insert it in another callback that gets
-   called early enough */
-{
-   ctx->check_issued = GRST_X509_check_issued_wrapper;
-
-   return X509_verify_cert(ctx);
-}
-
-#if AP_MODULE_MAGIC_AT_LEAST(20051115,0)
-/*
-    Include this here until libgridsite functions can be used
-*/
-int GRST_ssl_callback_SSLVerify_CRL(int ok, X509_STORE_CTX *ctx, conn_rec *c)
-{
-    server_rec *s       = c->base_server;
-    SSLSrvConfigRec *sc = (SSLSrvConfigRec *) ap_get_module_config(s->module_config, &ssl_module);
-    SSLConnRec *sslconn = (SSLConnRec *) ap_get_module_config(c->conn_config, &ssl_module);
-    modssl_ctx_t *mctx  = sslconn->is_proxy ? SSLSrvConfigRec_proxy(sc) : SSLSrvConfigRec_server(sc);
-    X509_OBJECT obj;
-    X509_NAME *subject, *issuer;
-    X509 *cert;
-    X509_CRL *crl;
-    EVP_PKEY *pubkey;
-    int i, n, rc;
-
-    /*
-     * Unless a revocation store for CRLs was created we
-     * cannot do any CRL-based verification, of course.
-     */
-    if (!mctx->crl) {
-        return ok;
-    }
-
-    /*
-     * Determine certificate ingredients in advance
-     */
-    cert    = X509_STORE_CTX_get_current_cert(ctx);
-    subject = X509_get_subject_name(cert);
-    issuer  = X509_get_issuer_name(cert);
-
-    /*
-     * OpenSSL provides the general mechanism to deal with CRLs but does not
-     * use them automatically when verifying certificates, so we do it
-     * explicitly here. We will check the CRL for the currently checked
-     * certificate, if there is such a CRL in the store.
-     *
-     * We come through this procedure for each certificate in the certificate
-     * chain, starting with the root-CA's certificate. At each step we've to
-     * both verify the signature on the CRL (to make sure it's a valid CRL)
-     * and it's revocation list (to make sure the current certificate isn't
-     * revoked).  But because to check the signature on the CRL we need the
-     * public key of the issuing CA certificate (which was already processed
-     * one round before), we've a little problem. But we can both solve it and
-     * at the same time optimize the processing by using the following
-     * verification scheme (idea and code snippets borrowed from the GLOBUS
-     * project):
-     *
-     * 1. We'll check the signature of a CRL in each step when we find a CRL
-     *    through the _subject_ name of the current certificate. This CRL
-     *    itself will be needed the first time in the next round, of course.
-     *    But we do the signature processing one round before this where the
-     *    public key of the CA is available.
-     *
-     * 2. We'll check the revocation list of a CRL in each step when
-     *    we find a CRL through the _issuer_ name of the current certificate.
-     *    This CRLs signature was then already verified one round before.
-     *
-     * This verification scheme allows a CA to revoke its own certificate as
-     * well, of course.
-     */
-
-    /*
-     * Try to retrieve a CRL corresponding to the _subject_ of
-     * the current certificate in order to verify it's integrity.
-     */
-    memset((char *)&obj, 0, sizeof(obj));
-    {
-      X509_STORE_CTX pStoreCtx;
-      X509_STORE_CTX_init(&pStoreCtx, mctx->crl, NULL, NULL);
-      rc = X509_STORE_get_by_subject(&pStoreCtx, X509_LU_CRL, subject, &obj);
-      X509_STORE_CTX_cleanup(&pStoreCtx);
-    }
-
-    crl = obj.data.crl;
-
-    if ((rc > 0) && crl) {
-        /*
-         * Log information about CRL
-         * (A little bit complicated because of ASN.1 and BIOs...)
-         */
-        if (s->loglevel >= APLOG_DEBUG) {
-            char buff[512]; /* should be plenty */
-            BIO *bio = BIO_new(BIO_s_mem());
-
-            BIO_printf(bio, "CA CRL: Issuer: ");
-            X509_NAME_print(bio, issuer, 0);
-
-            BIO_printf(bio, ", lastUpdate: ");
-            ASN1_UTCTIME_print(bio, X509_CRL_get_lastUpdate(crl));
-
-            BIO_printf(bio, ", nextUpdate: ");
-            ASN1_UTCTIME_print(bio, X509_CRL_get_nextUpdate(crl));
-
-            n = BIO_read(bio, buff, sizeof(buff) - 1);
-            buff[n] = '\0';
-
-            BIO_free(bio);
-
-            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, "%s", buff);
-        }
-
-        /*
-         * Verify the signature on this CRL
-         */
-        pubkey = X509_get_pubkey(cert);
-        rc = X509_CRL_verify(crl, pubkey);
-#ifdef OPENSSL_VERSION_NUMBER
-        /* Only refcounted in OpenSSL */
-        if (pubkey)
-            EVP_PKEY_free(pubkey);
-#endif
-        if (rc <= 0) {
-            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
-                         "Invalid signature on CRL");
-
-            X509_STORE_CTX_set_error(ctx, X509_V_ERR_CRL_SIGNATURE_FAILURE);
-            X509_OBJECT_free_contents(&obj);
-            return FALSE;
-        }
-
-        /*
-         * Check date of CRL to make sure it's not expired
-         */
-        i = X509_cmp_current_time(X509_CRL_get_nextUpdate(crl));
-
-        if (i == 0) {
-            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
-                         "Found CRL has invalid nextUpdate field");
-
-            X509_STORE_CTX_set_error(ctx,
-                                     X509_V_ERR_ERROR_IN_CRL_NEXT_UPDATE_FIELD);
-            X509_OBJECT_free_contents(&obj);
-
-            return FALSE;
-        }
-
-        if (i < 0) {
-            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
-                         "Found CRL is expired - "
-                         "revoking all certificates until you get updated CRL");
-
-            X509_STORE_CTX_set_error(ctx, X509_V_ERR_CRL_HAS_EXPIRED);
-            X509_OBJECT_free_contents(&obj);
-
-            return FALSE;
-        }
-
-        X509_OBJECT_free_contents(&obj);
-    }
-
-    /*
-     * Try to retrieve a CRL corresponding to the _issuer_ of
-     * the current certificate in order to check for revocation.
-     */
-    memset((char *)&obj, 0, sizeof(obj));
-    {
-      X509_STORE_CTX pStoreCtx;
-      X509_STORE_CTX_init(&pStoreCtx, mctx->crl, NULL, NULL);
-      rc = X509_STORE_get_by_subject(&pStoreCtx, X509_LU_CRL, issuer, &obj);
-      X509_STORE_CTX_cleanup(&pStoreCtx);
-    }
-
-    crl = obj.data.crl;
-    if ((rc > 0) && crl) {
-        /*
-         * Check if the current certificate is revoked by this CRL
-         */
-        n = sk_X509_REVOKED_num(X509_CRL_get_REVOKED(crl));
-
-        for (i = 0; i < n; i++) {
-            X509_REVOKED *revoked =
-                sk_X509_REVOKED_value(X509_CRL_get_REVOKED(crl), i);
-
-//            ASN1_INTEGER *sn = X509_REVOKED_get_serialNumber(revoked);
-            ASN1_INTEGER *sn = revoked->serialNumber;
-
-            if (!ASN1_INTEGER_cmp(sn, X509_get_serialNumber(cert))) {
-                if (s->loglevel >= APLOG_DEBUG) {
-                    char *cp = X509_NAME_oneline(issuer, NULL, 0);
-                    char *serial = i2s_ASN1_INTEGER(NULL,sn);
-
-                    ap_log_error(APLOG_MARK, APLOG_INFO, 0, s,
-                                 "Certificate with serial %s "
-                                 "revoked per CRL from issuer %s",
-                                 serial, cp);
-                    OPENSSL_free(cp);
-                    free(serial);
-                }
-
-                X509_STORE_CTX_set_error(ctx, X509_V_ERR_CERT_REVOKED);
-                X509_OBJECT_free_contents(&obj);
-
-                return FALSE;
-            }
-        }
-
-        X509_OBJECT_free_contents(&obj);
-    }
-
-    return ok;
-}
-#endif
-
-
-int GRST_isRFC3820Proxy(X509 *cert) {
-    int  i;
-    char s[80];
-    X509_EXTENSION *ex;
-
-    /* Check by OID */
-    for (i = 0; i < X509_get_ext_count(cert); i++) {
-        ex = X509_get_ext(cert, i);
-
-        if (X509_EXTENSION_get_object(ex)) {
-            OBJ_obj2txt(s, sizeof(s), X509_EXTENSION_get_object(ex), 1);
-            if (strcmp(s, GRST_PROXYCERTINFO_OID) == 0) {
-                return 1;
-            }
-        }
-    }
-    return 0;
-}
-
-int GRST_verifyPathLenConstraints(STACK_OF(X509) *chain, server_rec *s, int original_errnum)
-{
-    X509 *cert = NULL;
-    int i, j, depth, c;
-    char *cert_subjectdn = NULL;
-
-    int ca_path_len_countdown    = -1;
-    int proxy_path_len_countdown = -1;
-
-    /* No chain, no game */
-    if (!chain)
-    {
-        return X509_V_ERR_CERT_REJECTED;
-    }
-
-    /* Go through the list, from the CA(s) down through the EEC to the final delegation */
-    depth = sk_X509_num (chain);
-    for (i=depth-1; i >= 0; --i)
-    {
-        if ((cert = sk_X509_value(chain, i)))
-        {
-            if (cert_subjectdn) OPENSSL_free(cert_subjectdn);
-            cert_subjectdn = X509_NAME_oneline(X509_get_subject_name(cert), NULL, 0);
-
-            /* CA certs: check CA Path Length Constraint */
-            if (X509_check_ca(cert) == 0)
-            {
-                /* Exceeded CA Path Length ? */
-                if (ca_path_len_countdown == 0)
-                {
-                    ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
-                                 "CA Path Length Constraint exceeded on depth %d for "
-                                 "certificate \"%s\". No CA certifcates were expected at this stage.",
-                                 i, cert_subjectdn);
-                    if (cert_subjectdn) OPENSSL_free(cert_subjectdn);
-                    return original_errnum;
-                }
-
-                /* Store pathlen, override when small, otherwise keep the smallest */
-                if (cert->ex_pathlen != -1)
-                {
-                    /* Update when ca_path_len_countdown is the initial value
-                     * or when the PathLenConstraint is smaller then the
-                     * remembered ca_path_len_countdown */
-                    if ((ca_path_len_countdown == -1) || (cert->ex_pathlen < ca_path_len_countdown))
-                    {
-                        ca_path_len_countdown = cert->ex_pathlen;
-                    } 
-                    else 
-                    {
-                        /* If a path length was already issuesd, lower ca_path_len_countdown */
-                        if (ca_path_len_countdown != -1)
-                            ca_path_len_countdown--;
-                    }
-                }
-                else
-                {
-                    /* If a path length was already issuesd, lower ca_path_len_countdown */
-                    if (ca_path_len_countdown != -1)
-                        ca_path_len_countdown--;
-                }
-            }
-            /* Useful for RFC3820 proxies only */
-            else if (GRST_isRFC3820Proxy(cert))
-            {
-                /* Exceeded CA Path Length ? */
-                if (proxy_path_len_countdown == 0) {
-                    ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
-                                 "Proxy Path Length Constraint exceeded on depth %d of %d for "
-                                 "certificate \"%s\". No CA certifcates were expected at this stage.",
-                                 i, depth, cert_subjectdn);
-                    if (cert_subjectdn) OPENSSL_free(cert_subjectdn);
-                    return original_errnum;
-                }
-
-                /* Store pathlen, override when small, otherwise keep the smallest */
-                if (cert->ex_pcpathlen != -1) {
-                    /* Update when proxy_path_len_countdown is the initial value
-                     * or when the PathLenConstraint is smaller then the
-                     * remembered proxy_path_len_countdown */
-                    if ((proxy_path_len_countdown == -1) || (cert->ex_pcpathlen < proxy_path_len_countdown)) {
-                        proxy_path_len_countdown = cert->ex_pcpathlen;
-                    } else {
-                        /* If a path length was already issuesd, lower ca_path_len_countdown */
-                        if (proxy_path_len_countdown != -1)
-                            proxy_path_len_countdown--;
-                    }
-                } else {
-                    /* If a path length was already issued, lower ca_path_len_countdown */
-                    if (proxy_path_len_countdown != -1) {
-                        proxy_path_len_countdown--;
-                    }
-
-                }
-            }
-        }
-    }
-    if (cert_subjectdn) OPENSSL_free(cert_subjectdn);
-    return X509_V_OK;
-}
-
-
 int GRST_callback_SSLVerify_wrapper(int ok, X509_STORE_CTX *ctx)
 {
    SSL *ssl            = (SSL *) X509_STORE_CTX_get_app_data(ctx);
    conn_rec *conn      = (conn_rec *) SSL_get_app_data(ssl);
-   server_rec *s       = conn->base_server;
-   SSLConnRec *sslconn = 
-         (SSLConnRec *) ap_get_module_config(conn->conn_config, &ssl_module);
    int errnum          = X509_STORE_CTX_get_error(ctx);
    int errdepth        = X509_STORE_CTX_get_error_depth(ctx);
    int returned_ok;
-   int first_non_ca;
-#if AP_MODULE_MAGIC_AT_LEAST(20051115,0)
-   request_rec *r      = (request_rec *) SSL_get_ex_data(ssl, GRST_SSL_app_data2_idx);
-   SSLSrvConfigRec *sc = (SSLSrvConfigRec *) ap_get_module_config(s->module_config, &ssl_module);
-   SSLDirConfigRec *dc = r ? (SSLDirConfigRec *) ap_get_module_config(r->per_dir_config, &ssl_module) : NULL;
-   modssl_ctx_t *mctx  = sslconn->is_proxy ? SSLSrvConfigRec_proxy(sc) : SSLSrvConfigRec_server(sc);
-   int verify, depth;
-#endif
    STACK_OF(X509) *certstack;
    GRSTx509Chain *grst_chain;
 
-
-#if AP_MODULE_MAGIC_AT_LEAST(20051115,0)
-    /*
-     * Log verification information
-     */
-    if (s->loglevel >= APLOG_DEBUG) 
-      {
-        X509 *cert  = X509_STORE_CTX_get_current_cert(ctx);
-        char *sname = X509_NAME_oneline(X509_get_subject_name(cert), NULL, 0);
-        char *iname = X509_NAME_oneline(X509_get_issuer_name(cert),  NULL, 0);
-
-        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                     "Certificate Verification: "
-                     "depth: %d, subject: %s, issuer: %s",
-                     errdepth,
-                     sname ? sname : "-unknown-",
-                     iname ? iname : "-unknown-");
-
-        if (sname) OPENSSL_free(sname);
-
-        if (iname) OPENSSL_free(iname);
-      } 
-
-    /*
-     * Check for optionally acceptable non-verifiable issuer situation
-     */
-    if (dc && (dc->nVerifyClient != SSL_CVERIFY_UNSET)) 
-      {
-        verify = dc->nVerifyClient;
-      }
-    else 
-      {
-        verify = mctx->auth.verify_mode;
-      }
-
-    if (verify == SSL_CVERIFY_NONE) 
-      {
-        /*
-         * SSLProxyVerify is either not configured or set to "none".
-         * (this callback doesn't happen in the server context if SSLVerify
-         *  is not configured or set to "none")
-         */
-        return TRUE;
-      }
-
-   if (ssl_verify_error_is_optional(errnum) &&
-        (verify == SSL_CVERIFY_OPTIONAL_NO_CA))
-    {
-        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                     "Certificate Verification: Verifiable Issuer is "
-                     "configured as optional, therefore we're accepting "
-                     "the certificate");
-
-        sslconn->verify_info = "GENEROUS";
-        ok = TRUE;
-    }
-
-    /*
-     * Additionally perform CRL-based revocation checks
-     */
-   if (ok) 
-     {
-        if (!(ok = GRST_ssl_callback_SSLVerify_CRL(ok, ctx, conn))) 
-          {
-            errnum = X509_STORE_CTX_get_error(ctx);
-          }
-     }
-
-    /*
-     * If we already know it's not ok, log the real reason
-     */
-    if (!ok) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
-                     "Certificate Verification: Error (%d): %s",
-                     errnum, X509_verify_cert_error_string(errnum));
-
-        if (sslconn->client_cert) {
-            X509_free(sslconn->client_cert);
-            sslconn->client_cert = NULL;
-        }
-        sslconn->client_dn = NULL;
-        sslconn->verify_error = X509_verify_cert_error_string(errnum);
-    }
-
-    /*
-     * Finally check the depth of the certificate verification
-     */
-    if (dc && (dc->nVerifyDepth != UNSET)) 
-      {
-        depth = dc->nVerifyDepth;
-      }
-    else 
-      {
-        depth = mctx->auth.verify_depth;
-      }
-
-    if (errdepth > depth) 
-      {
-        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
-                     "Certificate Verification: Certificate Chain too long "
-                     "(chain has %d certificates, but maximum allowed are "
-                     "only %d)",
-                     errdepth, depth);
-
-        errnum = X509_V_ERR_CERT_CHAIN_TOO_LONG;
-        sslconn->verify_error = X509_verify_cert_error_string(errnum);
-
-        ok = FALSE;
-      }
-
-#endif
-
-   /*
-    * GSI Proxy user-cert-as-CA handling:
-    * we skip Invalid CA errors at this stage, since we will check this
-    * again at errdepth=0 for the full chain using GRSTx509ChainLoadCheck
-    */
-   if (errnum == X509_V_ERR_INVALID_CA)
-     {
-        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                    "Skip Invalid CA error in case a GSI Proxy");
-
-        sslconn->verify_error = NULL;
-        ok = TRUE;
-        errnum = X509_V_OK;
-        X509_STORE_CTX_set_error(ctx, errnum);
-     }
-
-   /*
-    * Skip X509_V_ERR_INVALID_PURPOSE at this stage, since we will check 
-    * the full chain using GRSTx509ChainLoadCheck at errdepth=0
-    */
-   if (errnum == X509_V_ERR_INVALID_PURPOSE)
-     {
-        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                    "Skip Invalid Purpose error");
-
-        sslconn->verify_error = NULL;
-        ok = TRUE;
-        errnum = X509_V_OK;
-        X509_STORE_CTX_set_error(ctx, errnum);
-     }
-
-#ifdef X509_V_ERR_PROXY_CERTIFICATES_NOT_ALLOWED
-   /*
-    * Skip X509_V_ERR_PROXY_CERTIFICATES_NOT_ALLOWED, since they are!
-    */
-   if (errnum == X509_V_ERR_PROXY_CERTIFICATES_NOT_ALLOWED)
-     {
-        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                    "Skip Proxy Certificates Not Allowed error");
-
-        sslconn->verify_error = NULL;
-        ok = TRUE;
-        errnum = X509_V_OK;
-        X509_STORE_CTX_set_error(ctx, errnum);
-     }
-#endif
-
-   /*
-    * Check certificate chain on path lengths when a path length constraint is triggered
-    */
-   if ((errnum == X509_V_ERR_PATH_LENGTH_EXCEEDED) ||
-           (errnum == X509_V_ERR_PROXY_PATH_LENGTH_EXCEEDED))
-   {
-       ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-               "Detected X509_V_ERR_PATH_LENGTH_EXCEEDED or "
-               "X509_V_ERR_PROXY_PATH_LENGTH_EXCEEDED error. Starting evaluation...");
-       errnum = GRST_verifyPathLenConstraints(X509_STORE_CTX_get_chain(ctx), s, errnum);
-       if (errnum == X509_V_OK)
-       {
-          ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                       "Certificate chain path length contraints evaluation "
-                       "concluded the chain is OK.");
-          sslconn->verify_error == NULL;
-          errnum = X509_V_ERR_INVALID_CA; // Oddly enough, setting the error to X509_V_OK will cause later errors.  This causes an ignore.
-          X509_STORE_CTX_set_error(ctx, errnum);
-          ok = TRUE;
-       }
-   }
-
-   /*
-    * New style GSI Proxy handling, with critical ProxyCertInfo
-    * extension: we use GRSTx509KnownCriticalExts() to check this
-    */
-#ifndef X509_V_ERR_UNHANDLED_CRITICAL_EXTENSION
-#define X509_V_ERR_UNHANDLED_CRITICAL_EXTENSION 34
-#endif
-   if (errnum == X509_V_ERR_UNHANDLED_CRITICAL_EXTENSION)
-     {
-       if (GRSTx509KnownCriticalExts(X509_STORE_CTX_get_current_cert(ctx))
-                                                              == GRST_RET_OK)
-         {
-            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                     "GRSTx509KnownCriticalExts() accepts previously "
-                     "Unhandled Critical Extension (GSI Proxy?)");
-
-            sslconn->verify_error = NULL;
-            ok = TRUE;
-            errnum = X509_V_OK;
-            X509_STORE_CTX_set_error(ctx, errnum);
-         }
-     }
-
-#if AP_MODULE_MAGIC_AT_LEAST(20051115,0)
-   returned_ok = ok;
-#else
-   returned_ok = ssl_callback_SSLVerify(ok, ctx);
-#endif
+   /* Call caNl callback directly */
+   returned_ok = canl_direct_pv_clb(NULL, ctx, ok);
 
    /* in case ssl_callback_SSLVerify changed it */
    errnum = X509_STORE_CTX_get_error(ctx); 
 
    if ((errdepth == 0) && (errnum == X509_V_OK))
-   /*
-    * We've now got the last certificate - the identity being used for
-    * this connection. At this point we check the whole chain for valid
-    * CAs or, failing that, GSI-proxy validity using GRSTx509CheckChain.
-    */
-     {
-        certstack = (STACK_OF(X509) *) X509_STORE_CTX_get_chain(ctx);
+       /*
+        * We've now got the last certificate - the identity being used for
+        * this connection. At this point we check the whole chain for valid
+        * CAs or, failing that, GSI-proxy validity using GRSTx509CheckChain.
+        */
+   {
+       certstack = (STACK_OF(X509) *) X509_STORE_CTX_get_chain(ctx);
 
-        errnum = GRSTx509ChainLoadCheck(&grst_chain, certstack, NULL,
-					 "/etc/grid-security/certificates",
-					 "/etc/grid-security/vomsdir");
+       errnum = GRSTx509ChainLoad(&grst_chain, certstack, NULL,
+               "/etc/grid-security/certificates",
+               "/etc/grid-security/vomsdir");
 
-        if (errnum != X509_V_OK)
-          {
-            ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
-                     "Invalid certificate chain reported by "
-                     "GRSTx509CheckChain()");
-
-            sslconn->verify_error = X509_verify_cert_error_string(errnum);
-            ok = FALSE;
-          }
-        else 
-          {
-            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, "Valid certificate"
-                              " chain reported by GRSTx509ChainLoadCheck()");
-
-            /* Put result of GRSTx509ChainLoadCheck into connection notes */
-            GRST_save_ssl_creds(conn, grst_chain);
-          }
-          
-        GRSTx509ChainFree(grst_chain);
-     }
+       if (returned_ok)
+           /* Put result of GRSTx509ChainLoadCheck into connection notes */
+           GRST_save_ssl_creds(conn, grst_chain);
+       if (grst_chain)
+           GRSTx509ChainFree(grst_chain);
+   }
 
    return returned_ok;
 }
@@ -4463,6 +3890,14 @@ static int mod_gridsite_server_post_config(apr_pool_t *pPool,
    char            *path;   
    const char *userdata_key   = "sitecast_init";
    const char *insecure_reneg = "SSLInsecureRenegotiation";
+   canl_ctx c_ctx = NULL;
+
+   c_ctx = canl_create_ctx();
+   if (!c_ctx){
+           ap_log_error(APLOG_MARK, APLOG_CRIT, status, main_server,
+              "mod_gridsite: Failed to create caNl context.");
+       return HTTP_INTERNAL_SERVER_ERROR;
+   }
 
    apr_pool_userdata_get((void **) &procnew, userdata_key, 
                          main_server->process->pool);
@@ -4505,17 +3940,6 @@ static int mod_gridsite_server_post_config(apr_pool_t *pPool,
    ap_add_version_component(pPool,
                             apr_psprintf(pPool, "mod_gridsite/%s", VERSION));
 
-#if AP_MODULE_MAGIC_AT_LEAST(20051115,0)
-   /* establish value of SSL_app_data2_idx and record it */
-   GRST_SSL_app_data2_idx = SSL_get_ex_new_index(0,
-                                  "Dummy Application Data for mod_gridsite",
-                                   NULL, NULL, NULL) - 1;
-   ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, main_server,
-              "mod_gridsite: GRST_SSL_app_data2_idx=%d", 
-              GRST_SSL_app_data2_idx);
-#endif
-
-  
    /* look for a SSLInsecureRenegotiation flag - if it exists then the mod_ssl
       internal variable 'SSLSrvConfigRec' is different */
    while ( ssl_module.cmds[i].name && !mod_ssl_with_insecure_reneg)
@@ -4548,21 +3972,14 @@ static int mod_gridsite_server_post_config(apr_pool_t *pPool,
             SSL_CTX_set_options(ctx, SSL_OP_NO_TICKET);
 #endif
 
-            /* in 0.9.7 we could set the issuer-checking callback directly */
-//          ctx->cert_store->check_issued = GRST_X509_check_issued_wrapper;
-     
-            /* but in case 0.9.6 we do it indirectly with another wrapper */
-            SSL_CTX_set_cert_verify_callback(ctx, 
-                                             GRST_verify_cert_wrapper,
-                                             (void *) NULL);
+            /* Use default caNl callbacks to verify certificates*/
+            canl_ssl_ctx_set_clb(c_ctx, ctx, ctx->verify_mode,
+                    GRST_callback_SSLVerify_wrapper);
 
-            /* whatever version, we can set the SSLVerify wrapper properly */
-            SSL_CTX_set_verify(ctx, ctx->verify_mode, 
-                               GRST_callback_SSLVerify_wrapper);
-
-            if (main_server->loglevel >= APLOG_DEBUG)
+            if (GRST_AP_LOGLEVEL(main_server) >= APLOG_DEBUG)
                  ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, main_server,
-                      "Set mod_ssl verify callbacks to GridSite wrappers");
+                      "Set mod_ssl verify callbacks to GridSite wrappers: %s",
+                      canl_get_error_message(c_ctx));
           }
       }
 
@@ -4570,8 +3987,9 @@ static int mod_gridsite_server_post_config(apr_pool_t *pPool,
 
    path = ap_server_root_relative(pPool, sessionsdir);
    apr_dir_make_recursive(path, APR_UREAD | APR_UWRITE | APR_UEXECUTE, pPool);
-   chown(path, unixd_config.user_id, unixd_config.group_id);
+   chown(path, ap_unixd_config.user_id, ap_unixd_config.group_id);
 
+   canl_free_ctx(c_ctx);
    return OK;
 }
 
@@ -4586,8 +4004,16 @@ static int mod_gridsite_log_func(char *file, int line, int level,
    vasprintf(&mesg, fmt, ap);
    va_end(ap);
 
+/*
+ * since >=2.3.6: added module_index argument to ap_log_error()
+ */
+#if GRST_AP_VERSION < 20306
    ap_log_error(file, line, level, 
                 0, mod_gridsite_log_func_server, "%s", mesg);
+#else
+   ap_log_error(file, line, APLOG_NO_MODULE, level,
+                0, mod_gridsite_log_func_server, "%s", mesg);
+#endif
    
    free(mesg);
    return 0;

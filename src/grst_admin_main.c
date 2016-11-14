@@ -220,7 +220,7 @@ int main()
       puts("Status: 500 Internal Server Error\nContent-type: text/plain\n\n"
            "REDIRECT_GRST_DIR_PATH or REDIRECT_GRST_ADMIN_FILE "
            "or REQUEST_URI missing");
-      return;
+      return -1;
     }
 
   GRSTgaclInit();

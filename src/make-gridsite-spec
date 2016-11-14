@@ -1,29 +1,13 @@
 #!/bin/sh
 
-# test to see if fuse-devel (or fuse.h and libfuse) is installed
-#
-cat <<EOF >fuse-test.c
-#include <fuse.h>
-int main() { struct fuse_context ctx;
-return fuse_main(0, (char **) 0, (struct fuse_operations *) 0); }
-EOF
-make fuse-test
-if [ $? = 0 ] ; then have_fuse=1 ; fi
-
-if [ x"$project" = x"glite" ]; then
-	globusdep=',vdt_globus_sdk'
-else
-	globusdep=',globus-gssapi-gsi-devel'
-fi
-
 if [ x"$project" = x"emi1" ]; then
 	shared_name="shared"
-	shared_provide_name="libs"
+	shared_provide="libs"
 	shared_obsoletes="gridsite-libs < $PATCH_VERSION"
 else
 	shared_name="libs"
-	shared_provide_name="shared"
-	shared_obsoletes="gridsite-shared <= $PATCH_VERSION"
+	shared_provide="shared"
+	shared_obsoletes="gridsite-shared < $PATCH_VERSION"
 fi
 
 # test to see if gsoap-devel (or stdsoap2.h and libgsoapssl) is installed
@@ -38,9 +22,6 @@ make gridsite-delegation.cgi
 if [ $? = 0 ] ; then have_gsoap=1 ; fi
 rm -f a.out
 
-if [ "$have_fuse" = "1" ]; then
-	fusedep=',fuse-devel'
-fi
 if [ "$have_gsoap" = "1" ]; then
 	gsoapdep=',gsoap-devel'
 fi
@@ -56,14 +37,21 @@ Version: ${PATCH_VERSION:-1.x.x}
 # This next piece of .spec/sed magic puts the build OS version in the release
 Release: %(if [ "$RELEASE_VERSION" ] ; then echo $RELEASE_VERSION ; else echo '1' ; fi)%{?dist}
 Summary: mod_gridsite module for Apache httpd
-License: Modified BSD
+License: ASL 2.0 and BSD
 Group: System Environment/Daemons
 Source: %{name}-%{version}.src.tar.gz
 BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
 URL: http://www.gridsite.org/
 Vendor: GridPP
-Buildrequires: libxml2-devel,curl-devel,httpd-devel,openssl-devel,pkgconfig
-Buildrequires: doxygen${gsoapdep}${fusedep}${globusdep}
+BuildRequires: libxml2-devel%{?_isa},httpd-devel%{?_isa},openssl-devel%{?_isa},pkgconfig
+BuildRequires: doxygen${gsoapdep}
+BuildRequires: canl-c-devel%{?_isa}
+%if %{?fedora}%{!?fedora:0} >= 10 || %{?rhel}%{!?rhel:0} >= 6
+BuildRequires:  libcurl-devel%{?_isa}
+%else
+BuildRequires:  curl-devel%{?_isa}
+%endif
+BuildRequires: libtool
 Packager: Andrew McNab <Andrew.McNab@manchester.ac.uk>
 Provides: gridsite-apache = %{version}-%{release}
 Obsoletes: gridsite-apache < %{version}-%{release}
@@ -84,7 +72,7 @@ See http://www.gridsite.org/ for details.
 Group: Development/Libraries
 Summary: GridSite shared library and core documentation
 Obsoletes: $shared_obsoletes
-Provides: gridsite-$shared_provide_name = %{version}-%{release}
+Provides: gridsite-$shared_provide = %{version}-%{release}
 
 %description $shared_name
 GridSite shared library and core documentation
@@ -114,57 +102,19 @@ HTTP/HTTPS rather than ssh as its transfer protocol.
 
 See http://www.gridsite.org/ for details.
 
-%package gsexec
-Group: Applications/Internet
-Summary: gsexec binary for the Apache HTTP server
-
-%description gsexec
-This package includes the /usr/sbin/gsexec binary which can be installed
-to allow the Apache HTTP server to run CGI programs (and any programs
-executed by SSI pages) as a user other than the 'apache' user. gsexec
-is a drop-in replacement for suexec, with extended functionality for use
-with GridSite and Grid Security credentials.
-
-See http://www.gridsite.org/ for details.
-
-EOF
-
-if [ x"$project" = x"emi1" ]; then
-cat <<EOF >>gridsite.spec
-%package apache
-Group: System Environment/Daemons
-Summary: GridSite mod_gridsite module for Apache httpd
-
-%description apache
-GridSite Apache module and CGI binaries. This is helper package to fix upgrade
-from upstream gridsite 1.7.19.
-
-See http://www.gridsite.org/ for details.
-
-EOF
-fi
-
-cat <<EOF >>gridsite.spec
 %prep
 
 %setup -q
 
 %build
 cd src
-make prefix=%{_prefix}
+make prefix=%{_prefix} CFLAGS="%{optflags}" LDFLAGS="%{?__global_ldflags}"
 
 EOF
-
-if [ $have_fuse ] ; then
-cat <<EOF >>gridsite.spec
-make prefix=%{_prefix} slashgrid
-
-EOF
-fi
 
 if [ $have_gsoap ] ; then
 cat <<EOF >>gridsite.spec
-make prefix=%{_prefix} gridsite-delegation.cgi htproxyput
+make prefix=%{_prefix} gridsite-delegation.cgi htproxyput CFLAGS="%{optflags}" LDFLAGS="%{?__global_ldflags}"
 
 EOF
 fi
@@ -172,33 +122,25 @@ fi
 cat <<EOF >>gridsite.spec
 
 %install
-rm -rf \$RPM_BUILD_ROOT
+rm -rf %{buildroot}
 
 cd src
 
-make install prefix=\$RPM_BUILD_ROOT/%{_prefix} libdir=%{_lib}
+make install prefix=%{_prefix} libdir=%{_lib} DESTDIR=%{buildroot}
+rm -f %{buildroot}/%{_libdir}/*.a
 EOF
-
-if [ $have_fuse ] ; then
-
-cat <<EOF >>gridsite.spec
-
-mkdir -p \$RPM_BUILD_ROOT/etc/rc.d/init.d
-make install-slashgrid prefix=\$RPM_BUILD_ROOT/%{_prefix}
-EOF
-fi
 
 if [ $have_gsoap ] ; then
 
 cat <<EOF >>gridsite.spec
 
-make install-ws prefix=\$RPM_BUILD_ROOT/%{_prefix}
+make install-ws prefix=%{_prefix} libdir=%{_lib} DESTDIR=%{buildroot}
 EOF
 fi
 
 cat <<EOF >>gridsite.spec
 %clean
-rm -rf \$RPM_BUILD_ROOT
+rm -rf %{buildroot}
 
 %post $shared_name
 if [ "\$UID" = "0" ] ; then
@@ -214,8 +156,6 @@ fi
 %attr(-, root, root) %{_prefix}/share/man/man8/mod_gridsite.8.gz
 %attr(-, root, root) %{_prefix}/%{_lib}/httpd/modules/mod_gridsite.so
 %attr(-, root, root) %{_prefix}/sbin/real-gridsite-admin.cgi
-%attr(-, root, root) %{_prefix}/sbin/gridsite-copy.cgi
-%attr(-, root, root) %{_prefix}/sbin/gridsite-storage.cgi
 EOF
 
 if [ $have_gsoap ] ; then
@@ -230,23 +170,17 @@ fi
 cat <<EOF >>gridsite.spec
 
 %files $shared_name
-%attr(-, root, root) %{_prefix}/%{_lib}/libgridsite.so.%{version}
-%attr(-, root, root) %{_prefix}/%{_lib}/libgridsite.so.${MINOR_VERSION:-1.x}
-%attr(-, root, root) %{_prefix}/%{_lib}/libgridsite.so.${MAJOR_VERSION:-1}
-%attr(-, root, root) %{_prefix}/%{_lib}/libgridsite_globus.so.%{version}
-%attr(-, root, root) %{_prefix}/%{_lib}/libgridsite_globus.so.${MINOR_VERSION:-1.x}
-%attr(-, root, root) %{_prefix}/%{_lib}/libgridsite_globus.so.${MAJOR_VERSION:-1}
-%attr(-, root, root) %{_prefix}/%{_lib}/libgridsite_nossl.so.%{version}
-%attr(-, root, root) %{_prefix}/%{_lib}/libgridsite_nossl.so.${MINOR_VERSION:-1.x}
-%attr(-, root, root) %{_prefix}/%{_lib}/libgridsite_nossl.so.${MAJOR_VERSION:-1}
 %attr(-, root, root) %{_prefix}/share/doc/gridsite-${MINOR_VERSION:-1.x}
+%attr(-, root, root) %{_prefix}/%{_lib}/libgridsite.so.2
+%attr(-, root, root) %{_prefix}/%{_lib}/libgridsite.so.2.*
+%attr(-, root, root) %{_prefix}/%{_lib}/libgridsite_globus.so.2
+%attr(-, root, root) %{_prefix}/%{_lib}/libgridsite_globus.so.2.*
+%attr(-, root, root) %{_prefix}/%{_lib}/libgridsite_nossl.so.2
+%attr(-, root, root) %{_prefix}/%{_lib}/libgridsite_nossl.so.2.*
 
 %files devel
 %attr(-, root, root) %{_prefix}/include/gridsite.h
 %attr(-, root, root) %{_prefix}/include/gridsite-gacl.h
-%attr(-, root, root) %{_prefix}/%{_lib}/libgridsite.a
-%attr(-, root, root) %{_prefix}/%{_lib}/libgridsite_globus.a
-%attr(-, root, root) %{_prefix}/%{_lib}/libgridsite_nossl.a
 %attr(-, root, root) %{_prefix}/%{_lib}/libgridsite.so
 %attr(-, root, root) %{_prefix}/%{_lib}/libgridsite_globus.so
 %attr(-, root, root) %{_prefix}/%{_lib}/libgridsite_nossl.so
@@ -273,38 +207,7 @@ cat <<EOF >>gridsite.spec
 %attr(-, root, root) %{_prefix}/share/man/man1/htfind.1.gz
 %attr(-, root, root) %{_prefix}/share/man/man1/urlencode.1.gz
 %attr(-, root, root) %{_prefix}/share/man/man1/findproxyfile.1.gz
-
-%files gsexec
-%attr(4510, root, apache) %{_prefix}/sbin/gsexec
-%attr(-, root, root) %{_prefix}/share/man/man8/gsexec.8.gz
 EOF
-
-if [ $have_fuse ] ; then
-
-cat <<EOF >>gridsite.spec
-%package slashgrid
-Group: Applications/Internet
-Summary: slashgrid daemon
-Requires: curl >= 7.12.1,fuse
-
-%description slashgrid
-SlashGrid daemon
-
-%post slashgrid
-mkdir -p /grid
-
-%preun slashgrid
-/sbin/service slashgrid stop ; :
-
-%files slashgrid
-%attr(0744, root, root) %{_prefix}/sbin/slashgrid
-%attr(0744, root, root) /etc/rc.d/init.d/slashgrid
-%attr(0700, root, root) /var/spool/slashgrid
-%attr(-, root, root) %{_prefix}/share/man/man8/slashgrid.8.gz
-
-EOF
-
-fi
 
 if [ $have_gsoap ] ; then
 
@@ -341,21 +244,9 @@ See http://www.gridsite.org/ for details.
 
 EOF
 
-if [ x"$project" = x"emi1" ]; then
-cat <<EOF >>gridsite.spec
-%files apache
-%attr(-, root, root) %{_prefix}/share/man/man8/mod_gridsite.8.gz
-%attr(-, root, root) %{_prefix}/%{_lib}/httpd/modules/mod_gridsite.so
-%attr(-, root, root) %{_prefix}/sbin/real-gridsite-admin.cgi
-%attr(-, root, root) %{_prefix}/sbin/gridsite-copy.cgi
-%attr(-, root, root) %{_prefix}/sbin/gridsite-storage.cgi
-
-EOF
-fi
-
 LC_TIME=C cat >> gridsite.spec <<EOF
 %changelog
-* `date '+%a %b %d %Y'` - autobuild@`hostname -f`
+* `date '+%a %b %d %Y'` autobuild@`hostname -f` - ${PATCH_VERSION:-1.x.x}-${RELEASE_VERSION:-1}
 - automatically generated package
 EOF
 

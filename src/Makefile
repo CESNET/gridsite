@@ -233,7 +233,7 @@ gridsite-copy.cgi: gridsite-copy.lo libgridsite.la
 
 mod_gridsite.so: $(MOD_GRIDSITE_FILE) $(MOD_SSLPRIVATE_HEADER) \
                  libgridsite.la
-	$(CC) $(CFLAGS) $(MYCFLAGS) $(LDFLAGS) \
+	$(CC) $(CFLAGS) $(MYCFLAGS) $(CANL_C_CFLAGS) $(LDFLAGS) \
            -shared -Wl,-soname=gridsite_module \
            -I/usr/kerberos/include \
            $(XML2_CFLAGS) -lssl -lcrypto $(MYCANLLDFLAGS) \

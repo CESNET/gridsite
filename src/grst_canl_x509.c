@@ -2658,7 +2658,10 @@ char *GRSTx509MakeDelegationID(void)
     return NULL;
 
   m = EVP_sha1();
-  if (m == NULL) return NULL;
+  if (m == NULL) {
+    EVP_MD_CTX_free(ctx);
+    return NULL;
+  }
 
   EVP_DigestInit(ctx, m);
 

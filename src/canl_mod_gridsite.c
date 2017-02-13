@@ -1641,7 +1641,7 @@ static void *create_gridsite_srv_config(apr_pool_t *p, server_rec *s)
              sitecastgroups[i].port = 0; /* GridSiteCastGroup mcast-list */
            }
 
-        for (i=0; i <= GRST_SITECAST_ALIASES; ++i)
+        for (i=0; i < GRST_SITECAST_ALIASES; ++i)
            {
              sitecastaliases[i].sitecast_url   = NULL;
              sitecastaliases[i].port           = 0;

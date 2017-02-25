@@ -171,12 +171,12 @@ cat <<EOF >>gridsite.spec
 
 %files $shared_name
 %attr(-, root, root) %{_prefix}/share/doc/gridsite-${MINOR_VERSION:-1.x}
-%attr(-, root, root) %{_prefix}/%{_lib}/libgridsite.so.2
-%attr(-, root, root) %{_prefix}/%{_lib}/libgridsite.so.2.*
-%attr(-, root, root) %{_prefix}/%{_lib}/libgridsite_globus.so.2
-%attr(-, root, root) %{_prefix}/%{_lib}/libgridsite_globus.so.2.*
-%attr(-, root, root) %{_prefix}/%{_lib}/libgridsite_nossl.so.2
-%attr(-, root, root) %{_prefix}/%{_lib}/libgridsite_nossl.so.2.*
+%attr(-, root, root) %{_prefix}/%{_lib}/libgridsite.so.6
+%attr(-, root, root) %{_prefix}/%{_lib}/libgridsite.so.6.*
+%attr(-, root, root) %{_prefix}/%{_lib}/libgridsite_globus.so.6
+%attr(-, root, root) %{_prefix}/%{_lib}/libgridsite_globus.so.6.*
+%attr(-, root, root) %{_prefix}/%{_lib}/libgridsite_nossl.so.6
+%attr(-, root, root) %{_prefix}/%{_lib}/libgridsite_nossl.so.6.*
 
 %files devel
 %attr(-, root, root) %{_prefix}/include/gridsite.h

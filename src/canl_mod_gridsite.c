@@ -3490,7 +3490,9 @@ static int mod_gridsite_perm_handler(request_rec *r)
 
 int GRST_callback_SSLVerify_wrapper(int ok, X509_STORE_CTX *ctx)
 {
-   SSL *ssl            = (SSL *) X509_STORE_CTX_get_app_data(ctx);
+   /* Get Apache context back through OpenSSL context */
+   SSL *ssl = X509_STORE_CTX_get_ex_data(ctx,
+                                          SSL_get_ex_data_X509_STORE_CTX_idx());
    conn_rec *conn      = (conn_rec *) SSL_get_app_data(ssl);
    int errnum          = X509_STORE_CTX_get_error(ctx);
    int errdepth        = X509_STORE_CTX_get_error_depth(ctx);

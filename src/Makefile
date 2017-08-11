@@ -90,6 +90,7 @@ version_info:=-version-info $(shell \
 	perl -e '$$,=":"; @F=split "\\.","$(PATCH_VERSION)"; print $$F[0]+$$F[1]+$(offset),$$F[2],$$F[1]' )
 
 PC_FILES=gridsite-openssl.pc
+TARBALL=../gridsite-$(PATCH_VERSION).src.tar.gz
 
 # caNl adoption part
 # caNl library and headers have to be in standard system places.
@@ -470,7 +471,7 @@ post-install-debian:
 #
 
 # source files tarball
-dist:
+$(TARBALL):
 	mkdir -p ../dist/gridsite-$(PATCH_VERSION)/src \
                  ../dist/gridsite-$(PATCH_VERSION)/doc \
                  ../dist/gridsite-$(PATCH_VERSION)/interface \
@@ -496,11 +497,12 @@ dist:
                ../dist/gridsite-$(PATCH_VERSION)/doc
 	cp -f ../interface/*.h \
                  ../dist/gridsite-$(PATCH_VERSION)/interface
-	cd ../dist ; tar zcvf ../gridsite-$(PATCH_VERSION).src.tar.gz \
+	cd ../dist ; tar zcvf $(TARBALL) \
                  gridsite-$(PATCH_VERSION)
 	chmod +x ../dist/gridsite-$(PATCH_VERSION)/src/make-debian-files
 	rm -Rf ../dist/gridsite-$(PATCH_VERSION)
 
+dist: $(TARBALL)
 
 # binary tarball distribution for htcp users
 htcp-bin: htcp
@@ -521,7 +523,7 @@ htcp-bin: htcp
 	cd ../htcp-bin-$(VERSION) ; tar zcvf ../htcp-$(VERSION).bin.tar.gz .
 	rm -Rf ../htcp-bin-$(PATCH_VERSION)
 
-rpm-prepare: dist
+rpm-prepare: $(TARBALL)
 	export PATCH_VERSION=$(PATCH_VERSION) ; \
 	 export MINOR_VERSION=$(MINOR_VERSION) ; \
 	 export RELEASE_VERSION=$(RELEASE_VERSION) && \
@@ -531,12 +533,12 @@ rpm-prepare: dist
 rpm: rpm-prepare
 	-mkdir -p $(MYRPMDIR)/SOURCES $(MYRPMDIR)/SPECS $(MYRPMDIR)/BUILD \
              $(MYRPMDIR)/SRPMS $(MYRPMDIR)/RPMS/i386 $(MYRPMDIR)/BUILDROOT
-	cp -f ../gridsite-$(PATCH_VERSION).src.tar.gz $(MYRPMDIR)/SOURCES
+	cp -f $(TARBALL) $(MYRPMDIR)/SOURCES
 	cp -f gridsite.spec $(MYRPMDIR)/SPECS
 	$(RPMCMD) --define "_topdir $(MYRPMDIR)" \
                   -bs --nodeps --buildroot $(MYRPMDIR)/BUILDROOT gridsite.spec
 
-deb-prepare: dist
+deb-prepare: $(TARBALL)
 	export PATCH_VERSION=$(PATCH_VERSION) && \
 	 export MINOR_VERSION=$(MINOR_VERSION) && \
 	 export RELEASE_VERSION=$(RELEASE_VERSION) && \
@@ -546,8 +548,8 @@ deb-prepare: dist
 
 deb: deb-prepare
 	-mkdir -p $(MYRPMDIR)
-	tar -xC $(MYRPMDIR) -f ../gridsite-$(PATCH_VERSION).src.tar.gz
-	cp ../gridsite-$(PATCH_VERSION).src.tar.gz $(MYRPMDIR)/gridsite_$(PATCH_VERSION).orig.tar.gz
+	tar -xC $(MYRPMDIR) -f $(TARBALL)
+	cp $(TARBALL) $(MYRPMDIR)/gridsite_$(PATCH_VERSION).orig.tar.gz
 	cp -rf ../debian/ $(MYRPMDIR)/gridsite-$(PATCH_VERSION)/
 	(cd $(MYRPMDIR)/gridsite-$(PATCH_VERSION) && \
 	pwd && \

@@ -3,7 +3,7 @@ Section: main
 Priority: optional
 Maintainer: EMI CESNET security <emi-lb@metacentrum.cz>
 Build-Depends: debhelper (>= 7.0.50~),
-	apache2-prefork-dev,
+	apache2-dev | httpd-dev,
 	gsoap,
 	libcanl-c-dev,
 	libcurl4-openssl-dev,
@@ -11,8 +11,9 @@ Build-Depends: debhelper (>= 7.0.50~),
 	libxml2,
 	libxml2-dev,
 	libssl-dev,
-	libtool,
-	pkg-config
+	libtool-bin,
+	pkg-config,
+	zlib1g-dev
 Standards-Version: 3.9.1
 Homepage: http://gridsite.org
 Vcs-Cvs: :pserver:anonymous@jra1mw.cvs.cern.ch:/cvs/jra1mw/org.gridsite.core

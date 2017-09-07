@@ -133,7 +133,7 @@ size_t headers_callback(void *ptr, size_t size, size_t nmemb, void *p)
   memcpy(s, ptr, realsize);
   s[realsize] = '\0';
 
-  if      (sscanf(s, "Content-Length: %d", &(header_data->length)) == 1) 
+  if      (sscanf(s, "Content-Length: %zd", &(header_data->length)) == 1)
             header_data->length_set = 1;
   else if (sscanf(s, "HTTP/%f %d ", &f, &(header_data->retcode)) == 2) ;
   else if (strncmp(s, "Location: ", 10) == 0) 
@@ -1498,7 +1498,7 @@ int do_listings(char *sources[], struct grst_stream_data *common_data,
                           }
                       }
 
-                    if (list[i].length_set) printf("%10ld ", list[i].length);
+                    if (list[i].length_set) printf("%10zd ", list[i].length);
                     else fputs("         ? ", stdout);
                     
                     if (list[i].modified_set)
@@ -1526,7 +1526,7 @@ int do_listings(char *sources[], struct grst_stream_data *common_data,
          {
            if (islonglist)
              {
-               printf("%10ld ", header_data.length);
+               printf("%10zd ", header_data.length);
                     
                localtime_r(&(header_data.modified), &modified_tm);
 

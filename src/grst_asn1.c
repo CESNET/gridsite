@@ -190,7 +190,7 @@ static int GRSTasn1Parse2(BIO *bp, unsigned char **pp, long length, int offset,
                                
 		if (bp != NULL)
 		  {
-		    BIO_printf(bp, "  %s %ld %ld %d %d ", sibtreecoords,
+		    BIO_printf(bp, "  %s %ld %d %ld %d ", sibtreecoords,
 		           (long)offset+(long)(op - *pp), hl, len, tag);
 
 		    GRSTasn1PrintPrintable(bp, p,

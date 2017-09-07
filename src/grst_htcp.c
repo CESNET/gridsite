@@ -140,10 +140,13 @@ int GRSThtcpTSTrequestMake(char **request, int *request_length,
                      0, 0,       
                      GRSThtcpTSTop * 16, 2,
                      0, 0, 0, 0,
-                     strlen(method) / 256, strlen(method) % 256, method,
-                     strlen(uri)    / 256, strlen(uri) % 256,    uri,
-                     0,                    8,                    "HTTP/1.1",
-                     strlen(req_hdrs)/256, strlen(req_hdrs) % 256, req_hdrs,
+                     (int) (strlen(method) / 256),
+                     (int) (strlen(method) % 256), method,
+                     (int) (strlen(uri) / 256),
+                     (int) (strlen(uri) % 256), uri,
+                     0, 8, "HTTP/1.1",
+                     (int) (strlen(req_hdrs) / 256),
+                     (int) (strlen(req_hdrs) % 256), req_hdrs,
                      0, 2);
 
    if (*request_length < 0) return GRST_RET_FAILED;
@@ -186,9 +189,12 @@ int GRSThtcpTSTresponseMake(char **message, int *message_length,
             0, 0,       
             GRSThtcpTSTop * 16, 1, /* RR=1, MO=0, RESPONSE=0 (ie found) */
             0, 0, 0, 0,
-            strlen(resp_hdrs) / 256,   strlen(resp_hdrs) % 256,   resp_hdrs,
-            strlen(entity_hdrs) / 256, strlen(entity_hdrs) % 256, entity_hdrs,
-            strlen(cache_hdrs) / 256,  strlen(cache_hdrs) % 256,  cache_hdrs,
+            (int) (strlen(resp_hdrs) / 256),
+            (int) (strlen(resp_hdrs) % 256), resp_hdrs,
+            (int) (strlen(entity_hdrs) / 256),
+            (int) (strlen(entity_hdrs) % 256), entity_hdrs,
+            (int) (strlen(cache_hdrs) / 256),
+            (int) (strlen(cache_hdrs) % 256), cache_hdrs,
             0, 2);
    else if (cache_hdrs != NULL) 
       /* not found file response, just cache_hdrs given */
@@ -206,7 +212,8 @@ int GRSThtcpTSTresponseMake(char **message, int *message_length,
             0, 0,       
             GRSThtcpTSTop * 16 + 1, 1, /* RR=1, MO=0, RESPONSE=1 (missing) */
             0, 0, 0, 0,
-            strlen(cache_hdrs) / 256,  strlen(cache_hdrs) % 256,  cache_hdrs,
+            (int) (strlen(cache_hdrs) / 256),
+            (int) (strlen(cache_hdrs) % 256), cache_hdrs,
             0, 2);
    else return GRST_RET_FAILED;
 

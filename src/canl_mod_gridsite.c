@@ -860,10 +860,10 @@ char *make_passcode_file(request_rec *r, mod_gridsite_dir_cfg *conf,
                                   sizeof(gridauthcookie))
          != APR_SUCCESS) return NULL;
     
-    filetemplate = apr_psprintf(r->pool, "%s/passcode-%016lxXXXXXX", 
+    filetemplate = apr_psprintf(r->pool, "%s/passcode-%016llxXXXXXX",
      ap_server_root_relative(r->pool,
      sessionsdir),
-     gridauthcookie);
+     (unsigned long long) gridauthcookie);
 
     if (apr_file_mktemp(&fp, 
                         filetemplate, 
@@ -1909,7 +1909,7 @@ static const char *mod_gridsite_take1_cmds(cmd_parms *a, void *cfg,
              {
                sitecastgroups[i].port = GRST_HTCP_PORT;
              
-               if (sscanf(parm, "%s:%d",
+               if (sscanf(parm, "%ms:%d",
                           &(sitecastgroups[i].address), 
                           &(sitecastgroups[i].port)) < 1)
                  return "Failed parsing GridSiteCastGroup";
@@ -3569,8 +3569,8 @@ void sitecast_handle_TST_GET(server_rec *main_server,
   getnameinfo(client_addr_ptr, client_addr_len,
 	      host, sizeof(host), serv, sizeof(serv), NI_NUMERICHOST);
   ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, main_server,
-        "SiteCast responder received TST GET with uri %s", 
-        htcp_mesg->uri->text, GRSThtcpCountstrLen(htcp_mesg->uri));
+        "SiteCast responder received TST GET with uri %*s",
+        (int) GRSThtcpCountstrLen(htcp_mesg->uri), htcp_mesg->uri->text);
 
   /* find if any GridSiteCastAlias lines match */
 
@@ -3580,7 +3580,7 @@ void sitecast_handle_TST_GET(server_rec *main_server,
          {
            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, main_server,
               "SiteCast responder does not handle %*s requested by %s:%s",
-                        GRSThtcpCountstrLen(htcp_mesg->uri),
+                        (int) GRSThtcpCountstrLen(htcp_mesg->uri),
                         htcp_mesg->uri->text,
 			host, serv);
       
@@ -3609,8 +3609,8 @@ void sitecast_handle_TST_GET(server_rec *main_server,
 
   asprintf(&filename, "%s%*s", 
            sitecastaliases[ialias].local_path,
-           GRSThtcpCountstrLen(htcp_mesg->uri) 
-                        - strlen(sitecastaliases[ialias].sitecast_url),
+           (int) (GRSThtcpCountstrLen(htcp_mesg->uri)
+                        - strlen(sitecastaliases[ialias].sitecast_url)),
            &(htcp_mesg->uri->text[strlen(sitecastaliases[ialias].sitecast_url)]) );
 
   if (stat(filename, &statbuf) == 0) /* found file */

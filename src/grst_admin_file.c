@@ -965,7 +965,7 @@ void printfile(char *dn, GRSTgaclPerm perm, char *help_uri, char *dir_path,
   fp = fopen(dir_path_file, "r");
   if (fp == NULL) GRSThttpError("500 Internal server error");
  
-  printf("Status: 200 OK\nContent-Type: text/html\nContent-Length: %d\n\n",
+  printf("Status: 200 OK\nContent-Type: text/html\nContent-Length: %ld\n\n",
          statbuf.st_size);
 
   while ((c = fgetc(fp)) != EOF) putchar(c);
@@ -1037,10 +1037,10 @@ void filehistory(char *dn, GRSTgaclPerm perm, char *help_uri, char *dir_path,
 
                p = index(namelist[i]->d_name, ':');
                p = index(&p[1], ':');
-               sscanf(&p[1], "%X:", &file_time);
+               sscanf(&p[1], "%lX:", &file_time);
                p = index(&p[1], ':'); /* skip over microseconds time */
                p = index(&p[1], ':');
-               sscanf(&p[1], "%X:", &file_size);
+               sscanf(&p[1], "%zX:", &file_size);
                p = index(&p[1], ':');
 
                encdn = strdup(&p[1]);

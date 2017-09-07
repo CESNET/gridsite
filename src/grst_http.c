@@ -388,7 +388,7 @@ char *GRSThttpUrlEncode(char *in)
            }
          else
            {
-             sprintf(q, "%%%2X", *p);
+             sprintf(q, "%%%02X", *p);
              q = &q[3];
            }
 
@@ -428,7 +428,7 @@ char *GRSThttpUrlMildencode(char *in)
            }
          else
            {
-             sprintf(q, "%%%2X", *p);
+             sprintf(q, "%%%02X", *p);
              q = &q[3];
            }
 

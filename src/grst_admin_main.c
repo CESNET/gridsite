@@ -91,7 +91,7 @@ void GRSThttpError(char *status)
 {
   printf("Status: %s\n", status);
   printf("Server-CGI: GridSite Admin %s\n", VERSION);
-  printf("Content-Length: %d\n", 2 * strlen(status) + 58);
+  printf("Content-Length: %zd\n", 2 * strlen(status) + 58);
   puts("Content-Type: text/html\n");
 
   printf("<head><title>%s</title></head>\n", status);
@@ -161,7 +161,7 @@ char *makevfilename(char *publicname, size_t size, char *dn)
   /* we used zero-padding for times so 
      alphanumeric sorting will sort chronologically too */
 
-  asprintf(&vfilename, "%s:%s:%08X:%05X:%X:%s:%s", GRST_HIST_PREFIX,
+  asprintf(&vfilename, "%s:%s:%08lX:%05lX:%zX:%s:%s", GRST_HIST_PREFIX,
            encpublicname, tv_now.tv_sec, tv_now.tv_usec, size, encdn, ext);
    
   return vfilename;
@@ -236,7 +236,7 @@ int main()
       dn = &grst_auri_i[3];
     
       sscanf(grst_valid_i, 
-         "notbefore=%*ld notafter=%*ld delegation=%d nist-loa=%*d",
+         "notbefore=%*d notafter=%*d delegation=%d nist-loa=%*d",
          &delegation);
       
       if (delegation <= gsiproxylimit_i)

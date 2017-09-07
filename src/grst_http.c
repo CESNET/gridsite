@@ -153,7 +153,7 @@ void GRSThttpWriteOut(GRSThttpBody *thisbody)
 {
   GRSThttpCharsList *p;
   
-  printf("Content-Length: %d\n\n", thisbody->size);
+  printf("Content-Length: %zd\n\n", thisbody->size);
 
   p = thisbody->first;
   

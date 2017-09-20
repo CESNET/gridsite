@@ -4132,7 +4132,7 @@ static void register_hooks(apr_pool_t *p)
 
     ap_hook_fixups(mod_gridsite_first_fixups,NULL,NULL,APR_HOOK_FIRST);
     
-    ap_hook_fixups(mod_gridsite_perm_handler,NULL,NULL,APR_HOOK_REALLY_LAST);
+    ap_hook_fixups(mod_gridsite_perm_handler, aszPre, NULL, APR_HOOK_MIDDLE);
     
     ap_hook_handler(mod_gridsite_handler, NULL, NULL, APR_HOOK_FIRST);    
     

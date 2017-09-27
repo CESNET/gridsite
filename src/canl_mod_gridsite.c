@@ -856,7 +856,7 @@ char *make_passcode_file(request_rec *r, mod_gridsite_dir_cfg *conf,
 
     /* create random for use in GRIDHTTP_PASSCODE cookies and file name */
 
-    if (apr_generate_random_bytes((char *) &gridauthcookie, 
+    if (apr_generate_random_bytes((unsigned char *) &gridauthcookie,
                                   sizeof(gridauthcookie))
          != APR_SUCCESS) return NULL;
     
@@ -882,16 +882,16 @@ char *make_passcode_file(request_rec *r, mod_gridsite_dir_cfg *conf,
     for (i=0; ; ++i)
        {
          notename_i = apr_psprintf(r->pool, "GRST_CRED_AURI_%d", i);
-         if (grst_cred_i = (char *)
-                           apr_table_get(r->connection->notes, notename_i))
+         if ((grst_cred_i = (char *)
+                           apr_table_get(r->connection->notes, notename_i)))
            {
              apr_file_printf(fp, "%s=%s\n", notename_i, grst_cred_i);
            }
          else break; /* GRST_CRED_AURI_i are numbered consecutively */
 
          notename_i = apr_psprintf(r->pool, "GRST_CRED_VALID_%d", i);
-         if (grst_cred_i = (char *)
-                           apr_table_get(r->connection->notes, notename_i))
+         if ((grst_cred_i = (char *)
+                           apr_table_get(r->connection->notes, notename_i)))
            {
              apr_file_printf(fp, "%s=%s\n", notename_i, grst_cred_i);
            }
@@ -954,13 +954,12 @@ int http_gridhttp(request_rec *r, mod_gridsite_dir_cfg *conf)
 int http_put_method(request_rec *r, mod_gridsite_dir_cfg *conf)
 {
   char        buf[2048], *filename, *dirname, *basename;
-  const char  *p;
   size_t      block_length, length_sent;
   int         retcode, stat_ret;
   apr_file_t *fp;
   struct stat statbuf;
   int       has_range = 0, is_done = 0;
-  apr_off_t range_start, range_end, range_length, length_to_send, length = 0;
+  apr_off_t range_start, range_end, range_length, length_to_send = 0;
   
   /* ***  check if directory creation: PUT /.../  *** */
 
@@ -2417,7 +2416,7 @@ void GRST_save_ssl_creds(conn_rec *conn, GRSTx509Chain *grst_chain)
 {
    int          i, lowest_voms_delegation = 65535;
    char        *tempfile = NULL, *encoded, *voms_fqans = NULL,
-               *sessionfile, session_id[(SSL_MAX_SSL_SESSION_ID_LENGTH+1)*2];
+               *sessionfile = NULL, session_id[(SSL_MAX_SSL_SESSION_ID_LENGTH+1)*2];
    apr_file_t  *fp = NULL;
    SSL         *ssl;
    SSLConnRec  *sslconn;
@@ -2608,7 +2607,7 @@ void GRST_save_ssl_creds(conn_rec *conn, GRSTx509Chain *grst_chain)
 #endif
    /* end of bit that needs to go into grst_x509 */
      
-   if (fp != NULL)
+   if (fp != NULL && sessionfile != NULL)
      {
        apr_file_close(fp);
        apr_file_rename(tempfile, sessionfile, conn->pool);
@@ -3295,12 +3294,9 @@ static int mod_gridsite_perm_handler(request_rec *r)
         if (robot)
             apr_table_setn(env, "GRST_ROBOT_DN", robot);
 
-        if (grst_voms_fqans  = (char *)
-                apr_table_get(r->connection->notes, "GRST_VOMS_FQANS"))
-          {
-            apr_table_setn(env, "GRST_VOMS_FQANS",
-                           apr_pstrdup(r->pool, grst_voms_fqans));
-          }
+        grst_voms_fqans  = (char *) apr_table_get(r->connection->notes, "GRST_VOMS_FQANS");
+        if (grst_voms_fqans)
+            apr_table_setn(env, "GRST_VOMS_FQANS", apr_pstrdup(r->pool, grst_voms_fqans));
 
         apr_table_setn(env, "GRST_PERM", apr_psprintf(r->pool, "%d", perm));
 
@@ -3894,7 +3890,7 @@ static int mod_gridsite_server_post_config(apr_pool_t *pPool,
 
    c_ctx = canl_create_ctx();
    if (!c_ctx){
-           ap_log_error(APLOG_MARK, APLOG_CRIT, status, main_server,
+           ap_log_error(APLOG_MARK, APLOG_CRIT, 0, main_server,
               "mod_gridsite: Failed to create caNl context.");
        return HTTP_INTERNAL_SERVER_ERROR;
    }
@@ -3945,11 +3941,11 @@ static int mod_gridsite_server_post_config(apr_pool_t *pPool,
    while ( ssl_module.cmds[i].name && !mod_ssl_with_insecure_reneg)
    {
        mod_ssl_with_insecure_reneg = (strncmp( ssl_module.cmds[i].name, 
-                                      insecure_reneg, sizeof(insecure_reneg) ) == 0);
+                                      insecure_reneg, strlen(insecure_reneg) ) == 0);
        i++;
    }
 
-   ap_log_error(APLOG_MARK, APLOG_NOTICE, status, main_server,
+   ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, main_server,
               "mod_gridsite: mod_ssl_with_insecure_reneg = %d", mod_ssl_with_insecure_reneg);
 
    for (this_server = main_server; 

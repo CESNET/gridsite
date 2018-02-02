@@ -110,12 +110,11 @@ int main(int argc, char *argv[])
         *cert = NULL, *key = NULL, *capath = NULL, *keycert, timestr[81],
         *vomsdir = "/etc/grid-security/vomsdir",
         *executable, *keytxt, *proxychain, *ptr, *p;
-  struct ns__putProxyResponse *unused;
+  struct ns__putProxyResponse *unused = NULL;
   struct tm *finish_tm;
   int    option_index, c, noverify = 0, i, ret,
          method = HTPROXY_PUT, verbose = 0, fd, minutes;
   struct soap soap_get, soap_put;
-  struct ns__getProxyReqResponse        getProxyReqResponse;
   struct ns__getNewProxyReqResponse     getNewProxyReqResponse;
   struct ns__renewProxyReqResponse      renewProxyReqResponse;
   struct ns__destroyResponse            destroyResponse;
@@ -534,7 +533,7 @@ int main(int argc, char *argv[])
 #endif
 
       /* just the proxy certificate we have created */
-      if (x509_cert = sk_X509_value(x509_certstack, 0))
+      if ((x509_cert = sk_X509_value(x509_certstack, 0)))
         {
           certmem = BIO_new(BIO_s_mem());
           if (PEM_write_bio_X509(certmem, x509_cert) == 1)
@@ -559,7 +558,7 @@ int main(int argc, char *argv[])
       for (i=1; i <= sk_X509_num(x509_certstack) - 1; ++i)
         /* loop through the proxy chain starting at 2nd most recent proxy */
          {
-           if (x509_cert = sk_X509_value(x509_certstack, i))
+           if ((x509_cert = sk_X509_value(x509_certstack, i)))
              {
                certmem = BIO_new(BIO_s_mem());
                if (PEM_write_bio_X509(certmem, x509_cert) == 1)

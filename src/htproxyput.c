@@ -65,6 +65,7 @@ http://www.gridpp.ac.uk/authz/gridsite/
 
 #include <stdsoap2.h>
 
+#include "soapH.h"
 #include "DelegationSoapBinding.nsmap"
 
 #define HTPROXY_PUT		0

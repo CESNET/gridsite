@@ -15,8 +15,7 @@ Build-Depends: debhelper (>= 7.0.50~),
 	pkg-config,
 	zlib1g-dev
 Standards-Version: 3.9.1
-Homepage: http://gridsite.org
-Vcs-Cvs: :pserver:anonymous@jra1mw.cvs.cern.ch:/cvs/jra1mw/org.gridsite.core
+Homepage: https://github.com/CESNET/gridsite
 
 Package: gridsite
 Section: httpd

@@ -38,7 +38,7 @@ Release: ${RELEASE_VERSION:-1}%{?dist}
 Summary: mod_gridsite module for Apache httpd
 License: ASL 2.0 and BSD
 Source: %{name}-%{version}.src.tar.gz
-URL: http://www.gridsite.org/
+URL: https://github.com/CESNET/gridsite
 BuildRequires: libxml2-devel%{?_isa},httpd-devel%{?_isa},openssl-devel%{?_isa},pkgconfig
 BuildRequires: doxygen${gsoapdep}
 BuildRequires: canl-c-devel%{?_isa}
@@ -61,7 +61,7 @@ programs for interactive management of HTTP(S) servers (gridsite-admin.cgi)
 This package contains Apache module, CGI binaries, and GridSite WS delegation
 service.
 
-See http://www.gridsite.org/ for details.
+See https://github.com/CESNET/gridsite/wiki for details.
 
 
 %package $shared_name
@@ -72,7 +72,7 @@ Provides: gridsite-$shared_provide = %{version}-%{release}
 %description $shared_name
 GridSite shared library and core documentation
 
-See http://www.gridsite.org/ for details.
+See https://github.com/CESNET/gridsite/wiki for details.
 
 
 %package devel
@@ -82,7 +82,7 @@ Requires: gridsite-$shared_name%{?_isa} = %{version}
 %description devel
 GridSite development libraries
 
-See http://www.gridsite.org/ for details.
+See https://github.com/CESNET/gridsite/wiki for details.
 
 
 %package commands
@@ -95,7 +95,7 @@ servers using HTTP or HTTPS, or to put or delete files or directories
 onto remote servers using HTTPS. htcp is similar to scp(1), but uses
 HTTP/HTTPS rather than ssh as its transfer protocol.
 
-See http://www.gridsite.org/ for details.
+See https://github.com/CESNET/gridsite/wiki for details.
 
 %prep
 
@@ -209,7 +209,7 @@ Requires: curl
 %description service-clients
 GridSite WS delegation client, htproxyput
 
-See http://www.gridsite.org/ for details.
+See https://github.com/CESNET/gridsite/wiki for details.
 
 %files service-clients
 %{_bindir}/htproxyput

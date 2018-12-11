@@ -2,7 +2,7 @@ BUILDING/INSTALLING GRIDSITE
 ============================
 
 For more detailed instructions, see the Installation and Build 
-pages in the GridSite Wiki http://www.gridsite.org/wiki/
+pages in the GridSite Documentation https://github.com/CESNET/gridsite/wiki
 
 GridSite is currently only supported on Linux, but should be
 trivially portable to other Unix platforms where the GNU build

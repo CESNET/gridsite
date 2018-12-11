@@ -34,15 +34,11 @@ cat <<EOF >gridsite.spec
 #
 Name: gridsite
 Version: ${PATCH_VERSION:-1.x.x}
-# This next piece of .spec/sed magic puts the build OS version in the release
-Release: %(if [ "$RELEASE_VERSION" ] ; then echo $RELEASE_VERSION ; else echo '1' ; fi)%{?dist}
+Release: ${RELEASE_VERSION:-1}%{?dist}
 Summary: mod_gridsite module for Apache httpd
 License: ASL 2.0 and BSD
-Group: System Environment/Daemons
 Source: %{name}-%{version}.src.tar.gz
-BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
 URL: http://www.gridsite.org/
-Vendor: GridPP
 BuildRequires: libxml2-devel%{?_isa},httpd-devel%{?_isa},openssl-devel%{?_isa},pkgconfig
 BuildRequires: doxygen${gsoapdep}
 BuildRequires: canl-c-devel%{?_isa}
@@ -52,7 +48,6 @@ BuildRequires:  libcurl-devel%{?_isa}
 BuildRequires:  curl-devel%{?_isa}
 %endif
 BuildRequires: libtool
-Packager: Andrew McNab <Andrew.McNab@manchester.ac.uk>
 Provides: gridsite-apache = %{version}-%{release}
 Obsoletes: gridsite-apache < %{version}-%{release}
 Provides: gridsite-services = %{version}-%{release}
@@ -68,8 +63,8 @@ service.
 
 See http://www.gridsite.org/ for details.
 
+
 %package $shared_name
-Group: Development/Libraries
 Summary: GridSite shared library and core documentation
 Obsoletes: $shared_obsoletes
 Provides: gridsite-$shared_provide = %{version}-%{release}
@@ -79,8 +74,8 @@ GridSite shared library and core documentation
 
 See http://www.gridsite.org/ for details.
 
+
 %package devel
-Group: Development/Libraries
 Summary: GridSite .a libraries and .h headers
 Requires: gridsite-$shared_name%{?_isa} = %{version}
 
@@ -89,8 +84,8 @@ GridSite development libraries
 
 See http://www.gridsite.org/ for details.
 
+
 %package commands
-Group: Applications/Internet
 Summary: HTTP(S) read/write client and other GridSite commands
 Requires: curl
 
@@ -105,6 +100,7 @@ See http://www.gridsite.org/ for details.
 %prep
 
 %setup -q
+
 
 %build
 cd src
@@ -122,8 +118,6 @@ fi
 cat <<EOF >>gridsite.spec
 
 %install
-rm -rf %{buildroot}
-
 cd src
 
 make install prefix=%{_prefix} libdir=%{_lib} DESTDIR=%{buildroot}
@@ -139,81 +133,76 @@ EOF
 fi
 
 cat <<EOF >>gridsite.spec
-%clean
-rm -rf %{buildroot}
 
-%post $shared_name
-if [ "\$UID" = "0" ] ; then
- /sbin/ldconfig
-fi
 
-%postun $shared_name
-if [ "\$UID" = "0" ] ; then
- /sbin/ldconfig
-fi
+%post $shared_name -p /sbin/ldconfig
+
+
+%postun $shared_name -p /sbin/ldconfig
+
 
 %files
-%attr(-, root, root) %{_prefix}/share/man/man8/mod_gridsite.8.gz
-%attr(-, root, root) %{_prefix}/%{_lib}/httpd/modules/mod_gridsite.so
-%attr(-, root, root) %{_prefix}/sbin/real-gridsite-admin.cgi
+%{_mandir}/man8/mod_gridsite.8.gz
+%{_libdir}/httpd/modules/mod_gridsite.so
+%{_sbindir}/real-gridsite-admin.cgi
 EOF
 
 if [ $have_gsoap ] ; then
 cat <<EOF >>gridsite.spec
-%attr(-, root, root) %{_prefix}/sbin/gridsite-delegation.cgi
-%attr(-, root, root) %{_prefix}/share/man/man8/gridsite-delegation.8.gz
-%attr(-, root, root) %{_prefix}/share/doc/gridsite-${MINOR_VERSION:-1.x}/delegation-1.1.0.wsdl
-%attr(-, root, root) %{_prefix}/share/doc/gridsite-${MINOR_VERSION:-1.x}/gridsite-delegation.8
+%{_sbindir}/gridsite-delegation.cgi
+%{_mandir}/man8/gridsite-delegation.8.gz
+%{_prefix}/share/doc/gridsite-${MINOR_VERSION:-1.x}/delegation-1.1.0.wsdl
+%{_prefix}/share/doc/gridsite-${MINOR_VERSION:-1.x}/gridsite-delegation.8
 EOF
 fi
 
 cat <<EOF >>gridsite.spec
 
 %files $shared_name
-%attr(-, root, root) %{_prefix}/share/doc/gridsite-${MINOR_VERSION:-1.x}
-%attr(-, root, root) %{_prefix}/%{_lib}/libgridsite.so.6
-%attr(-, root, root) %{_prefix}/%{_lib}/libgridsite.so.6.*
-%attr(-, root, root) %{_prefix}/%{_lib}/libgridsite_globus.so.6
-%attr(-, root, root) %{_prefix}/%{_lib}/libgridsite_globus.so.6.*
-%attr(-, root, root) %{_prefix}/%{_lib}/libgridsite_nossl.so.6
-%attr(-, root, root) %{_prefix}/%{_lib}/libgridsite_nossl.so.6.*
+%doc %{_prefix}/share/doc/gridsite-${MINOR_VERSION:-1.x}
+%{_libdir}/libgridsite.so.6
+%{_libdir}/libgridsite.so.6.*
+%{_libdir}/libgridsite_globus.so.6
+%{_libdir}/libgridsite_globus.so.6.*
+%{_libdir}/libgridsite_nossl.so.6
+%{_libdir}/libgridsite_nossl.so.6.*
 
 %files devel
-%attr(-, root, root) %{_prefix}/include/gridsite.h
-%attr(-, root, root) %{_prefix}/include/gridsite-gacl.h
-%attr(-, root, root) %{_prefix}/%{_lib}/libgridsite.so
-%attr(-, root, root) %{_prefix}/%{_lib}/libgridsite_globus.so
-%attr(-, root, root) %{_prefix}/%{_lib}/libgridsite_nossl.so
-%attr(-, root, root) %{_prefix}/%{_lib}/pkgconfig/*.pc
+%{_includedir}/gridsite.h
+%{_includedir}/gridsite-gacl.h
+%{_libdir}/libgridsite.so
+%{_libdir}/libgridsite_globus.so
+%{_libdir}/libgridsite_nossl.so
+%{_libdir}/pkgconfig/*.pc
 
 %files commands
-%attr(-, root, root) %{_prefix}/bin/htcp
-%attr(-, root, root) %{_prefix}/bin/htls
-%attr(-, root, root) %{_prefix}/bin/htll
-%attr(-, root, root) %{_prefix}/bin/htrm
-%attr(-, root, root) %{_prefix}/bin/htmkdir
-%attr(-, root, root) %{_prefix}/bin/htmv
-%attr(-, root, root) %{_prefix}/bin/htping
-%attr(-, root, root) %{_prefix}/bin/htfind
-%attr(-, root, root) %{_prefix}/bin/urlencode
-%attr(-, root, root) %{_prefix}/bin/findproxyfile
-%attr(-, root, root) %{_prefix}/share/man/man1/htcp.1.gz
-%attr(-, root, root) %{_prefix}/share/man/man1/htrm.1.gz
-%attr(-, root, root) %{_prefix}/share/man/man1/htls.1.gz
-%attr(-, root, root) %{_prefix}/share/man/man1/htll.1.gz
-%attr(-, root, root) %{_prefix}/share/man/man1/htmkdir.1.gz
-%attr(-, root, root) %{_prefix}/share/man/man1/htmv.1.gz
-%attr(-, root, root) %{_prefix}/share/man/man1/htping.1.gz
-%attr(-, root, root) %{_prefix}/share/man/man1/htfind.1.gz
-%attr(-, root, root) %{_prefix}/share/man/man1/urlencode.1.gz
-%attr(-, root, root) %{_prefix}/share/man/man1/findproxyfile.1.gz
+%{_bindir}/htcp
+%{_bindir}/htls
+%{_bindir}/htll
+%{_bindir}/htrm
+%{_bindir}/htmkdir
+%{_bindir}/htmv
+%{_bindir}/htping
+%{_bindir}/htfind
+%{_bindir}/urlencode
+%{_bindir}/findproxyfile
+%{_mandir}/man1/htcp.1.gz
+%{_mandir}/man1/htrm.1.gz
+%{_mandir}/man1/htls.1.gz
+%{_mandir}/man1/htll.1.gz
+%{_mandir}/man1/htmkdir.1.gz
+%{_mandir}/man1/htmv.1.gz
+%{_mandir}/man1/htping.1.gz
+%{_mandir}/man1/htfind.1.gz
+%{_mandir}/man1/urlencode.1.gz
+%{_mandir}/man1/findproxyfile.1.gz
 EOF
 
 if [ $have_gsoap ] ; then
 
 cat <<EOF >>gridsite.spec
+
 %package service-clients
-Group: Applications/Internet
 Summary: GridSite WS htproxyput
 Requires: curl
 
@@ -223,28 +212,29 @@ GridSite WS delegation client, htproxyput
 See http://www.gridsite.org/ for details.
 
 %files service-clients
-%attr(-, root, root) %{_prefix}/bin/htproxyput
-%attr(-, root, root) %{_prefix}/bin/htproxydestroy
-%attr(-, root, root) %{_prefix}/bin/htproxytime
-%attr(-, root, root) %{_prefix}/bin/htproxyunixtime
-%attr(-, root, root) %{_prefix}/bin/htproxyrenew
-%attr(-, root, root) %{_prefix}/bin/htproxyinfo
-%attr(-, root, root) %{_prefix}/share/man/man1/htproxyput.1.gz
-%attr(-, root, root) %{_prefix}/share/man/man1/htproxydestroy.1.gz
-%attr(-, root, root) %{_prefix}/share/man/man1/htproxytime.1.gz
-%attr(-, root, root) %{_prefix}/share/man/man1/htproxyunixtime.1.gz
-%attr(-, root, root) %{_prefix}/share/man/man1/htproxyrenew.1.gz
-%attr(-, root, root) %{_prefix}/share/man/man1/htproxyinfo.1.gz
-%attr(-, root, root) %{_prefix}/share/doc/gridsite-${MINOR_VERSION:-1.x}/htproxyput.1
-%attr(-, root, root) %{_prefix}/share/doc/gridsite-${MINOR_VERSION:-1.x}/htproxydestroy.1
-%attr(-, root, root) %{_prefix}/share/doc/gridsite-${MINOR_VERSION:-1.x}/htproxytime.1
-%attr(-, root, root) %{_prefix}/share/doc/gridsite-${MINOR_VERSION:-1.x}/htproxyunixtime.1
-%attr(-, root, root) %{_prefix}/share/doc/gridsite-${MINOR_VERSION:-1.x}/htproxyrenew.1
-%attr(-, root, root) %{_prefix}/share/doc/gridsite-${MINOR_VERSION:-1.x}/htproxyinfo.1
+%{_bindir}/htproxyput
+%{_bindir}/htproxydestroy
+%{_bindir}/htproxytime
+%{_bindir}/htproxyunixtime
+%{_bindir}/htproxyrenew
+%{_bindir}/htproxyinfo
+%{_mandir}/man1/htproxyput.1.gz
+%{_mandir}/man1/htproxydestroy.1.gz
+%{_mandir}/man1/htproxytime.1.gz
+%{_mandir}/man1/htproxyunixtime.1.gz
+%{_mandir}/man1/htproxyrenew.1.gz
+%{_mandir}/man1/htproxyinfo.1.gz
+%{_prefix}/share/doc/gridsite-${MINOR_VERSION:-1.x}/htproxyput.1
+%{_prefix}/share/doc/gridsite-${MINOR_VERSION:-1.x}/htproxydestroy.1
+%{_prefix}/share/doc/gridsite-${MINOR_VERSION:-1.x}/htproxytime.1
+%{_prefix}/share/doc/gridsite-${MINOR_VERSION:-1.x}/htproxyunixtime.1
+%{_prefix}/share/doc/gridsite-${MINOR_VERSION:-1.x}/htproxyrenew.1
+%{_prefix}/share/doc/gridsite-${MINOR_VERSION:-1.x}/htproxyinfo.1
 
 EOF
 
 LC_TIME=C cat >> gridsite.spec <<EOF
+
 %changelog
 * `date '+%a %b %d %Y'` autobuild@`hostname -f` - ${PATCH_VERSION:-1.x.x}-${RELEASE_VERSION:-1}
 - automatically generated package

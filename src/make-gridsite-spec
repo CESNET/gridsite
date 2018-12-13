@@ -133,6 +133,10 @@ EOF
 fi
 
 cat <<EOF >>gridsite.spec
+# cgi scripts location
+mkdir -p %{buildroot}%{_libexecdir}/%{name}/cgi-bin
+mv %{buildroot}%{_sbindir}/*.cgi %{buildroot}%{_libexecdir}/%{name}/cgi-bin/
+rmdir %{buildroot}%{_sbindir}
 
 
 %post $shared_name -p /sbin/ldconfig
@@ -144,12 +148,12 @@ cat <<EOF >>gridsite.spec
 %files
 %{_mandir}/man8/mod_gridsite.8.gz
 %{_libdir}/httpd/modules/mod_gridsite.so
-%{_sbindir}/real-gridsite-admin.cgi
+%{_libexecdir}/%{name}/cgi-bin/real-gridsite-admin.cgi
 EOF
 
 if [ $have_gsoap ] ; then
 cat <<EOF >>gridsite.spec
-%{_sbindir}/gridsite-delegation.cgi
+%{_libexecdir}/%{name}/cgi-bin/gridsite-delegation.cgi
 %{_mandir}/man8/gridsite-delegation.8.gz
 %{_prefix}/share/doc/gridsite-${MINOR_VERSION:-1.x}/delegation-1.1.0.wsdl
 %{_prefix}/share/doc/gridsite-${MINOR_VERSION:-1.x}/gridsite-delegation.8

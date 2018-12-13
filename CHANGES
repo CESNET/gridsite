@@ -1,3 +1,15 @@
+- ==== GridSite version 2.3.5 ====
+* Thu Sep 7 Mattias Ellert <mattias.ellert@physics.uu.se>
+- Fix format compilation warnings
+- Urlencode fix
+* Wed Sep 27 Daniel Kouril <kouril@ics.muni.cz>
+- Address some compiler warnings
+* Fri Feb 2 František Dvořák <valtri@civ.zcu.cz>
+- Address some warnings in htproxyput utility
+* Tue Dec 11 František Dvořák <valtri@civ.zcu.cz>
+- RPM packaging cleanups
+- Update gridsite URL
+- Change cgi scripts locations
 - ==== GridSite version 2.3.4 ====
 * Wed Sep 20 2017 Zdenek Sustr <sustr4@cesnet.cz>
 - Fixing missing environment varialbles (Issue #35)

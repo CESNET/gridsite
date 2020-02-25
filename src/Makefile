@@ -54,8 +54,8 @@ endif
 
 CURL_CFLAGS=`curl-config --cflags`
 CURL_LIBS=`curl-config --libs`
-XML2_CFLAGS=`xml2-config --cflags`
-XML2_LIBS=`xml2-config --libs`
+XML2_CFLAGS=`pkg-config libxml-2.0 --cflags`
+XML2_LIBS=`pkg-config libxml-2.0 --libs`
 HTTPD_FLAGS=-I/usr/include/httpd -I/usr/include/apache2 -I/usr/include/apr-0 -I/usr/include/apr-1 -I/usr/include/apr-1.0
 GSOAP_CFLAGS=`pkg-config gsoap --cflags`
 GSOAP_LIBS=`pkg-config gsoap --libs`

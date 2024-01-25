@@ -453,7 +453,7 @@ char *GRSThttpGetCGI(char *);
 time_t GRSTasn1TimeToTimeT(char *, size_t);
 int    GRSTasn1SearchTaglist(struct GRSTasn1TagList taglist[], int, char *);
 #ifndef GRST_NO_OPENSSL
-int    GRSTasn1ParseDump(BIO *, unsigned char *, long,
+int    GRSTasn1ParseDump(BIO *, const unsigned char *, long,
                          struct GRSTasn1TagList taglist[], int, int *);
 #endif
 int    GRSTasn1GetX509Name(char *, int, char *, char *,

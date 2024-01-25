@@ -129,7 +129,7 @@ int GRSTasn1SearchTaglist(struct GRSTasn1TagList taglist[],
    return -1;
 }
 
-static int GRSTasn1PrintPrintable(BIO *bp, char *str, int length)
+static int GRSTasn1PrintPrintable(BIO *bp, const unsigned char *str, int length)
 {
    int   ret = 0;
    char *dup, *p;
@@ -145,14 +145,14 @@ static int GRSTasn1PrintPrintable(BIO *bp, char *str, int length)
    return ret;
 }
 
-static int GRSTasn1Parse2(BIO *bp, unsigned char **pp, long length, int offset,
+static int GRSTasn1Parse2(BIO *bp, const unsigned char **pp, long length, int offset,
 	     int depth, int indent, int dump, char *treecoords,
 	     struct GRSTasn1TagList taglist[], int maxtag, int *lasttag)
 	{
         int sibling = 0;
         char sibtreecoords[512];
 
-	unsigned char *p,*ep,*tot,*op,*opp;
+	const unsigned char *p,*ep,*tot,*op,*opp;
 	long len;
 	int tag,xclass,ret=0;
 	int nl,hl,j,r;
@@ -454,7 +454,7 @@ end:
 	return(ret);
 	}
 
-int GRSTasn1ParseDump(BIO *bp, unsigned char *pp, long len,
+int GRSTasn1ParseDump(BIO *bp, const unsigned char *pp, long len,
                       struct GRSTasn1TagList taglist[], 
                       int maxtag, int *lasttag)
         {

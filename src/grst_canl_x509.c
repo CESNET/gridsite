@@ -1520,8 +1520,8 @@ int GRSTx509ParseVomsExt(int *lastcred, int maxcreds, size_t credlen,
                    {
                      ++(*lastcred);
                      snprintf(&creds[*lastcred * (credlen + 1)], credlen+1,
-                           "VOMS %010lu %010lu 0 %.*s", 
-                           time1_time, time2_time, 
+                           "VOMS %010lld %010lld 0 %.*s",
+                           (long long) time1_time, (long long) time2_time,
                            taglist[itag].length,
                            &asn1string[taglist[itag].start+
                                        taglist[itag].headerlength]);
@@ -1599,7 +1599,8 @@ GRSTgaclCred *GRSTx509CompactToCred(char *grst_cred)
 {
    int       delegation;
    char     *p, *encoded;
-   time_t    now, notbefore, notafter;
+   time_t    now;
+   long long notbefore, notafter;
    GRSTgaclCred *cred = NULL;
 
    time(&now);
@@ -1608,7 +1609,7 @@ GRSTgaclCred *GRSTx509CompactToCred(char *grst_cred)
 
    if (strncmp(grst_cred, "X509USER ", 9) == 0)
      {
-       if ((sscanf(grst_cred, "X509USER %lu %lu %d", 
+       if ((sscanf(grst_cred, "X509USER %lld %lld %d",
                               &notbefore, &notafter, &delegation) == 3)
             && (now >= notbefore)
             && (now <= notafter)
@@ -1628,7 +1629,7 @@ GRSTgaclCred *GRSTx509CompactToCred(char *grst_cred)
 
    if (strncmp(grst_cred, "VOMS ", 5) == 0)
      {
-       if ((sscanf(grst_cred, "VOMS %lu %lu %d",
+       if ((sscanf(grst_cred, "VOMS %lld %lld %d",
                               &notbefore, &notafter, &delegation) == 3)
             && (now >= notbefore)
             && (now <= notafter)
@@ -1700,12 +1701,12 @@ int GRSTx509CompactCreds(int *lastcred, int maxcreds, size_t credlen,
 
    if ((usercert == NULL) /* if no usercert ("EEC"), we're not interested */
        ||
-       (snprintf(credtemp, credlen+1, "X509USER %010lu %010lu %d %s",
-          GRSTasn1TimeToTimeT(ASN1_STRING_data(X509_get_notBefore(usercert)),0),
-          GRSTasn1TimeToTimeT(ASN1_STRING_data(X509_get_notAfter(usercert)),0),
+       (snprintf(credtemp, credlen+1, "X509USER %010lld %010lld %d %s",
+          (long long) GRSTasn1TimeToTimeT(ASN1_STRING_data(X509_get_notBefore(usercert)),0),
+          (long long) GRSTasn1TimeToTimeT(ASN1_STRING_data(X509_get_notAfter(usercert)),0),
           delegation,
-     X509_NAME_oneline(X509_get_subject_name(usercert), NULL, 0)) >= credlen+1)
-       || 
+          X509_NAME_oneline(X509_get_subject_name(usercert), NULL, 0)) >= credlen+1)
+       ||
        (*lastcred >= maxcreds-1))
      {
        *lastcred = -1;  /* just in case the caller looks at it */
@@ -1717,11 +1718,11 @@ int GRSTx509CompactCreds(int *lastcred, int maxcreds, size_t credlen,
 
    if ((gsiproxycert != NULL) 
        &&
-       (snprintf(credtemp, credlen+1, "GSIPROXY %010lu %010lu %d %s",
-     GRSTasn1TimeToTimeT(ASN1_STRING_data(X509_get_notBefore(gsiproxycert)),0), 
-     GRSTasn1TimeToTimeT(ASN1_STRING_data(X509_get_notAfter(gsiproxycert)),0),
-     delegation,
-  X509_NAME_oneline(X509_get_subject_name(gsiproxycert), NULL, 0)) < credlen+1)
+       (snprintf(credtemp, credlen+1, "GSIPROXY %010lld %010lld %d %s",
+          (long long) GRSTasn1TimeToTimeT(ASN1_STRING_data(X509_get_notBefore(gsiproxycert)),0),
+          (long long) GRSTasn1TimeToTimeT(ASN1_STRING_data(X509_get_notAfter(gsiproxycert)),0),
+          delegation,
+          X509_NAME_oneline(X509_get_subject_name(gsiproxycert), NULL, 0)) < credlen+1)
        &&
        (*lastcred < maxcreds-1))
      {

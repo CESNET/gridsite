@@ -965,8 +965,8 @@ void printfile(char *dn, GRSTgaclPerm perm, char *help_uri, char *dir_path,
   fp = fopen(dir_path_file, "r");
   if (fp == NULL) GRSThttpError("500 Internal server error");
  
-  printf("Status: 200 OK\nContent-Type: text/html\nContent-Length: %ld\n\n",
-         statbuf.st_size);
+  printf("Status: 200 OK\nContent-Type: text/html\nContent-Length: %lld\n\n",
+         (long long) statbuf.st_size);
 
   while ((c = fgetc(fp)) != EOF) putchar(c);
 
@@ -980,8 +980,9 @@ void filehistory(char *dn, GRSTgaclPerm perm, char *help_uri, char *dir_path,
   int             fd, n, i, j, enclen, num = 0;
   char           *encodedfile, *p, *dndecoded, modified[99], *vfile, *q,
                  *encdn;
-  time_t          file_time;
-  size_t          file_size;
+  long long       file_time;
+  time_t          file_time_t;
+  long long       file_size;
   struct stat     statbuf;
   struct dirent **namelist;
   struct tm       file_tm;
@@ -1037,10 +1038,11 @@ void filehistory(char *dn, GRSTgaclPerm perm, char *help_uri, char *dir_path,
 
                p = index(namelist[i]->d_name, ':');
                p = index(&p[1], ':');
-               sscanf(&p[1], "%lX:", &file_time);
+               sscanf(&p[1], "%llX:", &file_time);
+               file_time_t = file_time;
                p = index(&p[1], ':'); /* skip over microseconds time */
                p = index(&p[1], ':');
-               sscanf(&p[1], "%zX:", &file_size);
+               sscanf(&p[1], "%llX:", &file_size);
                p = index(&p[1], ':');
 
                encdn = strdup(&p[1]);
@@ -1050,12 +1052,12 @@ void filehistory(char *dn, GRSTgaclPerm perm, char *help_uri, char *dir_path,
                for (q=encdn; *q != '\0'; ++q) if (*q == '=') *q = '%';
                dndecoded = GRSThttpUrlDecode(encdn);
 
-               localtime_r((const time_t *) &file_time, &file_tm);
+               localtime_r(&file_time_t, &file_tm);
                strftime(modified, sizeof(modified), 
                  "%a&nbsp;%e&nbsp;%b&nbsp;%Y&nbsp;%k:%M", &file_tm);
 
                GRSThttpPrintf(&bp, 
-                 "<tr><td>%s</td><td align=right>%d</td><td>%s</td>\n",
+                 "<tr><td>%s</td><td align=right>%lld</td><td>%s</td>\n",
                  modified, file_size, dndecoded);
 
                free(dndecoded);

@@ -141,7 +141,7 @@ int GRSTstrCmpShort(char *long_s, char *short_s)
   return 0;
 }
 
-char *makevfilename(char *publicname, size_t size, char *dn)
+char *makevfilename(char *publicname, off_t size, char *dn)
 {
   int             i;
   char           *ext, *vfilename, *encpublicname, *encdn, *p;
@@ -161,8 +161,8 @@ char *makevfilename(char *publicname, size_t size, char *dn)
   /* we used zero-padding for times so 
      alphanumeric sorting will sort chronologically too */
 
-  asprintf(&vfilename, "%s:%s:%08lX:%05lX:%zX:%s:%s", GRST_HIST_PREFIX,
-           encpublicname, tv_now.tv_sec, tv_now.tv_usec, size, encdn, ext);
+  asprintf(&vfilename, "%s:%s:%08llX:%05X:%llX:%s:%s", GRST_HIST_PREFIX,
+           encpublicname, (long long) tv_now.tv_sec, (int) tv_now.tv_usec, (long long) size, encdn, ext);
    
   return vfilename;
 }

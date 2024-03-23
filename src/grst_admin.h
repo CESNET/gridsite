@@ -36,7 +36,7 @@
 void  GRSThttpError(char *);
 void  adminfooter(GRSThttpBody *, char *, char *, char *, char *);
 int   GRSTstrCmpShort(char *, char *);
-char *makevfilename(char *, size_t, char *);
+char *makevfilename(char *, off_t, char *);
 
 /*CGI GACL - Edit interface functions*/
 void show_acl(int admin, GRSTgaclUser *user, char *dn, GRSTgaclPerm perm, char *help_uri, char *dir_path, char *file, char *dir_uri, char *admin_file);

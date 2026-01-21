@@ -469,7 +469,7 @@ int main(int argc, char *argv[])
 
 
       if (method == HTPROXY_UNIXTIME)
-       printf("%ld\n", getTerminationTimeResponse._getTerminationTimeReturn);
+        printf("%lld\n", (long long) getTerminationTimeResponse._getTerminationTimeReturn);
       else
         {
           finish_tm = 

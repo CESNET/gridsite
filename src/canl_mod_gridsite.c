@@ -749,23 +749,23 @@ int html_dir_list(request_rec *r, mod_gridsite_dir_cfg *conf)
                escaped = html_escape(r->pool, namelist[n]->d_name);
 
                if (S_ISDIR(statbuf.st_mode))
-                    temp = apr_psprintf(r->pool, 
-                      "<tr><td><a href=\"%s/\" content-length=\"%ld\" "
-                      "last-modified=\"%ld\">"
+                    temp = apr_psprintf(r->pool,
+                      "<tr><td><a href=\"%s/\" content-length=\"%lld\" "
+                      "last-modified=\"%lld\">"
                       "%s/</a></td>"
-                      "<td align=right>%ld</td>%s</tr>\n", 
-                      encoded, statbuf.st_size, statbuf.st_mtime,
-                      escaped, 
-                      statbuf.st_size, modified);
-               else temp = apr_psprintf(r->pool, 
-                      "<tr><td><a href=\"%s\" content-length=\"%ld\" "
-                      "last-modified=\"%ld\">"
+                      "<td align=right>%lld</td>%s</tr>\n",
+                      encoded, (long long) statbuf.st_size,
+                      (long long) statbuf.st_mtime, escaped,
+                      (long long) statbuf.st_size, modified);
+               else temp = apr_psprintf(r->pool,
+                      "<tr><td><a href=\"%s\" content-length=\"%lld\" "
+                      "last-modified=\"%lld\">"
                       "%s</a></td>"
-                      "<td align=right>%ld</td>%s</tr>\n", 
-                      encoded, statbuf.st_size, statbuf.st_mtime,
-                      escaped, 
-                      statbuf.st_size, modified);
-                      
+                      "<td align=right>%lld</td>%s</tr>\n",
+                      encoded, (long long) statbuf.st_size,
+                      (long long) statbuf.st_mtime, escaped,
+                      (long long) statbuf.st_size, modified);
+
                free(encoded);
                /* escaped done with pool so no free() */
 
@@ -874,8 +874,8 @@ char *make_passcode_file(request_rec *r, mod_gridsite_dir_cfg *conf,
     ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
                "Created passcode file %s", filetemplate);
 
-    if (expires_time > 0) apr_file_printf(fp, "expires=%lu\n",
-                                      (time_t) apr_time_sec(expires_time));
+    if (expires_time > 0) apr_file_printf(fp, "expires=%lld\n",
+                                      (long long) apr_time_sec(expires_time));
 
     apr_file_printf(fp, "domain=%s\npath=%s\n", r->hostname, path);
 
@@ -1290,19 +1290,19 @@ static void recurse4dirlist(char *dirname, time_t *dirs_time,
                   strftime(modified, sizeof(modified), 
               "<td align=right>%R</td><td align=right>%e&nbsp;%b&nbsp;%y</td>",
                        &mtime_tm);
-                  
+
                   mildencoded = GRSThttpUrlMildencode(&unencname[fullurilen]);
-                 
+
                   oneline = apr_psprintf(r->pool,
                                      "<tr><td><a href=\"%s\" "
-                                     "content-length=\"%ld\" "
-                                     "last-modified=\"%ld\">"
+                                     "content-length=\"%lld\" "
+                                     "last-modified=\"%lld\">"
                                      "%s</a></td>"
-                                     "<td align=right>%ld</td>%s</tr>\n", 
-                                     mildencoded, statbuf.st_size, 
-                                     statbuf.st_mtime, 
-                                     html_escape(r->pool, unencname), 
-                                     statbuf.st_size, modified);
+                                     "<td align=right>%lld</td>%s</tr>\n",
+                                     mildencoded, (long long) statbuf.st_size,
+                                     (long long) statbuf.st_mtime,
+                                     html_escape(r->pool, unencname),
+                                     (long long) statbuf.st_size, modified);
 
                   free(mildencoded);
 
@@ -2486,16 +2486,16 @@ void GRST_save_ssl_creds(conn_rec *conn, GRSTx509Chain *grst_chain)
 
             apr_table_setn(conn->notes,
                    apr_psprintf(conn->pool, "GRST_CRED_VALID_%d", i),
-                   apr_psprintf(conn->pool, 
-                      "notbefore=%ld notafter=%ld delegation=%d nist-loa=%d", 
-                      grst_cert->notbefore,
-                      grst_cert->notafter,
+                   apr_psprintf(conn->pool,
+                      "notbefore=%lld notafter=%lld delegation=%d nist-loa=%d",
+                      (long long) grst_cert->notbefore,
+                      (long long) grst_cert->notafter,
                       grst_cert->delegation, 0));
 
-            if (fp != NULL) apr_file_printf(fp, 
-  "GRST_CRED_VALID_%d=notbefore=%ld notafter=%ld delegation=%d nist-loa=%d\n",
-                                            i, grst_cert->notbefore,
-                                               grst_cert->notafter, 
+            if (fp != NULL) apr_file_printf(fp,
+  "GRST_CRED_VALID_%d=notbefore=%lld notafter=%lld delegation=%d nist-loa=%d\n",
+                                            i, (long long) grst_cert->notbefore,
+                                               (long long) grst_cert->notafter,
                                                grst_cert->delegation, 0);
 
             ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, conn->base_server,
@@ -2541,16 +2541,16 @@ void GRST_save_ssl_creds(conn_rec *conn, GRSTx509Chain *grst_chain)
 
             apr_table_setn(conn->notes,
                    apr_psprintf(conn->pool, "GRST_CRED_VALID_%d", i),
-                   apr_psprintf(conn->pool, 
-                      "notbefore=%ld notafter=%ld delegation=%d nist-loa=%d", 
-                      grst_cert->notbefore,
-                      grst_cert->notafter, 
+                   apr_psprintf(conn->pool,
+                      "notbefore=%lld notafter=%lld delegation=%d nist-loa=%d",
+                      (long long) grst_cert->notbefore,
+                      (long long) grst_cert->notafter,
                       grst_cert->delegation, 0));
 
-            if (fp != NULL) apr_file_printf(fp, 
-  "GRST_CRED_VALID_%d=notbefore=%ld notafter=%ld delegation=%d nist-loa=%d\n",
-                                            i, grst_cert->notbefore,
-                                               grst_cert->notafter,
+            if (fp != NULL) apr_file_printf(fp,
+  "GRST_CRED_VALID_%d=notbefore=%lld notafter=%lld delegation=%d nist-loa=%d\n",
+                                            i, (long long) grst_cert->notbefore,
+                                               (long long) grst_cert->notafter,
                                                grst_cert->delegation, 0);
 
             ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, conn->base_server,
@@ -2713,7 +2713,7 @@ static int mod_gridsite_perm_handler(request_rec *r)
                 *aclpath = NULL, *grst_cred_valid_0 = NULL, *grst_cred_valid_i,
                 *gridauthpasscode = NULL, *grst_voms_fqans;
     const char  *content_type, *robot;
-    time_t      notbefore, notafter;
+    long long   notbefore, notafter;
     apr_table_t *env;
     apr_finfo_t  cookiefile_info;
     apr_file_t  *fp;
@@ -2889,7 +2889,7 @@ static int mod_gridsite_perm_handler(request_rec *r)
                                 && (j == i)
                                 && ((p = index(oneline, '=')) != NULL)
                                 && (sscanf(&p[1], 
-                       "notbefore=%ld notafter=%ld delegation=%d nist-loa=%d", 
+                       "notbefore=%lld notafter=%lld delegation=%d nist-loa=%d",
                                   &notbefore, &notafter, &delegation, 
                                   &nist_loa) == 4))
                          {
@@ -2945,7 +2945,7 @@ static int mod_gridsite_perm_handler(request_rec *r)
         ((grst_cred_valid_0 = (char *) 
          apr_table_get(r->connection->notes, "GRST_CRED_VALID_0")) != NULL) &&
         (sscanf(grst_cred_valid_0, 
-                "notbefore=%ld notafter=%ld delegation=%d nist-loa=%d", 
+                "notbefore=%lld notafter=%lld delegation=%d nist-loa=%d",
                 &notbefore, &notafter, &delegation, &nist_loa) == 4) &&
         (delegation <= ((mod_gridsite_dir_cfg *) cfg)->gsiproxylimit) &&
         ((delegation > 0) || 
@@ -2988,7 +2988,7 @@ static int mod_gridsite_perm_handler(request_rec *r)
                          nist_loa   = 0;
                        
                          sscanf(grst_cred_valid_i, 
-                       "notbefore=%ld notafter=%ld delegation=%d nist-loa=%d", 
+                       "notbefore=%lld notafter=%lld delegation=%d nist-loa=%d",
                                 &notbefore, &notafter, &delegation, &nist_loa);
                         
                          GRSTgaclCredSetNotBefore( cred, notbefore);
@@ -3104,10 +3104,10 @@ static int mod_gridsite_perm_handler(request_rec *r)
                    apr_table_setn(env, 
                                   apr_psprintf(r->pool, "GRST_CRED_%d", i),
                                   apr_psprintf(r->pool, 
-                                               "%s %ld %ld %d %s",
+                                               "%s %lld %lld %d %s",
                                                (i==0) ? "X509USER" : "GSIPROXY",
-                                               cred->notbefore,
-                                               cred->notafter,
+                                               (long long) cred->notbefore,
+                                               (long long) cred->notafter,
                                                cc_delegation, 
                                                decoded));
                    free(decoded);
@@ -3118,7 +3118,7 @@ static int mod_gridsite_perm_handler(request_rec *r)
                    apr_table_setn(env, 
                                   apr_psprintf(r->pool, "GRST_CRED_%d", i),
                                   apr_psprintf(r->pool, 
-                                                  "VOMS %ld %ld 0 %s",
+                                                  "VOMS %lld %lld 0 %s",
                                                   notbefore, notafter, 
                                                   decoded));
                    free(decoded);
@@ -3131,9 +3131,9 @@ static int mod_gridsite_perm_handler(request_rec *r)
                apr_table_setn(env, 
                               apr_psprintf(r->pool, "GRST_CRED_VALID_%d", i),
                               apr_psprintf(r->pool,
-                       "notbefore=%ld notafter=%ld delegation=%d nist-loa=%d",
-                                           cred->notbefore,
-                                           cred->notafter,
+                       "notbefore=%lld notafter=%lld delegation=%d nist-loa=%d",
+                                           (long long) cred->notbefore,
+                                           (long long) cred->notafter,
                                            cred->delegation,
                                            cred->nist_loa));
                  
@@ -4042,8 +4042,8 @@ static void mod_gridsite_child_init(apr_pool_t *pPool, server_rec *pServer)
                       - apr_time_from_sec(sc->session_cache_timeout);
 
        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, pServer,
-                        "Cutoff time for ssl creds cache: %ld", 
-                        (long) apr_time_sec(cutoff_time));
+                        "Cutoff time for ssl creds cache: %lld",
+                        (long long) apr_time_sec(cutoff_time));
 
        if (apr_dir_open(&dir, 
            ap_server_root_relative(pPool, sessionsdir), pPool) == APR_SUCCESS)

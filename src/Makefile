@@ -282,7 +282,7 @@ apidoc:
 	date
 	doxygen Doxyfile
 	mkdir -p ../doc/doxygen
-	cp -f doxygen/*.html doxygen/*.css doxygen/*.png ../doc/doxygen
+	cp -f doxygen/* ../doc/doxygen
 	cd ../doc ; for i in *.1 *.8 ; do ../src/roffit < $$i \
           > $$i.html ; done
 

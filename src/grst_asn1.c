@@ -21,17 +21,17 @@
  *   necessary)
  */
                                                                                 
-time_t GRSTasn1TimeToTimeT(char *asn1time, size_t len)
+time_t GRSTasn1TimeToTimeT(const unsigned char *asn1time, size_t len)
 {
    char   zone;
    struct tm time_tm;
    
-   if (len == 0) len = strlen(asn1time);
+   if (len == 0) len = strlen((const char *) asn1time);
                                                                                 
    if ((len != 13) && (len != 15)) return 0; /* dont understand */
                                                                                 
    if ((len == 13) &&
-       ((sscanf(asn1time, "%02d%02d%02d%02d%02d%02d%c",
+       ((sscanf((const char *) asn1time, "%02d%02d%02d%02d%02d%02d%c",
          &(time_tm.tm_year),
          &(time_tm.tm_mon),
          &(time_tm.tm_mday),
@@ -41,7 +41,7 @@ time_t GRSTasn1TimeToTimeT(char *asn1time, size_t len)
          &zone) != 7) || (zone != 'Z'))) return 0; /* dont understand */
                                                                                 
    if ((len == 15) &&
-       ((sscanf(asn1time, "20%02d%02d%02d%02d%02d%02d%c",
+       ((sscanf((const char *) asn1time, "20%02d%02d%02d%02d%02d%02d%c",
          &(time_tm.tm_year),
          &(time_tm.tm_mon),
          &(time_tm.tm_mday),
@@ -134,7 +134,7 @@ static int GRSTasn1PrintPrintable(BIO *bp, const unsigned char *str, int length)
    int   ret = 0;
    char *dup, *p;
    
-   dup = strndup(str, length);
+   dup = strndup((const char *) str, length);
 
    for (p=dup; *p != '\0'; ++p) if ((*p < ' ') || (*p > '~')) *p = '.';
 
@@ -323,9 +323,9 @@ static int GRSTasn1Parse2(BIO *bp, const unsigned char **pp, long length, int of
 				os=d2i_ASN1_OCTET_STRING(NULL,&opp,len+hl);
 				if (os != NULL)
 					{
-					opp=os->data;
+					opp = ASN1_STRING_get0_data(os);
 
-					if (os->length > 0)
+					if (ASN1_STRING_length(os) > 0)
 					  {
 					    if ((bp != NULL) &&
 						    (BIO_write(bp,":",1) <= 0))
@@ -333,7 +333,7 @@ static int GRSTasn1Parse2(BIO *bp, const unsigned char **pp, long length, int of
 					    if ((bp != NULL) &&
 					        (GRSTasn1PrintPrintable(bp,
 					                opp,
-							os->length) <= 0))
+							ASN1_STRING_length(os)) <= 0))
 							goto end;
 					  }
 
@@ -352,18 +352,18 @@ static int GRSTasn1Parse2(BIO *bp, const unsigned char **pp, long length, int of
 					{
 					if ((bp != NULL) &&
 					    (BIO_write(bp,":",1) <= 0)) goto end;
-					if (bs->type == V_ASN1_NEG_INTEGER)
+					if (ASN1_STRING_type(bs) == V_ASN1_NEG_INTEGER)
 						if ((bp != NULL) &&
 						    (BIO_write(bp,"-",1) <= 0))
 							goto end;
-					for (i=0; i<bs->length; i++)
+					for (i=0; i < ASN1_STRING_length(bs); i++)
 						{
 						if ((bp != NULL) &&
 						    (BIO_printf(bp,"%02X",
-							bs->data[i]) <= 0))
+							ASN1_STRING_get0_data(bs)[i]) <= 0))
 							goto end;
 						}
-					if (bs->length == 0)
+					if (ASN1_STRING_length(bs) == 0)
 						{
 						if ((bp != NULL) && 
 						    (BIO_write(bp,"00",2) <= 0))
@@ -389,18 +389,18 @@ static int GRSTasn1Parse2(BIO *bp, const unsigned char **pp, long length, int of
 					{
 					if ((bp != NULL) &&
 					    (BIO_write(bp,":",1) <= 0)) goto end;
-					if (bs->type == V_ASN1_NEG_ENUMERATED)
+					if (ASN1_STRING_type(bs) == V_ASN1_NEG_ENUMERATED)
 						if ((bp != NULL) &&
 						    (BIO_write(bp,"-",1) <= 0))
 							goto end;
-					for (i=0; i<bs->length; i++)
+					for (i=0; i < ASN1_STRING_length(bs); i++)
 						{
 						if ((bp != NULL) &&
 						    (BIO_printf(bp,"%02X",
-							bs->data[i]) <= 0))
+							ASN1_STRING_get0_data(bs)[i]) <= 0))
 							goto end;
 						}
-					if (bs->length == 0)
+					if (ASN1_STRING_length(bs) == 0)
 						{
 						if ((bp != NULL) &&
 						    (BIO_write(bp,"00",2) <= 0))
@@ -463,7 +463,7 @@ int GRSTasn1ParseDump(BIO *bp, const unsigned char *pp, long len,
         }                        
 
 int
-GRSTasn1GetField(int index, char *coords, char *asn1string,
+GRSTasn1GetField(int index, char *coords, const unsigned char *asn1string,
 		   struct GRSTasn1TagList taglist[], int lasttag,
 		   ASN1_OBJECT **field_obj, int *field_index)
 {
@@ -482,7 +482,7 @@ GRSTasn1GetField(int index, char *coords, char *asn1string,
     if (ival < 0)
 	return GRST_RET_FAILED;
 
-    q = (unsigned char *) &asn1string[taglist[iobj].start];
+    q = &asn1string[taglist[iobj].start];
     obj = d2i_ASN1_OBJECT(NULL, &q,
 		    taglist[iobj].length + taglist[iobj].headerlength);
     if (obj == NULL)
@@ -495,7 +495,7 @@ GRSTasn1GetField(int index, char *coords, char *asn1string,
 }
 
 int GRSTasn1GetX509Name(char *x509name, int maxlength, char *coords,
-                        char *asn1string,
+                        const unsigned char *asn1string,
                         struct GRSTasn1TagList taglist[], int lasttag)                        
 {
    int i, istr, n, len = 0;
@@ -533,7 +533,7 @@ int GRSTasn1GetX509Name(char *x509name, int maxlength, char *coords,
 
 int
 GRSTasn1FindField(const char *oid, char *coords,
-		   char *asn1string,
+		   const unsigned char *asn1string,
 		   struct GRSTasn1TagList taglist[], int lasttag,
 		   int *result)
 {

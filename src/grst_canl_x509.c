@@ -87,7 +87,7 @@ static int GRSTx509MakeProxyRequest_int(char **reqtxt, char *proxydir,
 static int GRSTx509ProxyKeyMatch(char **pkfile, char *pkdir, STACK_OF(X509) *certstack); 
 
 static char *
-asn1_string2string(ASN1_STRING *str)
+asn1_string2string(const ASN1_STRING *str)
 {
 	BIO *bio;
 	int len, ret;
@@ -144,9 +144,9 @@ is_robot_certificate(X509 *cert)
 	int i, ret, found;
 	char *p;
 	char buf[64];
-	X509_NAME_ENTRY *ne;
-	X509_NAME *subject;
-	ASN1_STRING *value;
+	const X509_NAME_ENTRY *ne;
+	const X509_NAME *subject;
+	const ASN1_STRING *value;
 	CERTIFICATEPOLICIES *policies = NULL;
 	POLICYINFO *policy;
 
@@ -202,7 +202,7 @@ add_grst_cred(GRSTx509Cert *last_cred)
 
 int
 GRSTasn1FindField(const char *oid, char *coords,
-        char *asn1string,
+        const unsigned char *asn1string,
         struct GRSTasn1TagList taglist[], int lasttag,
         int *result);
 
@@ -220,7 +220,7 @@ static void GRSTx509SafeOpenSSLInitialization(void)
 }
 
 /// Compare X509 Distinguished Name strings
-int GRSTx509NameCmp(char *a, char *b)
+int GRSTx509NameCmp(const char *a, const char *b)
 ///
 /// This function attempts to do with string representations what
 /// would ideally be done with OIDs/values. In particular, we equate
@@ -271,8 +271,12 @@ int GRSTx509KnownCriticalExts(X509 *cert)
 {
    int  i;
    char s[80];
+#if OPENSSL_VERSION_NUMBER >= 0x40000000L
+   const X509_EXTENSION *ex;
+#else
    X509_EXTENSION *ex;
-   
+#endif
+
 #ifdef X509_V_ERR_UNHANDLED_CRITICAL_EXTENSION        
    for (i = 0; i < X509_get_ext_count(cert); ++i)
       {
@@ -339,8 +343,8 @@ int GRSTx509ChainFree(GRSTx509Chain *chain)
 
 /// Check a specific signature against a specific (VOMS) cert
 static int GRSTx509VerifySig(time_t *time1_time, time_t *time2_time,
-                             unsigned char *txt, int txt_len,
-                             unsigned char *sig, int sig_len, 
+                             const unsigned char *txt, int txt_len,
+                             const unsigned char *sig, int sig_len,
                              X509 *cert, const EVP_MD *md_type)
 ///
 /// Returns GRST_RET_OK if signature is ok, other values if not.
@@ -376,22 +380,22 @@ static int GRSTx509VerifySig(time_t *time1_time, time_t *time2_time,
 
    if (ret != 1) return GRST_RET_FAILED;
 
-   voms_service_time1 = 
-           GRSTasn1TimeToTimeT(ASN1_STRING_data(X509_get_notBefore(cert)),0);
-          if (voms_service_time1 > *time1_time) 
-                             *time1_time = voms_service_time1; 
-           
-   voms_service_time2 = 
-           GRSTasn1TimeToTimeT(ASN1_STRING_data(X509_get_notAfter(cert)),0);
-          if (voms_service_time2 < *time2_time) 
-                             *time2_time = voms_service_time2; 
+   voms_service_time1 =
+       GRSTasn1TimeToTimeT(ASN1_STRING_get0_data(X509_get_notBefore(cert)), 0);
+   if (voms_service_time1 > *time1_time)
+       *time1_time = voms_service_time1;
+
+   voms_service_time2 =
+       GRSTasn1TimeToTimeT(ASN1_STRING_get0_data(X509_get_notAfter(cert)), 0);
+   if (voms_service_time2 < *time2_time)
+       *time2_time = voms_service_time2;
 
    return GRST_RET_OK ; /* verified */
 }
 
 /// Check the signature of the VOMS attributes
 static int GRSTx509VerifyVomsSig(time_t *time1_time, time_t *time2_time,
-                                 unsigned char *asn1string, 
+                                 const unsigned char *asn1string,
                                  struct GRSTasn1TagList taglist[], 
                                  int lasttag,
                                  char *vomsdir, int acnumber)
@@ -575,7 +579,7 @@ static int GRSTx509VerifyVomsSig(time_t *time1_time, time_t *time2_time,
 
 /// Check the signature of the VOMS attributes using the LSC file cert
 static int GRSTx509VerifyVomsSigCert(time_t *time1_time, time_t *time2_time,
-                                     unsigned char *asn1string, 
+                                     const unsigned char *asn1string,
                                      struct GRSTasn1TagList taglist[], 
                                      int lasttag,
                                      char *vomsdir, int acnumber,
@@ -603,9 +607,9 @@ static int GRSTx509VerifyVomsSigCert(time_t *time1_time, time_t *time2_time,
    struct stat    statbuf;
    time_t         tmp_time;
    ASN1_OBJECT   *hash_obj = NULL;
-   char		  coords[200];
+   char           coords[200];
    const EVP_MD  *md_type = NULL;
-   time_t	  voms_service_time1 = 0, voms_service_time2 = GRST_MAX_TIME_T;
+   time_t         voms_service_time1 = 0, voms_service_time2 = GRST_MAX_TIME_T;
 
    if ((vomsdir == NULL) || (vomsdir[0] == '\0')) return GRST_RET_FAILED;
 
@@ -635,7 +639,7 @@ static int GRSTx509VerifyVomsSigCert(time_t *time1_time, time_t *time2_time,
 
    q = &asn1string[taglist[ihash].start];
    d2i_ASN1_OBJECT(&hash_obj, &q,
-		   taglist[ihash].length+taglist[ihash].headerlength);
+                   taglist[ihash].length+taglist[ihash].headerlength);
 
    md_type = EVP_get_digestbyname(OBJ_nid2sn(OBJ_obj2nid(hash_obj)));
    if (hash_obj)
@@ -687,21 +691,21 @@ static int GRSTx509VerifyVomsSigCert(time_t *time1_time, time_t *time2_time,
    /* check times CA cert times, and reject if necessary */
 
    tmp_time = GRSTasn1TimeToTimeT(
-                   ASN1_STRING_data(X509_get_notBefore(cacert)), 0);
+                   ASN1_STRING_get0_data(X509_get_notBefore(cacert)), 0);
    if (tmp_time > *time1_time) chain_errors |= GRST_CERT_BAD_TIME;
 
    tmp_time = GRSTasn1TimeToTimeT(
-                   ASN1_STRING_data(X509_get_notAfter(cacert)), 0);
+                   ASN1_STRING_get0_data(X509_get_notAfter(cacert)), 0);
    if (tmp_time < *time2_time) chain_errors |= GRST_CERT_BAD_TIME;
    
    /* check times VOMS cert times, and tighten if necessary */
 
    tmp_time = GRSTasn1TimeToTimeT(
-                   ASN1_STRING_data(X509_get_notBefore(vomscert)), 0);
+                   ASN1_STRING_get0_data(X509_get_notBefore(vomscert)), 0);
    if (tmp_time > *time1_time) chain_errors |= GRST_CERT_BAD_TIME;
 
    tmp_time = GRSTasn1TimeToTimeT(
-                   ASN1_STRING_data(X509_get_notAfter(vomscert)), 0);
+                   ASN1_STRING_get0_data(X509_get_notAfter(vomscert)), 0);
    if (tmp_time < *time2_time) chain_errors |= GRST_CERT_BAD_TIME;
    
    ret = X509_check_issued(cacert, vomscert);
@@ -808,10 +812,14 @@ end:
 }
 
 /// Get the VOMS attributes in the given extension
-static int GRSTx509ChainVomsAdd(GRSTx509Cert **grst_cert, 
+static int GRSTx509ChainVomsAdd(GRSTx509Cert **grst_cert,
                          time_t time1_time, time_t time2_time,
-			 int delegation,
-                         X509_EXTENSION *ex, 
+                         int delegation,
+#if OPENSSL_VERSION_NUMBER >= 0x40000000L
+                         const X509_EXTENSION *ex,
+#else
+                         X509_EXTENSION *ex,
+#endif
                          GRSTx509Cert *user_cert, char *vomsdir, char *capath)
 ///
 /// Add any VOMS credentials found into the chain. Always returns GRST_RET_OK
@@ -826,8 +834,9 @@ static int GRSTx509ChainVomsAdd(GRSTx509Cert **grst_cert,
 #define GRST_ASN1_COORDS_TIME2         "-1-1-%d-1-6-2"
 #define GRST_ASN1_COORDS_VOMSCERT      "-1-1-%d-1-8-%%d-%%d"
 
-   ASN1_OCTET_STRING *asn1data;
-   char              *asn1string, acissuerdn[200], acvomsdn[200],
+   const ASN1_OCTET_STRING *asn1data;
+   const unsigned char *asn1string;
+   char               acissuerdn[200], acvomsdn[200],
                       dn_coords[200], fqan_coords[200], time1_coords[200],
                       time2_coords[200], vomscert_coords[200], *voname = NULL,
                       serial_coords[200];
@@ -838,10 +847,10 @@ static int GRSTx509ChainVomsAdd(GRSTx509Cert **grst_cert,
    struct GRSTasn1TagList taglist[MAXTAG+1];
    time_t             actime1 = 0, actime2 = 0, time_now,
                       tmp_time1, tmp_time2;
-   ASN1_INTEGER	      acissuerserialASN1;
+   ASN1_INTEGER      *acissuerserialASN1;
 
    asn1data   = X509_EXTENSION_get_data(ex);
-   asn1string = ASN1_STRING_data(asn1data);
+   asn1string = ASN1_STRING_get0_data(asn1data);
    asn1length = ASN1_STRING_length(asn1data);
 
    GRSTasn1ParseDump(NULL, asn1string, asn1length, taglist, MAXTAG, &lasttag);
@@ -873,11 +882,13 @@ static int GRSTx509ChainVomsAdd(GRSTx509Cert **grst_cert,
 
         if (itag > -1) 
           {
-            acissuerserialASN1.length = taglist[itag].length;
-            acissuerserialASN1.type   = V_ASN1_INTEGER;
-            acissuerserialASN1.data   = &asn1string[taglist[itag].start+taglist[itag].headerlength];
+            acissuerserialASN1 = ASN1_INTEGER_new();
+            ASN1_OCTET_STRING_set(acissuerserialASN1,
+                                  &asn1string[taglist[itag].start+taglist[itag].headerlength],
+                                  taglist[itag].length);
 
-            acissuerserial = i2s_ASN1_INTEGER(NULL, &acissuerserialASN1);
+            acissuerserial = i2s_ASN1_INTEGER(NULL, acissuerserialASN1);
+            ASN1_INTEGER_free(acissuerserialASN1);
 /*
             p = &asn1string[taglist[itag].start+taglist[itag].headerlength];
           
@@ -944,8 +955,9 @@ static int GRSTx509ChainVomsAdd(GRSTx509Cert **grst_cert,
 
         snprintf(vomscert_coords, sizeof(vomscert_coords), 
                  GRST_ASN1_COORDS_VOMSCERT, acnumber);
-	ret = GRSTasn1FindField(GRST_VOMS_PK_CERT_LIST_OID, vomscert_coords, asn1string,
-				taglist, lasttag, &ivomscert);
+        ret = GRSTasn1FindField(GRST_VOMS_PK_CERT_LIST_OID,
+                                vomscert_coords, asn1string,
+                                taglist, lasttag, &ivomscert);
 
         /* try using internal VOMS issuer cert */
         tmp_chain_errors = GRST_CERT_BAD_SIG;
@@ -1019,13 +1031,12 @@ int GRSTx509ChainLoad(GRSTx509Chain **chain,
    X509 *cert;                  /* Points to the current cert in the loop */
    X509 *cacert = NULL;         /* The CA root cert */
    int depth = 0;               /* Depth of cert chain */
-   int chain_errors = 0;	/* records previous errors */
-   int first_non_ca;		/* number of the EEC issued to user by CA */
+   int chain_errors = 0;        /* records previous errors */
    size_t len,len2;             /* Lengths of issuer and cert DN */
    int IsCA;                    /* Holds whether cert is allowed to sign */
    int prevIsCA;                /* Holds whether previous cert in chain is 
                                    allowed to sign */
-   int prevIsLimited;		/* previous cert was proxy and limited */
+   int prevIsLimited;           /* previous cert was proxy and limited */
    int i,j,ret;                 /* Iteration/temp variables */
    char *proxy_part_DN;         /* Pointer to end part of current-cert-in-chain
                                    maybe eg "/CN=proxy" */
@@ -1034,7 +1045,11 @@ int GRSTx509ChainLoad(GRSTx509Chain **chain,
    unsigned long subjecthash = 0;	/* hash of the name of first cert */
    unsigned long issuerhash = 0;	/* hash of issuer name of first cert */
    FILE *fp;
+#if OPENSSL_VERSION_NUMBER >= 0x40000000L
+   const X509_EXTENSION *ex;
+#else
    X509_EXTENSION *ex;
+#endif
    time_t now;
    GRSTx509Cert *grst_cert, *new_grst_cert, *user_cert = NULL;
    int is_robot = 0;
@@ -1043,8 +1058,6 @@ int GRSTx509ChainLoad(GRSTx509Chain **chain,
 
    time(&now);
 
-   first_non_ca = 0; /* set to something predictable if things fail */
- 
    /* Set necessary preliminary values */
    IsCA          = TRUE;           /* =prevIsCA - start from a CA */
    prevIsLimited = 0;
@@ -1187,9 +1200,9 @@ int GRSTx509ChainLoad(GRSTx509Chain **chain,
             free(p);
             
             new_grst_cert->notbefore = GRSTasn1TimeToTimeT(
-                               ASN1_STRING_data(X509_get_notBefore(cert)), 0);
+                               ASN1_STRING_get0_data(X509_get_notBefore(cert)), 0);
             new_grst_cert->notafter  = GRSTasn1TimeToTimeT(
-                               ASN1_STRING_data(X509_get_notAfter(cert)), 0);
+                               ASN1_STRING_get0_data(X509_get_notAfter(cert)), 0);
           
             /* we check times and record if invalid */
           
@@ -1222,7 +1235,6 @@ int GRSTx509ChainLoad(GRSTx509Chain **chain,
                 else 
                   {
                     new_grst_cert->type = GRST_CERT_TYPE_EEC;
-                    first_non_ca = i;
                     user_cert = new_grst_cert;
                     new_grst_cert->delegation 
                        = (lastcert == NULL) ? i : i + 1;
@@ -1289,7 +1301,7 @@ int GRSTx509ChainLoad(GRSTx509Chain **chain,
                          GRSTx509ChainVomsAdd(&grst_cert, 
                                               new_grst_cert->notbefore,
                                               new_grst_cert->notafter,
-					      (lastcert == NULL) ? i : i+1,
+                                              (lastcert == NULL) ? i : i+1,
                                               ex,
                                               user_cert,
                                               vomsdir,
@@ -1414,7 +1426,11 @@ int GRSTx509VerifyCallback (int ok, X509_STORE_CTX *ctx)
 /// Get the VOMS attributes in the given extension
 int GRSTx509ParseVomsExt(int *lastcred, int maxcreds, size_t credlen, 
                          char *creds, time_t time1_time, time_t time2_time,
-                         X509_EXTENSION *ex, 
+#if OPENSSL_VERSION_NUMBER >= 0x40000000L
+                         const X509_EXTENSION *ex,
+#else
+                         X509_EXTENSION *ex,
+#endif
                          char *ucuserdn, char *ucissuerdn, char *ucserial, 
                          char *vomsdir)
 ///
@@ -1427,8 +1443,9 @@ int GRSTx509ParseVomsExt(int *lastcred, int maxcreds, size_t credlen,
 #define GRST_ASN1_COORDS_ISSUER_DN "-1-1-%d-1-2-1-1-1-1-%%d-1-%%d"
 #define GRST_ASN1_COORDS_TIME1   "-1-1-%d-1-6-1"
 #define GRST_ASN1_COORDS_TIME2   "-1-1-%d-1-6-2"
-   ASN1_OCTET_STRING *asn1data;
-   char              *asn1string, acissuerdn[200],
+   const ASN1_OCTET_STRING *asn1data;
+   const unsigned char *asn1string;
+   char               acissuerdn[200],
                       dn_coords[200], fqan_coords[200], time1_coords[200],
                       time2_coords[200], serial_coords[200];
    long               asn1length;
@@ -1436,10 +1453,10 @@ int GRSTx509ParseVomsExt(int *lastcred, int maxcreds, size_t credlen,
    char              *acissuerserial = NULL;
    struct GRSTasn1TagList taglist[MAXTAG+1];
    time_t             actime1, actime2, time_now;
-   ASN1_INTEGER       acissuerserialASN1;
+   ASN1_INTEGER      *acissuerserialASN1;
 
    asn1data   = X509_EXTENSION_get_data(ex);
-   asn1string = ASN1_STRING_data(asn1data);
+   asn1string = ASN1_STRING_get0_data(asn1data);
    asn1length = ASN1_STRING_length(asn1data);
 
    GRSTasn1ParseDump(NULL, asn1string, asn1length, taglist, MAXTAG, &lasttag);
@@ -1465,11 +1482,13 @@ int GRSTx509ParseVomsExt(int *lastcred, int maxcreds, size_t credlen,
         
         if (itag > -1) 
           {
-            acissuerserialASN1.length = taglist[itag].length;
-            acissuerserialASN1.type   = V_ASN1_INTEGER;
-            acissuerserialASN1.data   = &asn1string[taglist[itag].start+taglist[itag].headerlength];
+            acissuerserialASN1 = ASN1_INTEGER_new();
+            ASN1_OCTET_STRING_set(acissuerserialASN1,
+                                  &asn1string[taglist[itag].start+taglist[itag].headerlength],
+                                  taglist[itag].length);
 
-            acissuerserial = i2s_ASN1_INTEGER(NULL, &acissuerserialASN1);
+            acissuerserial = i2s_ASN1_INTEGER(NULL, acissuerserialASN1);
+            ASN1_INTEGER_free(acissuerserialASN1);
 /*          
             p = &asn1string[taglist[itag].start+taglist[itag].headerlength];
             
@@ -1543,16 +1562,19 @@ int GRSTx509GetVomsCreds(int *lastcred, int maxcreds, size_t credlen,
 /// starting at *creds. Always returns GRST_RET_OK.
 {
    int  i, j;
-   char s[80], *ucserial;
-   unsigned char  *ucuser, *ucissuer;
+   char s[80], *ucuser, *ucissuer, *ucserial;
+#if OPENSSL_VERSION_NUMBER >= 0x40000000L
+   const X509_EXTENSION *ex;
+#else
    X509_EXTENSION *ex;
+#endif
    X509           *cert;
    time_t          time1_time = 0, time2_time = 0, uctime1_time, uctime2_time;
 
    uctime1_time = 
-        GRSTasn1TimeToTimeT(ASN1_STRING_data(X509_get_notBefore(usercert)),0);
+        GRSTasn1TimeToTimeT(ASN1_STRING_get0_data(X509_get_notBefore(usercert)),0);
    uctime2_time =       
-        GRSTasn1TimeToTimeT(ASN1_STRING_data(X509_get_notAfter(usercert)),0);
+        GRSTasn1TimeToTimeT(ASN1_STRING_get0_data(X509_get_notAfter(usercert)),0);
    ucuser =
         X509_NAME_oneline(X509_get_subject_name(usercert), NULL, 0);
    ucissuer =
@@ -1564,11 +1586,11 @@ int GRSTx509GetVomsCreds(int *lastcred, int maxcreds, size_t credlen,
       cert = sk_X509_value(certstack, j);
 
       time1_time =
-          GRSTasn1TimeToTimeT(ASN1_STRING_data(X509_get_notBefore(cert)),0);
+          GRSTasn1TimeToTimeT(ASN1_STRING_get0_data(X509_get_notBefore(cert)),0);
       uctime1_time = (time1_time > uctime1_time) ? time1_time:uctime1_time;
 
       time2_time =
-          GRSTasn1TimeToTimeT(ASN1_STRING_data(X509_get_notAfter(cert)),0);
+          GRSTasn1TimeToTimeT(ASN1_STRING_get0_data(X509_get_notAfter(cert)),0);
       uctime2_time = (time2_time < uctime2_time) ? time2_time:uctime2_time;
 
       for (i=0; i < X509_get_ext_count(cert); ++i)
@@ -1702,8 +1724,8 @@ int GRSTx509CompactCreds(int *lastcred, int maxcreds, size_t credlen,
    if ((usercert == NULL) /* if no usercert ("EEC"), we're not interested */
        ||
        (snprintf(credtemp, credlen+1, "X509USER %010lld %010lld %d %s",
-          (long long) GRSTasn1TimeToTimeT(ASN1_STRING_data(X509_get_notBefore(usercert)),0),
-          (long long) GRSTasn1TimeToTimeT(ASN1_STRING_data(X509_get_notAfter(usercert)),0),
+          (long long) GRSTasn1TimeToTimeT(ASN1_STRING_get0_data(X509_get_notBefore(usercert)),0),
+          (long long) GRSTasn1TimeToTimeT(ASN1_STRING_get0_data(X509_get_notAfter(usercert)),0),
           delegation,
           X509_NAME_oneline(X509_get_subject_name(usercert), NULL, 0)) >= credlen+1)
        ||
@@ -1719,8 +1741,8 @@ int GRSTx509CompactCreds(int *lastcred, int maxcreds, size_t credlen,
    if ((gsiproxycert != NULL) 
        &&
        (snprintf(credtemp, credlen+1, "GSIPROXY %010lld %010lld %d %s",
-          (long long) GRSTasn1TimeToTimeT(ASN1_STRING_data(X509_get_notBefore(gsiproxycert)),0),
-          (long long) GRSTasn1TimeToTimeT(ASN1_STRING_data(X509_get_notAfter(gsiproxycert)),0),
+          (long long) GRSTasn1TimeToTimeT(ASN1_STRING_get0_data(X509_get_notBefore(gsiproxycert)),0),
+          (long long) GRSTasn1TimeToTimeT(ASN1_STRING_get0_data(X509_get_notAfter(gsiproxycert)),0),
           delegation,
           X509_NAME_oneline(X509_get_subject_name(gsiproxycert), NULL, 0)) < credlen+1)
        &&
@@ -1949,7 +1971,7 @@ int GRSTx509MakeProxyCert(char **proxychain, FILE *debugfp,
         X509_EXTENSION_set_critical(kyu_ex, 1);
 
         kyu_oct = ASN1_OCTET_STRING_new();
-        ASN1_OCTET_STRING_set(kyu_oct, kyu_str, strlen(kyu_str));
+        ASN1_OCTET_STRING_set(kyu_oct, kyu_str, strlen((char *) kyu_str));
         X509_EXTENSION_set_data(kyu_ex, kyu_oct);
         ASN1_OCTET_STRING_free(kyu_oct);
         kyu_oct = NULL;
@@ -1964,7 +1986,7 @@ int GRSTx509MakeProxyCert(char **proxychain, FILE *debugfp,
         X509_EXTENSION_set_critical(pci_ex, 1);
 
         pci_oct = ASN1_OCTET_STRING_new();
-        ASN1_OCTET_STRING_set(pci_oct, pci_str, strlen(pci_str));
+        ASN1_OCTET_STRING_set(pci_oct, pci_str, strlen((char *) pci_str));
         X509_EXTENSION_set_data(pci_ex, pci_oct);
         ASN1_OCTET_STRING_free(pci_oct);
         pci_oct = NULL;
@@ -2136,7 +2158,7 @@ static int GRSTx509ProxyKeyMatch(char **pkfile, char *pkdir,
 {
     X509 *cert_from_chain = NULL;
     struct dirent* in_file = NULL;
-        DIR *FD = NULL;
+    DIR *FD = NULL;
     SSL_CTX * ssl_ctx = NULL;
     int ret = 0;
     char *pk_file = NULL;
@@ -2160,34 +2182,33 @@ static int GRSTx509ProxyKeyMatch(char **pkfile, char *pkdir,
         if (!strcmp (in_file->d_name, ".."))    
             continue;
         ret = asprintf(&pk_file,"%s/%s",pkdir,in_file->d_name);
-	if (ret == -1)
-	    continue;
+        if (ret == -1)
+            continue;
         /*How many certificates,key pairs I am able to load?*/
         ret = SSL_CTX_use_certificate(ssl_ctx, cert_from_chain);
         /* Should always be PEM type*/
         ret = SSL_CTX_use_PrivateKey_file(ssl_ctx, pk_file,
-		SSL_FILETYPE_PEM);
+            SSL_FILETYPE_PEM);
         if (ret != 1)
             continue;
-	ret = 0;
         ret = SSL_CTX_check_private_key(ssl_ctx);
         /* Success */
         if (ret == 1){
             ret = asprintf(pkfile, "%s", pk_file);
             closedir(FD);
-	    free (pk_file);
-	    pk_file = NULL;
+            free (pk_file);
+            pk_file = NULL;
             goto end;
         }
         else {
             *pkfile = NULL;
-	    free (pk_file);
-	    pk_file = NULL;
-                    }
+            free (pk_file);
+            pk_file = NULL;
+        }
     }
     SSL_CTX_free(ssl_ctx);
-            ssl_ctx = NULL;
-            return 4;
+    ssl_ctx = NULL;
+    return 4;
 
 
 end:
@@ -2582,8 +2603,8 @@ int GRSTx509ProxyGetTimes(char *proxydir, char *delegation_id, char *user_dn,
 
   fclose(fp);
   
-  *start  = GRSTasn1TimeToTimeT(ASN1_STRING_data(X509_get_notBefore(cert)),0);
-  *finish = GRSTasn1TimeToTimeT(ASN1_STRING_data(X509_get_notAfter(cert)),0);
+  *start  = GRSTasn1TimeToTimeT(ASN1_STRING_get0_data(X509_get_notBefore(cert)),0);
+  *finish = GRSTasn1TimeToTimeT(ASN1_STRING_get0_data(X509_get_notAfter(cert)),0);
 
   X509_free(cert);
   
@@ -2647,7 +2668,8 @@ char *GRSTx509MakeDelegationID(void)
 /// values of the compact credentials exported by mod_gridsite
 { 
   unsigned char hash_delegation_id[EVP_MAX_MD_SIZE];        
-  int  i, delegation_id_len;
+  int i;
+  unsigned int delegation_id_len;
   char cred_name[14], *cred_value, *delegation_id;
   const EVP_MD *m;
   EVP_MD_CTX *ctx = NULL;

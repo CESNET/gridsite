@@ -3126,8 +3126,8 @@ static int mod_gridsite_perm_handler(request_rec *r)
                                   apr_psprintf(r->pool, "GRST_CRED_%d", i),
                                   apr_psprintf(r->pool,
                                                   "VOMS %qd %qd 0 %s",
-                                                  (long long) notbefore,
-                                                  (long long) notafter,
+                                                  (long long) cred->notbefore,
+                                                  (long long) cred->notafter,
                                                   decoded));
                    free(decoded);
                  }

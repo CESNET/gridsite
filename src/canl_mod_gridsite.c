@@ -3001,7 +3001,7 @@ static int mod_gridsite_perm_handler(request_rec *r)
                          GRSTgaclCredSetNotBefore( cred, notbefore);
                          GRSTgaclCredSetNotAfter(  cred, notafter);
                          GRSTgaclCredSetDelegation(cred, delegation);
-                         GRSTgaclCredSetDelegation(cred, nist_loa);
+                         GRSTgaclCredSetNistLoa(cred, nist_loa);
 
                          GRSTgaclUserAddCred(user, cred);
                        }
